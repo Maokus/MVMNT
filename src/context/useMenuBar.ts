@@ -396,6 +396,8 @@ export const useMenuBar = ({
             useTimelineStore.getState().resetTimeline();
         } catch {}
         onSceneNameChange(SceneNameGenerator.generate());
+        useSceneMetadataStore.getState().stampNewDocument();
+        useTimelineStore.getState().resetMidiTimingImportEligibility();
         try {
             const settings = useSceneStore.getState().settings;
             visualizer?.canvas?.dispatchEvent(

@@ -3,6 +3,7 @@
 // All time domain inputs/outputs are in timeline seconds or ticks as documented.
 
 import type { TimelineState, TimelineTrack } from '@state/timelineStore';
+import { quarterNotesPerBar } from './meter';
 import { beatsToSeconds, secondsToBeats } from './tempo-utils';
 import { CANONICAL_PPQ } from './ppq';
 import {
@@ -173,7 +174,7 @@ export function getNotesNearTimeUnit(
 ): NoteQueryResult[] {
     const track = state.tracks[trackId];
     if (!track || track.type !== 'midi') return [];
-    const bpb = state.timeline.beatsPerBar || 4;
+    const bpb = quarterNotesPerBar(state.timeline.timeSignature);
     const map = state.timeline.masterTempoMap;
     const spb = getSecondsPerBeatFallback(state);
     const beats = timelineSecondsToTrackBeats(state, track, centerSec);

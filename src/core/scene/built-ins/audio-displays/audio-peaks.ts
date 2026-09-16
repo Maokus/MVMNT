@@ -556,18 +556,21 @@ export class AudioPeaksElement extends BoundSceneElement {
 
         if (showBarLines || showBeatLines) {
             const signature = context.timing?.getTimeSignature();
-            const beatsPerBar = Math.max(1, signature?.ok ? signature.value.numerator : 4);
+            const resolvedSignature = signature?.ok ? signature.value : { numerator: 4, denominator: 4 };
+            const beatsPerBar = Math.max(1, resolvedSignature.numerator);
+            const beatUnitQuarters = 4 / resolvedSignature.denominator;
             const firstBeatResult = context.timing?.secondsToBeats(startSeconds);
             const lastBeatResult = context.timing?.secondsToBeats(endSeconds);
             const firstBeat = firstBeatResult?.ok ? firstBeatResult.value : null;
             const lastBeat = lastBeatResult?.ok ? lastBeatResult.value : null;
             if (firstBeat !== null && lastBeat !== null && Number.isFinite(firstBeat) && Number.isFinite(lastBeat)) {
-                const initialBeat = Math.ceil(firstBeat);
+                const initialBeat = Math.ceil(firstBeat / beatUnitQuarters);
+                const finalBeat = lastBeat / beatUnitQuarters;
                 const lineWidth = clamp(typeof props.beatGridWidth === 'number' ? props.beatGridWidth : 1, 0.5, 8);
-                for (let beat = initialBeat; beat <= lastBeat + 1e-9; beat += 1) {
+                for (let beat = initialBeat; beat <= finalBeat + 1e-9; beat += 1) {
                     const isBar = Math.abs(beat / beatsPerBar - Math.round(beat / beatsPerBar)) < 1e-9;
                     if ((isBar && !showBarLines) || (!isBar && !showBeatLines)) continue;
-                    const secondsResult = context.timing?.beatsToSeconds(beat);
+                    const secondsResult = context.timing?.beatsToSeconds(beat * beatUnitQuarters);
                     if (!secondsResult?.ok) continue;
                     const seconds = secondsResult.value;
                     const x = ((seconds - startSeconds) / windowSeconds) * width;

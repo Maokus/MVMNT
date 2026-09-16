@@ -15,6 +15,7 @@ import {
     mergePersistedAnalysisIntents,
     type PersistedAnalysisIntent,
 } from '@audio/features/analysisIntents';
+import { normalizeTimeSignature } from '@core/timing/meter';
 
 /** Fields stripped from sceneSettings when persisting (padding concepts removed). */
 const STRIP_SCENE_SETTINGS_KEYS = new Set(['prePadding', 'postPadding', 'tempo', 'beatsPerBar']);
@@ -221,6 +222,9 @@ export const DocumentGateway = {
     _applyUnchecked(doc: PersistentDocumentV1 & { __ephemeral?: DocumentEphemeralState }) {
         const set = useTimelineStore.setState;
         const timelineCore = doc.timeline || {};
+        const timeSignature = normalizeTimeSignature(
+            timelineCore.timeSignature ?? { numerator: timelineCore.beatsPerBar || 4, denominator: 4 }
+        );
         const hydratedTracks: Record<string, any> = {};
         for (const [id, track] of Object.entries(doc.tracks || {})) {
             hydratedTracks[id] = hydrateRuntimeMidiPlacementFields(track);
@@ -230,6 +234,8 @@ export const DocumentGateway = {
             timeline: {
                 ...prev.timeline,
                 ...timelineCore,
+                beatsPerBar: timeSignature.numerator,
+                timeSignature,
                 tempoAutomation: timelineCore.tempoAutomation
                     ? {
                           ...timelineCore.tempoAutomation,
@@ -248,12 +254,13 @@ export const DocumentGateway = {
             midiCache: doc.midiCache || {},
             audioFeatureCaches: doc.audioFeatureCaches || {},
             audioFeatureCacheStatus: doc.audioFeatureCacheStatus || {},
+            midiTimingImport: { pending: false, bpmTouched: true, meterTouched: true },
         }));
 
         // After timeline slice merge, propagate restored tempo state to shared timing manager.
         try {
             const tl = useTimelineStore.getState().timeline;
-            // Order matters: set BPM first (clears tempo map), then map, then beatsPerBar.
+            // Order matters: set BPM first (clears tempo map), then map, then meter.
             if (typeof tl.globalBpm === 'number' && tl.globalBpm > 0) {
                 sharedTimingManager.setBPM(tl.globalBpm);
             }
@@ -263,9 +270,7 @@ export const DocumentGateway = {
                 // Ensure we clear tempo map if snapshot had none.
                 sharedTimingManager.setTempoMap(null);
             }
-            if (typeof tl.beatsPerBar === 'number' && tl.beatsPerBar > 0) {
-                sharedTimingManager.setBeatsPerBar(tl.beatsPerBar);
-            }
+            sharedTimingManager.setTimeSignature(tl.timeSignature);
         } catch {
             /* non-fatal */
         }
@@ -315,7 +320,7 @@ export const DocumentGateway = {
                 const api = useTimelineStore.getState();
                 const tl = api.timeline;
                 const haveTimelineBpm = typeof tl.globalBpm === 'number' && tl.globalBpm !== 120;
-                const haveTimelineMeter = typeof tl.beatsPerBar === 'number' && tl.beatsPerBar !== 4;
+                const haveTimelineMeter = tl.timeSignature.numerator !== 4 || tl.timeSignature.denominator !== 4;
                 const fallbackBpm = typeof tempo === 'number' && !haveTimelineBpm ? Math.max(1, tempo) : tl.globalBpm;
                 const fallbackMeter =
                     typeof beatsPerBar === 'number' && !haveTimelineMeter
@@ -323,10 +328,15 @@ export const DocumentGateway = {
                         : tl.beatsPerBar;
                 if (fallbackBpm !== tl.globalBpm || fallbackMeter !== tl.beatsPerBar) {
                     useTimelineStore.setState((state) => ({
-                        timeline: { ...state.timeline, globalBpm: fallbackBpm, beatsPerBar: fallbackMeter },
+                        timeline: {
+                            ...state.timeline,
+                            globalBpm: fallbackBpm,
+                            beatsPerBar: fallbackMeter,
+                            timeSignature: { numerator: fallbackMeter, denominator: 4 },
+                        },
                     }));
                     sharedTimingManager.setBPM(fallbackBpm);
-                    sharedTimingManager.setBeatsPerBar(fallbackMeter);
+                    sharedTimingManager.setTimeSignature({ numerator: fallbackMeter, denominator: 4 });
                 }
             } catch {
                 /* ignore */

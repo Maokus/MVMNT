@@ -33,6 +33,7 @@ import type { TempoMapEntry, NoteRaw, CCEventRaw, MidiCacheBounds } from '@state
 import type { TempoKeyframe } from '@core/timing/types';
 import { resolveTempoKeyframes } from '@core/timing/tempo-automation-resolver';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
+import { quarterNotesPerBar } from '@core/timing/meter';
 import {
     createTimingContext,
     secondsToTicks as timingSecondsToTicks,
@@ -342,7 +343,7 @@ function scheduleAudioFeatureAnalysis(
         audioSourceId: sourceId,
         audioBuffer: buffer,
         globalBpm: snapshot.timeline.globalBpm,
-        beatsPerBar: snapshot.timeline.beatsPerBar,
+        beatsPerBar: quarterNotesPerBar(snapshot.timeline.timeSignature),
         tempoMap: snapshot.timeline.masterTempoMap,
         calculators: options.calculators,
         analysisProfileId: options.analysisProfileId,
@@ -440,15 +441,40 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
 
     setGlobalBpm(bpm: number) {
+        set((state) => ({ midiTimingImport: { ...state.midiTimingImport, bpmTouched: true } }));
         void timelineCommandGateway
             .dispatchById('timeline.setGlobalBpm', { bpm }, { source: 'timeline-store', mode: 'concurrent' })
             .catch((error) => console.error('[timelineStore] setGlobalBpm command failed', error));
     },
 
     setBeatsPerBar(beatsPerBar: number) {
+        set((state) => ({ midiTimingImport: { ...state.midiTimingImport, meterTouched: true } }));
         void timelineCommandGateway
             .dispatchById('timeline.setBeatsPerBar', { beatsPerBar }, { source: 'timeline-store', mode: 'concurrent' })
             .catch((error) => console.error('[timelineStore] setBeatsPerBar command failed', error));
+    },
+
+    setTimeSignature(timeSignature) {
+        set((state) => ({ midiTimingImport: { ...state.midiTimingImport, meterTouched: true } }));
+        void timelineCommandGateway
+            .dispatchById(
+                'timeline.setTimeSignature',
+                { timeSignature },
+                { source: 'timeline-store', mode: 'concurrent' }
+            )
+            .catch((error) => console.error('[timelineStore] setTimeSignature command failed', error));
+    },
+
+    finishInitialMidiTimingImport() {
+        set((state) => ({ midiTimingImport: { ...state.midiTimingImport, pending: false } }));
+    },
+
+    resetMidiTimingImportEligibility() {
+        set({ midiTimingImport: { pending: true, bpmTouched: false, meterTouched: false } });
+    },
+
+    disableMidiTimingImportEligibility() {
+        set({ midiTimingImport: { pending: false, bpmTouched: true, meterTouched: true } });
     },
 
     async addMidiTrack(input: {
@@ -1291,6 +1317,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             const tm = getSharedTimingManager();
             tm.setBPM(initial.timeline.globalBpm || 120);
             tm.setTempoMap(undefined, 'seconds');
+            tm.setTimeSignature(initial.timeline.timeSignature);
         } catch (error) {
             console.error('[timelineStore] failed to reset shared timing manager', error);
         }
@@ -1372,6 +1399,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     // ── Tempo automation actions ──
 
     enableTempoAutomation() {
+        set((state) => ({ midiTimingImport: { ...state.midiTimingImport, bpmTouched: true } }));
         const currentBpm = get().timeline.globalBpm || 120;
         const current = get().timeline.tempoAutomation;
         const keyframes = current?.keyframes.length ? current.keyframes : [{ tick: 0, bpm: currentBpm }];
@@ -1383,6 +1411,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
 
     disableTempoAutomation() {
+        set((state) => ({ midiTimingImport: { ...state.midiTimingImport, bpmTouched: true } }));
         void timelineCommandGateway.dispatchById(
             'timeline.setTempoAutomation',
             { enabled: false, keyframes: get().timeline.tempoAutomation?.keyframes ?? [] },
@@ -1391,6 +1420,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
 
     addTempoKeyframe(tick: number, bpm: number) {
+        set((state) => ({ midiTimingImport: { ...state.midiTimingImport, bpmTouched: true } }));
         const ta = get().timeline.tempoAutomation ?? { enabled: false, keyframes: [] };
         const existing = ta.keyframes.findIndex((kf) => Math.abs(kf.tick - tick) <= TEMPO_KF_TICK_TOLERANCE);
         const keyframes = [...ta.keyframes];
@@ -1404,6 +1434,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
 
     removeTempoKeyframe(tick: number) {
+        set((state) => ({ midiTimingImport: { ...state.midiTimingImport, bpmTouched: true } }));
         // The Bar 1 point is the required base tempo for an enabled map.
         if (Math.abs(tick) <= TEMPO_KF_TICK_TOLERANCE) return;
         const ta = get().timeline.tempoAutomation ?? { enabled: false, keyframes: [] };
@@ -1418,6 +1449,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
 
     moveTempoKeyframe(fromTick: number, toTick: number) {
+        set((state) => ({ midiTimingImport: { ...state.midiTimingImport, bpmTouched: true } }));
         if (Math.abs(fromTick) <= TEMPO_KF_TICK_TOLERANCE) return;
         if (Math.abs(fromTick - toTick) > TEMPO_KF_TICK_TOLERANCE) {
             const occupied = get().timeline.tempoAutomation?.keyframes.some(
@@ -1438,6 +1470,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
 
     updateTempoKeyframeBpm(tick: number, bpm: number) {
+        set((state) => ({ midiTimingImport: { ...state.midiTimingImport, bpmTouched: true } }));
         const ta = get().timeline.tempoAutomation ?? { enabled: false, keyframes: [] };
         const idx = ta.keyframes.findIndex((kf) => Math.abs(kf.tick - tick) <= TEMPO_KF_TICK_TOLERANCE);
         if (idx < 0) return;
@@ -1451,6 +1484,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
 
     updateTempoKeyframe(fromTick: number, next: { tick: number; bpm: number }) {
+        set((state) => ({ midiTimingImport: { ...state.midiTimingImport, bpmTouched: true } }));
         if (!Number.isFinite(fromTick) || !Number.isFinite(next.tick) || !Number.isFinite(next.bpm)) return false;
         const targetTick = Math.max(0, Math.round(next.tick));
         const targetBpm = Math.max(1, Math.min(999, next.bpm));
@@ -1474,6 +1508,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     },
 
     batchSetTempoKeyframes(keyframes: TempoKeyframe[]) {
+        set((state) => ({ midiTimingImport: { ...state.midiTimingImport, bpmTouched: true } }));
         const ta = get().timeline.tempoAutomation ?? { enabled: false, keyframes: [] };
         void timelineCommandGateway.dispatchById(
             'timeline.setTempoAutomation',

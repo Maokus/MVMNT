@@ -55,6 +55,7 @@ export function useRenderLoop({
             try {
                 const tmCfg = getSharedTimingManager();
                 const bpm = state.timeline.globalBpm || 120;
+                tmCfg.setTimeSignature(state.timeline.timeSignature);
                 let tempoMapVersion: string | null = null;
                 const map = state.timeline.masterTempoMap;
                 if (map && map.length) {
@@ -200,13 +201,21 @@ export function useRenderLoop({
 
         raf = requestAnimationFrame(loop);
 
-        type SubState = { tick: number; playing: boolean; bpm: number; tempoMapLen: number; tempoMapRef: unknown };
+        type SubState = {
+            tick: number;
+            playing: boolean;
+            bpm: number;
+            tempoMapLen: number;
+            tempoMapRef: unknown;
+            timeSignature: unknown;
+        };
         let prevSub: SubState = {
             tick: useTimelineStore.getState().timeline.currentTick,
             playing: useTimelineStore.getState().transport.isPlaying,
             bpm: useTimelineStore.getState().timeline.globalBpm,
             tempoMapLen: useTimelineStore.getState().timeline.masterTempoMap?.length || 0,
             tempoMapRef: useTimelineStore.getState().timeline.masterTempoMap,
+            timeSignature: useTimelineStore.getState().timeline.timeSignature,
         };
         const unsub = useTimelineStore.subscribe((s) => {
             const nextState: SubState = {
@@ -215,6 +224,7 @@ export function useRenderLoop({
                 bpm: s.timeline.globalBpm,
                 tempoMapLen: s.timeline.masterTempoMap?.length || 0,
                 tempoMapRef: s.timeline.masterTempoMap,
+                timeSignature: s.timeline.timeSignature,
             };
             const p = prevSub;
             if (nextState.playing && !p.playing) wakeLoop();
@@ -222,6 +232,7 @@ export function useRenderLoop({
             else if (nextState.tick !== p.tick) wakeLoop();
             else if (nextState.bpm !== p.bpm) wakeLoop();
             else if (nextState.tempoMapRef !== p.tempoMapRef) wakeLoop();
+            else if (nextState.timeSignature !== p.timeSignature) wakeLoop();
             prevSub = nextState;
         });
         const visInvalidate = () => wakeLoop();

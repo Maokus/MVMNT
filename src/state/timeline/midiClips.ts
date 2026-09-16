@@ -46,9 +46,10 @@ export function getPrimaryMidiClip(track: TimelineTrack): MidiClip | undefined {
 
 export function getMidiClipLocalBounds(cache: MidiCache, clip: MidiClip): MidiClipBounds | null {
     const source = cache[clip.sourceId];
-    const sourceStart =
-        source?.bounds?.minTick ??
-        (source?.notesRaw?.length ? Math.min(...source.notesRaw.map((note) => note.startTick)) : 0);
+    // MIDI source time always begins at tick zero. The first note may occur later;
+    // that leading silence is part of the source and must remain visible unless
+    // the user explicitly trims it.
+    const sourceStart = 0;
     const sourceEnd =
         source?.bounds?.maxTick ??
         (source?.notesRaw?.length ? Math.max(...source.notesRaw.map((note) => note.endTick)) : undefined);

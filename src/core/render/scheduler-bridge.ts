@@ -3,6 +3,7 @@ import { offsetTicksToSeconds } from '@core/timing/offset-utils';
 import { beatsToSeconds } from '@core/timing/tempo-utils';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import type { CompileWindowArgs, CompileTrack, CompileMidiCache } from './compile';
+import { quarterNotesPerBar } from '@core/timing/meter';
 
 export type SchedulerConfig = CompileWindowArgs;
 
@@ -44,7 +45,7 @@ export function buildSchedulerConfig(s: TimelineState, nowSec: number, lookAhead
         lookAheadSec,
         tempoMap: s.timeline.masterTempoMap,
         bpm: s.timeline.globalBpm,
-        beatsPerBar: s.timeline.beatsPerBar,
+        beatsPerBar: quarterNotesPerBar(s.timeline.timeSignature),
     };
 }
 

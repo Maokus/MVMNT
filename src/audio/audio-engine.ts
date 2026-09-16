@@ -274,6 +274,7 @@ export class AudioEngine {
             {
                 globalBpm: s.timeline.globalBpm,
                 beatsPerBar: s.timeline.beatsPerBar,
+                timeSignature: s.timeline.timeSignature,
                 masterTempoMap: s.timeline.masterTempoMap,
             },
             tmgr.ticksPerQuarter
@@ -426,6 +427,7 @@ export class AudioEngine {
             {
                 globalBpm: state.timeline.globalBpm,
                 beatsPerBar: state.timeline.beatsPerBar,
+                timeSignature: state.timeline.timeSignature,
                 masterTempoMap: state.timeline.masterTempoMap,
             },
             getSharedTimingManager().ticksPerQuarter

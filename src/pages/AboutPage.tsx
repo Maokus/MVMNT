@@ -106,6 +106,7 @@ const AboutPage: React.FC = () => {
                                 <li>Tnky</li>
                                 <li>ivlayz</li>
                                 <li>joserizzal</li>
+                                <li>merlin</li>
                             </ul>
                         </section>
                         <section>

@@ -131,6 +131,7 @@ export function getAudioFeatureMatrixRevision(
         identities.join(','),
         state.timeline.globalBpm,
         state.timeline.beatsPerBar,
+        JSON.stringify(state.timeline.timeSignature),
         JSON.stringify(state.timeline.masterTempoMap ?? []),
         ticksPerQuarter,
     ].join('|');

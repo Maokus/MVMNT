@@ -101,6 +101,14 @@ describe('MIDI clip helpers', () => {
         expect(getMidiClipTimelineBounds(cache, clip)).toEqual({ startTick: 2200, endTick: 2700 });
     });
 
+    it('keeps leading source silence visible when a MIDI clip is untrimmed', () => {
+        const cache = cacheFor({ minTick: 480, maxTick: 1440 });
+        const clip: MidiClip = { id: 'clip1', type: 'midi', sourceId: 'sourceA', offsetTicks: 960 };
+
+        expect(getMidiClipLocalBounds(cache, clip)).toEqual({ startTick: 0, endTick: 1440 });
+        expect(getMidiClipTimelineBounds(cache, clip)).toEqual({ startTick: 960, endTick: 2400 });
+    });
+
     it('finds all MIDI source ids referenced by legacy and real clips', () => {
         const state = {
             tracks: {

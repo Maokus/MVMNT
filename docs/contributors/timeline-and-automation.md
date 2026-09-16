@@ -6,6 +6,10 @@ Integer ticks are authoritative for musical position. The timeline stores the pl
 viewport, playback range, note positions, and clip placement in ticks. Beats and seconds are
 derived through `TimingManager` and the current tempo map.
 
+Project meter is stored as a full `{ numerator, denominator }` time signature. A meter beat spans
+`PPQ * 4 / denominator` ticks and a bar spans `numerator` meter beats; do not assume that every
+display beat is a quarter note. Older scenes with only `beatsPerBar` are interpreted as `/4`.
+
 Audio differs at the media boundary: an audio clip is placed in ticks, while source duration and
 trim points use immutable source seconds. Changing tempo therefore changes the clip's musical span
 without changing which source samples play.

@@ -88,7 +88,7 @@ export function createTransportSlice({
                 if (!state.transport.isPlaying && state.transport.quantize !== 'off') {
                     const ticksPerUnit = quantizeSettingToExactTicks(
                         state.transport.quantize,
-                        state.timeline.beatsPerBar,
+                        state.timeline.timeSignature,
                         undefined,
                         state.transport.arbitrarySnapN
                     );
@@ -96,7 +96,7 @@ export function createTransportSlice({
                         const snapped = quantizeDivisionToTick(
                             Math.floor(currentTick / ticksPerUnit),
                             state.transport.quantize,
-                            state.timeline.beatsPerBar,
+                            state.timeline.timeSignature,
                             undefined,
                             state.transport.arbitrarySnapN
                         );

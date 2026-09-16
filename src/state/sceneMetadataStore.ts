@@ -24,6 +24,7 @@ interface SceneMetadataStore {
     setAttribution: (attribution: string) => void;
     hydrate: (metadata?: Partial<SceneMetadataState> | null) => void;
     touchModified: () => void;
+    stampNewDocument: () => void;
 }
 
 const nowIso = () => new Date().toISOString();
@@ -108,6 +109,11 @@ export const useSceneMetadataStore = createWithEqualityFn<SceneMetadataStore>((s
         },
         touchModified: () => {
             set((state) => ({ metadata: { ...state.metadata, modifiedAt: nowIso() } }));
+        },
+        stampNewDocument: () => {
+            const now = nowIso();
+            set((state) => ({ metadata: { ...state.metadata, createdAt: now, modifiedAt: now } }));
+            markDocumentChanged('metadata');
         },
     };
 });

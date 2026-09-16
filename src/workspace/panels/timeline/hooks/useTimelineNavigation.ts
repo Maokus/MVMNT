@@ -2,6 +2,7 @@ import { useCallback, useRef, useEffect } from 'react';
 import { timelineCommandGateway, useTimelineStore } from '@state/timelineStore';
 import { useSelectionStore } from '@state/selectionStore';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
+import { ticksPerBar } from '@core/timing/meter';
 import { type QuantizeSetting } from '@state/timeline/quantize';
 import { zoomAround, getContentEndTick, isEditableTarget } from '../utils/timelineNavUtils';
 import { getMidiClipTimelineBounds, getMidiClipsForTrack } from '@state/timeline/midiClips';
@@ -198,7 +199,7 @@ export function useTimelineNavigation() {
                     if (e.defaultPrevented || e.ctrlKey || e.metaKey) break;
                     const sel = useSelectionStore.getState();
                     if (sel.activeTarget === 'elements' && sel.selectedNodeIds.length > 0) break;
-                    const nudge = e.shiftKey ? CANONICAL_PPQ * (state.timeline.beatsPerBar || 4) : CANONICAL_PPQ;
+                    const nudge = e.shiftKey ? ticksPerBar(state.timeline.timeSignature, CANONICAL_PPQ) : CANONICAL_PPQ;
                     const dir = e.key === 'ArrowLeft' ? -1 : 1;
                     const next = Math.max(0, state.timeline.currentTick + dir * nudge);
                     state.seekTick(next);

@@ -35,7 +35,12 @@ describe('useTemplateApply', () => {
         mocks.useUndo.mockReturnValue({ reset: resetUndo });
         mocks.useVisualizer.mockReturnValue({ visualizer: { invalidateRender } });
         mocks.importScene.mockImplementation(async () => {
-            useSceneMetadataStore.getState().hydrate({ name: 'Template Scene', author: 'Template Author' });
+            useSceneMetadataStore.getState().hydrate({
+                name: 'Template Scene',
+                author: 'Template Author',
+                createdAt: '2000-01-01T00:00:00.000Z',
+                modifiedAt: '2000-01-01T00:00:00.000Z',
+            });
             return { ok: true };
         });
         useSceneMetadataStore.getState().setMetadata({
@@ -80,6 +85,10 @@ describe('useTemplateApply', () => {
             author: '',
             attribution: 'Based on "Template Scene" by Template Author',
         });
+        expect(useSceneMetadataStore.getState().metadata.createdAt).not.toBe('2000-01-01T00:00:00.000Z');
+        expect(useSceneMetadataStore.getState().metadata.modifiedAt).toBe(
+            useSceneMetadataStore.getState().metadata.createdAt
+        );
         expect(localStorage.getItem('mvmnt.desktop.recovery-state')).toBe('dirty');
         expect(resetUndo).toHaveBeenCalledOnce();
         expect(refreshSceneUI).toHaveBeenCalledOnce();

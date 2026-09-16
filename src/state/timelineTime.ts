@@ -1,16 +1,19 @@
 import { secondsToBeats, beatsToSeconds } from '@core/timing/tempo-utils';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import type { TempoMapEntry } from '@state/timelineTypes';
+import { normalizeTimeSignature, quarterNotesPerBar, type TimeSignature } from '@core/timing/meter';
 export interface TimelineTimingContext {
     ticksPerQuarter: number;
     globalBpm: number;
     beatsPerBar: number;
+    timeSignature: TimeSignature;
     tempoMap?: TempoMapEntry[];
 }
 
 export interface TimelineTimingSlice {
     globalBpm: number;
     beatsPerBar: number;
+    timeSignature?: TimeSignature;
     masterTempoMap?: TempoMapEntry[];
 }
 
@@ -23,10 +26,14 @@ export function createTimingContext(
     timeline: TimelineTimingSlice,
     ticksPerQuarter: number = CANONICAL_PPQ
 ): TimelineTimingContext {
+    const timeSignature = normalizeTimeSignature(
+        timeline.timeSignature ?? { numerator: timeline.beatsPerBar || 4, denominator: 4 }
+    );
     return {
         ticksPerQuarter,
         globalBpm: timeline.globalBpm || 120,
-        beatsPerBar: timeline.beatsPerBar || 4,
+        beatsPerBar: timeSignature.numerator,
+        timeSignature,
         tempoMap: timeline.masterTempoMap,
     };
 }
@@ -51,11 +58,11 @@ export function beatsToSecondsContext(context: TimelineTimingContext, beats: num
 
 export function secondsToBars(context: TimelineTimingContext, seconds: number): number {
     const beats = secondsToBeatsContext(context, seconds);
-    return beats / (context.beatsPerBar || 4);
+    return beats / quarterNotesPerBar(context.timeSignature);
 }
 
 export function barsToSeconds(context: TimelineTimingContext, bars: number): number {
-    const beats = bars * (context.beatsPerBar || 4);
+    const beats = bars * quarterNotesPerBar(context.timeSignature);
     return beatsToSecondsContext(context, beats);
 }
 

@@ -8,6 +8,7 @@ import MidiNotePreview from '@workspace/components/MidiNotePreview';
 import { getMidiClipsInTimelineSelection, type TimelineClipRef } from '../clipboard/midiClipClipboard';
 import { useSnapTicks } from '../hooks/useSnapTicks';
 import { useTickScale } from '../hooks/useTickScale';
+import { formatTickAsBBT } from '@core/timing/time-domain';
 
 type Props = {
     trackId: string;
@@ -51,7 +52,7 @@ const MidiClipBlock: React.FC<Props> = ({
     const setCrossTrackDrag = useTimelineStore((s) => s._setCrossTrackDrag);
     const crossTrackDrag = useTimelineStore((s) => s._crossTrackDrag);
     const tracksOrder = useTimelineStore((s) => s.tracksOrder);
-    const bpb = useTimelineStore((s) => s.timeline.beatsPerBar);
+    const timeSignature = useTimelineStore((s) => s.timeline.timeSignature);
     const quantize = useTimelineStore((s) => s.transport.quantize);
     const selectClipTimeline = useSelectionStore((s) => s.selectClipTimeline);
     const clipTimelineSelection = useSelectionStore((s) => s.clipTimelineSelection);
@@ -86,14 +87,10 @@ const MidiClipBlock: React.FC<Props> = ({
     if (widthPx <= 0) return null;
 
     const clipHeight = Math.max(18, laneHeight * 0.6);
-    const offsetBeats = offsetTick / ppq;
-    const beatsPerBar = Math.max(1, bpb);
-    const offsetBeatsAbs = Math.abs(offsetBeats);
-    const wholeBeats = Math.floor(offsetBeatsAbs + 1e-9);
-    const barsDisplay = Math.floor(wholeBeats / beatsPerBar);
-    const beatInBarDisplay = (wholeBeats % beatsPerBar) + 1;
-    const sign = offsetBeats < 0 ? '-' : '+';
-    const label = `${sign}${barsDisplay}|${beatInBarDisplay}`;
+    const meter = timeSignature ?? { numerator: 4, denominator: 4 };
+    const formatStart = (tick: number) =>
+        tick < 0 ? `-${formatTickAsBBT(Math.abs(tick), ppq, meter)}` : formatTickAsBBT(tick, ppq, meter);
+    const label = `Start ${formatStart(absStartTick)}`;
     const displayName = clip.name || useTimelineStore.getState().tracks[trackId]?.name || 'MIDI clip';
 
     const isSelected = useMemo(() => {
@@ -117,16 +114,11 @@ const MidiClipBlock: React.FC<Props> = ({
         const ticksToSec = (tick: number) => (tick / ppq) * secPerBeat;
         const fmt = (seconds: number) => `${seconds.toFixed(2)}s`;
         const fmtBar = (tick: number) => {
-            const beats = tick / ppq;
-            const negative = beats < 0;
-            const abs = Math.abs(beats);
-            const barIdx = Math.floor(abs / beatsPerBar) + 1;
-            const beatInBar = Math.floor(abs % beatsPerBar) + 1;
-            return `${negative ? '-' : ''}${barIdx}|${beatInBar}`;
+            return formatStart(tick);
         };
         const snapInfo = `Snap: ${formatQuantizeShortLabel(quantize)} (hold Alt to bypass)`;
-        return `Clip: ${displayName}\n${snapInfo}\nOffset ${label}\nStart ${fmt(ticksToSec(absStartTick))} (${fmtBar(absStartTick)})\nEnd ${fmt(ticksToSec(absEndTick))} (${fmtBar(absEndTick)})`;
-    }, [absStartTick, absEndTick, beatsPerBar, displayName, label, ppq, quantize]);
+        return `Clip: ${displayName}\n${snapInfo}\nStart ${fmt(ticksToSec(absStartTick))} (${fmtBar(absStartTick)})\nEnd ${fmt(ticksToSec(absEndTick))} (${fmtBar(absEndTick)})`;
+    }, [absStartTick, absEndTick, displayName, ppq, quantize, meter]);
 
     const selectForPointer = (e: React.PointerEvent): TimelineClipRef[] => {
         const state = useTimelineStore.getState();

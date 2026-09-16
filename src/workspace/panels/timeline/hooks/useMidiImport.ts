@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react';
 import type { ChangeEvent } from 'react';
-import { useTimelineStore } from '@state/timelineStore';
+import { timelineCommandGateway, useTimelineStore } from '@state/timelineStore';
 import { parseMIDIFileToData } from '@core/midi/midi-library';
 import { splitMidiDataByTracks } from '@core/midi/midi-ingest';
 import type { MIDIData } from '@core/types';
@@ -9,6 +9,7 @@ import { CANONICAL_PPQ } from '@core/timing/ppq';
 import type { MultiTrackChoice, MultiTrackDecisionState } from './useImportModals';
 import type { TempoImportChoice } from '@workspace/modals/MidiTempoImportModal';
 import { getNextImportedTrackName } from './importTrackName';
+import { normalizeTimeSignature } from '@core/timing/meter';
 
 interface UseMidiImportOptions {
     requestImportMode: (info: MultiTrackDecisionState) => Promise<MultiTrackChoice>;
@@ -30,55 +31,73 @@ export function useMidiImport({ requestImportMode, requestTempoImport }: UseMidi
                 return false;
             }
 
-            // Check for tempo changes in the MIDI file
+            const details = midiData.trackDetails ?? [];
+            const playableTracks = details.length ? details : [];
+            let choice: MultiTrackChoice = 'single';
+            if (playableTracks.length > 1) {
+                choice = await requestImportMode({ fileName: file.name, midiData, tracks: playableTracks });
+                if (choice === 'cancel') return false;
+            }
+
+            // Resolve tempo choices before mutating any project state.
             const midiTempoMap = (midiData as any).tempoMap as Array<{ time: number; tempo: number }> | undefined;
+            let convertedTempo: Array<{ tick: number; bpm: number }> = [];
+            let tempoChoice: TempoImportChoice = 'skip';
             if (midiTempoMap && midiTempoMap.length > 1) {
                 try {
                     const tempoEntries = midiTempoMap.map((t) => ({ time: t.time, tempo: t.tempo }));
-                    const converted = midiTempoMapToKeyframes(tempoEntries, CANONICAL_PPQ);
+                    convertedTempo = midiTempoMapToKeyframes(tempoEntries, CANONICAL_PPQ);
                     const existingTa = useTimelineStore.getState().timeline.tempoAutomation;
                     const hasExisting = !!(existingTa?.enabled && existingTa.keyframes.length > 0);
-                    const tempoChoice = await requestTempoImport(converted.length, hasExisting);
-                    if (tempoChoice === 'replace') {
-                        const api = useTimelineStore.getState();
-                        if (!api.timeline.tempoAutomation?.enabled) api.enableTempoAutomation();
-                        api.batchSetTempoKeyframes(converted);
-                    } else if (tempoChoice === 'merge' && hasExisting) {
-                        const api = useTimelineStore.getState();
-                        const existing = api.timeline.tempoAutomation?.keyframes ?? [];
-                        // Merge: existing keyframes take precedence at same tick
-                        const existingTicks = new Set(existing.map((kf) => kf.tick));
-                        const merged = [...existing, ...converted.filter((kf) => !existingTicks.has(kf.tick))];
-                        merged.sort((a, b) => a.tick - b.tick);
-                        api.batchSetTempoKeyframes(merged);
-                    }
+                    tempoChoice = await requestTempoImport(convertedTempo.length, hasExisting);
                 } catch (err) {
                     console.error('Failed to process MIDI tempo map', err);
                 }
             }
 
-            const details = midiData.trackDetails ?? [];
-            const playableTracks = details.length ? details : [];
-            if (playableTracks.length <= 1) {
-                await addMidiTrack({
-                    name: getNextImportedTrackName('midi', useTimelineStore.getState().tracks),
-                    midiData,
-                    clipName: file.name,
-                });
-                return true;
+            const before = useTimelineStore.getState();
+            const hasMidiClips = Object.values(before.tracks).some(
+                (track) => track?.type === 'midi' && (track.clips?.length ?? 0) > 0
+            );
+            const eligibility = before.midiTimingImport;
+            if (eligibility.pending && !hasMidiClips) {
+                const initialBpm =
+                    convertedTempo[0]?.bpm ??
+                    (midiTempoMap?.[0]?.tempo ? 60_000_000 / midiTempoMap[0].tempo : 60_000_000 / midiData.tempo);
+                if (!eligibility.bpmTouched && Number.isFinite(initialBpm) && initialBpm > 0) {
+                    await timelineCommandGateway.dispatchById('timeline.setGlobalBpm', { bpm: initialBpm });
+                }
+                if (!eligibility.meterTouched) {
+                    const timeSignature = normalizeTimeSignature(midiData.timeSignature);
+                    await timelineCommandGateway.dispatchById('timeline.setTimeSignature', { timeSignature });
+                }
             }
-            const choice = await requestImportMode({
-                fileName: file.name,
-                midiData,
-                tracks: playableTracks,
-            });
-            if (choice === 'cancel') return false;
-            if (choice === 'single') {
+
+            if (tempoChoice === 'replace' && convertedTempo.length) {
+                await timelineCommandGateway.dispatchById('timeline.setTempoAutomation', {
+                    enabled: true,
+                    keyframes: convertedTempo,
+                });
+            } else if (tempoChoice === 'merge' && convertedTempo.length) {
+                const existing = useTimelineStore.getState().timeline.tempoAutomation?.keyframes ?? [];
+                const existingTicks = new Set(existing.map((keyframe) => keyframe.tick));
+                const merged = [
+                    ...existing,
+                    ...convertedTempo.filter((keyframe) => !existingTicks.has(keyframe.tick)),
+                ].sort((a, b) => a.tick - b.tick);
+                await timelineCommandGateway.dispatchById('timeline.setTempoAutomation', {
+                    enabled: true,
+                    keyframes: merged,
+                });
+            }
+
+            if (choice === 'single' || playableTracks.length <= 1) {
                 await addMidiTrack({
                     name: getNextImportedTrackName('midi', useTimelineStore.getState().tracks),
                     midiData,
                     clipName: file.name,
                 });
+                useTimelineStore.getState().finishInitialMidiTimingImport();
                 return true;
             }
             const splits = splitMidiDataByTracks(midiData);
@@ -88,6 +107,7 @@ export function useMidiImport({ requestImportMode, requestTempoImport }: UseMidi
                     midiData,
                     clipName: file.name,
                 });
+                useTimelineStore.getState().finishInitialMidiTimingImport();
                 return true;
             }
             for (const entry of splits) {
@@ -97,6 +117,7 @@ export function useMidiImport({ requestImportMode, requestTempoImport }: UseMidi
                     clipName: file.name,
                 });
             }
+            useTimelineStore.getState().finishInitialMidiTimingImport();
             return true;
         },
         [addMidiTrack, requestImportMode, requestTempoImport]

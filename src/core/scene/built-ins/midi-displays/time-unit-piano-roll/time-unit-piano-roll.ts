@@ -502,9 +502,9 @@ export class TimeUnitPianoRollElement extends BoundSceneElement {
         // Update timing from global timeline snapshot
         try {
             const bpm = timelineMetadata?.tempoBpm || 120;
-            const beatsPerBar = timelineMetadata?.timeSignature.numerator || 4;
+            const timeSignature = timelineMetadata?.timeSignature ?? { numerator: 4, denominator: 4 };
             this.timingManager.setBPM(bpm);
-            this.timingManager.setBeatsPerBar(beatsPerBar);
+            this.timingManager.setTimeSignature(timeSignature);
             this.timingManager.setTempoMap(null);
         } catch {}
 
@@ -557,10 +557,11 @@ export class TimeUnitPianoRollElement extends BoundSceneElement {
                 // Query two-window span (prev + current) so release animation frames still have note segments
                 const currentWin = this.timingManager.getTimeUnitWindow(effectiveTime, timeUnitBars);
                 // Derive previous window start without accessing private TimingManager internals.
-                const beatsPerBar = this.timingManager.beatsPerBar || 4;
+                const signature = this.timingManager.timeSignature;
+                const quarterNotesPerBar = (signature.numerator * 4) / signature.denominator;
                 const bpm = this.timingManager.bpm || 120;
                 const secondsPerBeat = 60 / bpm;
-                const windowBeats = timeUnitBars * beatsPerBar;
+                const windowBeats = timeUnitBars * quarterNotesPerBar;
                 const windowDurationApprox = windowBeats * secondsPerBeat; // acceptable for release span query
                 const prevStart = currentWin.start - windowDurationApprox;
                 const queryStart = prevStart;

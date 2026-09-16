@@ -10,7 +10,6 @@ import {
     FaLock,
     FaObjectGroup,
     FaObjectUngroup,
-    FaPen,
     FaShapes,
     FaTrash,
     FaUnlock,
@@ -28,7 +27,6 @@ import {
     type SceneGraphState,
     type SceneNode,
 } from '@state/scene-graph';
-import { CommandContextMenu, type CommandMenuEntry } from '@workspace/components/CommandContextMenu';
 import { executeCommand } from '@context/commands/commandRegistry';
 import { SCENE_COMMANDS } from '@context/commands/sceneCommands';
 import { activateCommandSurface } from '@context/commands/commandContext';
@@ -86,7 +84,6 @@ export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
     const toggleNodeExpanded = useSelectionStore((state) => state.toggleNodeExpanded);
     const [dropPosition, setDropPosition] = useState<DropPosition | null>(null);
     const [renameValue, setRenameValue] = useState<string | null>(null);
-    const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
     const renameRef = useRef<HTMLInputElement>(null);
     const expandTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const { selectNode, reparentSelectedNodes, updateElementId } = useSceneSelection();
@@ -194,24 +191,6 @@ export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
         expandTimerRef.current = null;
         setDropPosition(null);
     };
-    const contextEntries: CommandMenuEntry[] = [
-        ...(selectedNodeIds.length === 1
-            ? [
-                  {
-                      label: 'Rename',
-                      shortcut: 'F2',
-                      icon: <FaPen />,
-                      onSelect: () => setRenameValue(rowLabel),
-                  },
-              ]
-            : []),
-        { commandId: SCENE_COMMANDS.group, icon: <FaObjectGroup /> },
-        { commandId: SCENE_COMMANDS.ungroup, icon: <FaObjectUngroup /> },
-        { commandId: SCENE_COMMANDS.duplicate, icon: <FaClone /> },
-        { separator: true },
-        { commandId: SCENE_COMMANDS.delete, icon: <FaTrash />, danger: true },
-    ];
-
     return (
         <>
             <div
@@ -226,18 +205,6 @@ export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
                 onDoubleClick={(event) => {
                     if ((event.target as Element).closest('button')) return;
                     setRenameValue(rowLabel);
-                }}
-                onContextMenu={(event) => {
-                    event.preventDefault();
-                    if (!selected) selectNode(node.id);
-                    setContextMenu({ x: event.clientX, y: event.clientY });
-                }}
-                onKeyDown={(event) => {
-                    if ((event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) && active) {
-                        event.preventDefault();
-                        const rect = event.currentTarget.getBoundingClientRect();
-                        setContextMenu({ x: rect.left + 24, y: rect.top + rect.height });
-                    }
                 }}
                 onDragStart={(event) => {
                     if (!selected) selectNode(node.id);
@@ -334,14 +301,6 @@ export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
                           />
                       ))
                 : null}
-            {contextMenu ? (
-                <CommandContextMenu
-                    position={contextMenu}
-                    entries={contextEntries}
-                    onClose={() => setContextMenu(null)}
-                    ariaLabel={`${rowLabel} actions`}
-                />
-            ) : null}
         </>
     );
 }

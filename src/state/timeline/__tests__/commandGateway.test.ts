@@ -37,6 +37,17 @@ describe('timeline command gateway', () => {
         expect(result.metadata.undoLabel).toBe('Add Track');
     });
 
+    it('stores and synchronizes a full time signature', async () => {
+        await timelineCommandGateway.dispatchById('timeline.setTimeSignature', {
+            timeSignature: { numerator: 6, denominator: 8 },
+        });
+
+        expect(useTimelineStore.getState().timeline).toMatchObject({
+            beatsPerBar: 6,
+            timeSignature: { numerator: 6, denominator: 8 },
+        });
+    });
+
     it('removes tracks and updates store state', async () => {
         const added = await timelineCommandGateway.dispatchById<AddTrackCommandResult>('timeline.addTrack', {
             type: 'midi',

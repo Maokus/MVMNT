@@ -34,6 +34,7 @@ export class MIDIParser {
     public bpm: number;
     // Tempo map as collected during parse (absolute time in ticks until conversion stage)
     private tempoEvents: Array<{ tick: number; tempo: number }>; // microseconds per quarter at given tick
+    private timeSignatureEvents: Array<{ tick: number; signature: MIDITimeSignature }>;
     private headerInfo: MIDIHeader | null;
 
     // Cached values to avoid recomputation
@@ -56,6 +57,7 @@ export class MIDIParser {
         this.beatsPerBar = this.timeSignature.numerator || 4;
         this._invalidateCache();
         this.tempoEvents = [];
+        this.timeSignatureEvents = [];
         this.headerInfo = null;
     }
 
@@ -80,6 +82,7 @@ export class MIDIParser {
         });
         // Reset tempo events and seed with starting tempo at tick 0
         this.tempoEvents = [{ tick: 0, tempo: this.tempo }];
+        this.timeSignatureEvents = [];
 
         // Parse all tracks
         for (let i = 0; i < headerChunk.numTracks; i++) {
@@ -409,6 +412,7 @@ export class MIDIParser {
                         thirtysecondNotesPerBeat: dataView.getUint8(dataOffset + 3),
                     };
                     this.setTimeSignature(timeSignature);
+                    this.timeSignatureEvents.push({ tick: absoluteTime, signature: timeSignature });
                     console.log(
                         `Found time signature meta event: ${timeSignature.numerator}/${timeSignature.denominator}`
                     );
@@ -600,10 +604,17 @@ export class MIDIParser {
             if (tempoMapSec.length > 0) tempoMapSec[0].time = 0;
         }
 
+        const initialTimeSignature = [...this.timeSignatureEvents].sort((a, b) => a.tick - b.tick)[0]?.signature ?? {
+            numerator: 4,
+            denominator: 4,
+            clocksPerClick: 24,
+            thirtysecondNotesPerBeat: 8,
+        };
+
         console.log('MIDIParser returning timing configuration:', {
             bpm: this.bpm,
             tempo: this.tempo,
-            timeSignature: this.timeSignature,
+            timeSignature: initialTimeSignature,
             beatsPerBar: this.beatsPerBar,
             ticksPerQuarter: this.ticksPerQuarter,
             tempoMapEntries: tempoMapSec?.length || 0,
@@ -641,7 +652,7 @@ export class MIDIParser {
             duration,
             tempo: this.tempo,
             ticksPerQuarter: this.ticksPerQuarter,
-            timeSignature: this.timeSignature,
+            timeSignature: initialTimeSignature,
             // include tempo map in seconds for downstream managers
             // Note: types.ts doesn't include tempoMap yet; MidiManager will read it if present
             ...(tempoMapSec ? ({ tempoMap: tempoMapSec } as any) : {}),

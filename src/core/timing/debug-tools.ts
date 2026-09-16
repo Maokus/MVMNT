@@ -1,4 +1,5 @@
 import { useTimelineStore } from '@state/timelineStore';
+import { quarterNotesPerBar } from './meter';
 import type { TempoMapEntry } from './types';
 import { TimingManager } from './timing-manager';
 import { secondsToBeats, beatsToSeconds } from './tempo-utils';
@@ -50,12 +51,12 @@ export function b2s(beats: number) {
 export function s2bars(seconds: number) {
     const s = useTimelineStore.getState();
     const beats = s2b(seconds);
-    return beats / (s.timeline.beatsPerBar || 4);
+    return beats / quarterNotesPerBar(s.timeline.timeSignature);
 }
 
 export function bars2s(bars: number) {
     const s = useTimelineStore.getState();
-    const beats = bars * (s.timeline.beatsPerBar || 4);
+    const beats = bars * quarterNotesPerBar(s.timeline.timeSignature);
     return b2s(beats);
 }
 
@@ -64,7 +65,7 @@ export function getBeatGrid(startSec: number, endSec: number) {
     const s = useTimelineStore.getState();
     const tm = new TimingManager('debug');
     tm.setBPM(s.timeline.globalBpm);
-    tm.setBeatsPerBar(s.timeline.beatsPerBar);
+    tm.setTimeSignature(s.timeline.timeSignature);
     if (s.timeline.masterTempoMap) tm.setTempoMap(s.timeline.masterTempoMap, 'seconds');
     return tm.getBeatGridInWindow(startSec, endSec);
 }

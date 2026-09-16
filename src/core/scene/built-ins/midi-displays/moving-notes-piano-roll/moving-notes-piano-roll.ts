@@ -305,9 +305,9 @@ export class MovingNotesPianoRollElement extends BoundSceneElement {
         // Update local timing manager from global timeline snapshot for view window duration calculations
         try {
             const bpm = timelineMetadata?.tempoBpm || 120;
-            const beatsPerBar = timelineMetadata?.timeSignature.numerator || 4;
+            const timeSignature = timelineMetadata?.timeSignature ?? { numerator: 4, denominator: 4 };
             this.timingManager.setBPM(bpm);
-            this.timingManager.setBeatsPerBar(beatsPerBar);
+            this.timingManager.setTimeSignature(timeSignature);
             this.timingManager.setTempoMap(null);
         } catch {}
 

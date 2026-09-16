@@ -215,7 +215,8 @@ describe('midiClipClipboard', () => {
         const destination = copied ? getTimelineClipDuplicateDestination(midiState, copied) : null;
         const prepared = copied && destination ? prepareTimelineClipPaste(midiState, copied, destination) : null;
 
-        expect(destination).toEqual({ trackId: 'track1', tick: CANONICAL_PPQ * 2.5 });
-        expect(prepared?.midiClips[0].clip.offsetTicks).toBe(CANONICAL_PPQ * 2.5);
+        // An untrimmed MIDI source includes its leading silence from tick zero.
+        expect(destination).toEqual({ trackId: 'track1', tick: CANONICAL_PPQ * 3 });
+        expect(prepared?.midiClips[0].clip.offsetTicks).toBe(CANONICAL_PPQ * 3);
     });
 });

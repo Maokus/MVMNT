@@ -8,6 +8,7 @@ import type {
     TimelineCommandId,
 } from '../commandTypes';
 import { applyTimelinePatchActions, type TimelineCommandPatch, type TimelineTimingSnapshot } from '../patches';
+import { normalizeTimeSignature, type TimeSignature } from '@core/timing/meter';
 
 export interface SetGlobalBpmPayload {
     bpm: number;
@@ -17,18 +18,23 @@ export interface SetBeatsPerBarPayload {
     beatsPerBar: number;
 }
 
+export interface SetTimeSignaturePayload {
+    timeSignature: TimeSignature;
+}
+
 export interface SetTempoAutomationPayload {
     enabled: boolean;
     keyframes: TempoKeyframe[];
 }
 
-type TimingPayload = SetGlobalBpmPayload | SetBeatsPerBarPayload | SetTempoAutomationPayload;
+type TimingPayload = SetGlobalBpmPayload | SetBeatsPerBarPayload | SetTimeSignaturePayload | SetTempoAutomationPayload;
 
 function cloneTiming(context: TimelineCommandContext): TimelineTimingSnapshot {
     const timeline = context.getState().timeline;
     return {
         globalBpm: timeline.globalBpm,
         beatsPerBar: timeline.beatsPerBar,
+        timeSignature: timeline.timeSignature ?? { numerator: timeline.beatsPerBar || 4, denominator: 4 },
         masterTempoMap: timeline.masterTempoMap?.map((entry) => ({ ...entry })),
         tempoAutomation: timeline.tempoAutomation
             ? {
@@ -56,6 +62,9 @@ function nextTiming(
 ): TimelineTimingSnapshot {
     let globalBpm = previous.globalBpm;
     let beatsPerBar = previous.beatsPerBar;
+    let timeSignature = normalizeTimeSignature(
+        previous.timeSignature ?? { numerator: previous.beatsPerBar, denominator: 4 }
+    );
     let tempoAutomation = previous.tempoAutomation
         ? { ...previous.tempoAutomation, keyframes: normalizedKeyframes(previous.tempoAutomation.keyframes) }
         : undefined;
@@ -65,6 +74,10 @@ function nextTiming(
         globalBpm = Number.isFinite(bpm) && bpm > 0 ? bpm : 120;
     } else if (id === 'timeline.setBeatsPerBar') {
         beatsPerBar = Math.max(1, Math.floor((payload as SetBeatsPerBarPayload).beatsPerBar || 4));
+        timeSignature = { ...timeSignature, numerator: beatsPerBar };
+    } else if (id === 'timeline.setTimeSignature') {
+        timeSignature = normalizeTimeSignature((payload as SetTimeSignaturePayload).timeSignature);
+        beatsPerBar = timeSignature.numerator;
     } else {
         const automation = payload as SetTempoAutomationPayload;
         tempoAutomation = {
@@ -78,7 +91,7 @@ function nextTiming(
         tempoAutomation?.enabled && tempoAutomation.keyframes.length
             ? resolveTempoKeyframes(tempoAutomation.keyframes, globalBpm, CANONICAL_PPQ)
             : undefined;
-    return { globalBpm, beatsPerBar, tempoAutomation, masterTempoMap };
+    return { globalBpm, beatsPerBar, timeSignature, tempoAutomation, masterTempoMap };
 }
 
 function sameTiming(a: TimelineTimingSnapshot, b: TimelineTimingSnapshot): boolean {
@@ -86,7 +99,11 @@ function sameTiming(a: TimelineTimingSnapshot, b: TimelineTimingSnapshot): boole
 }
 
 export function createTimingCommand(
-    id: 'timeline.setGlobalBpm' | 'timeline.setBeatsPerBar' | 'timeline.setTempoAutomation',
+    id:
+        | 'timeline.setGlobalBpm'
+        | 'timeline.setBeatsPerBar'
+        | 'timeline.setTimeSignature'
+        | 'timeline.setTempoAutomation',
     payload: TimingPayload,
     metadata: TimelineCommand['metadata']
 ): TimelineCommand<void> {

@@ -9,6 +9,7 @@
  */
 
 import { validateSceneGraph, type SceneGraphState } from '@state/scene-graph';
+import { isTimeSignature } from '@core/timing/meter';
 
 export const CURRENT_SCHEMA_VERSION = 10;
 
@@ -60,6 +61,7 @@ export type ValidationErrorCode =
     | 'ERR_TIMELINE_NUMERIC'
     | 'ERR_ROW_HEIGHT_RANGE'
     | 'ERR_GLOBAL_BPM_RANGE'
+    | 'ERR_TIME_SIGNATURE'
     | 'ERR_ASSETS_MISSING'
     | 'ERR_AUDIO_ASSET_SHAPE'
     | 'ERR_FONT_ASSET_SHAPE';
@@ -320,6 +322,15 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
         if (tl.timeline && typeof tl.timeline === 'object') {
             if (typeof tl.timeline.globalBpm === 'number' && !(tl.timeline.globalBpm > 0)) {
                 errors.push(err('ERR_GLOBAL_BPM_RANGE', 'globalBpm must be > 0', 'timeline.timeline.globalBpm'));
+            }
+            if (tl.timeline.timeSignature !== undefined && !isTimeSignature(tl.timeline.timeSignature)) {
+                errors.push(
+                    err(
+                        'ERR_TIME_SIGNATURE',
+                        'timeSignature must have a positive numerator and power-of-two denominator',
+                        'timeline.timeline.timeSignature'
+                    )
+                );
             }
             if (typeof tl.rowHeight === 'number') {
                 if (tl.rowHeight < 8 || tl.rowHeight > 400) {

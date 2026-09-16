@@ -19,6 +19,7 @@ export function createInitialTimelineSlice(): Pick<
     | 'midiPreviewTrackIds'
     | 'hybridCacheRollout'
     | 'tempoAlignedDiagnostics'
+    | 'midiTimingImport'
     | '_clipGroupDrag'
     | '_crossTrackDrag'
 > {
@@ -29,6 +30,7 @@ export function createInitialTimelineSlice(): Pick<
             currentTick: 0,
             globalBpm: 120,
             beatsPerBar: 4,
+            timeSignature: { numerator: 4, denominator: 4 },
             playheadAuthority: 'tick',
             tempoAutomation: {
                 enabled: false,
@@ -66,5 +68,6 @@ export function createInitialTimelineSlice(): Pick<
             fallbackLog: [],
         },
         tempoAlignedDiagnostics: {},
+        midiTimingImport: { pending: true, bpmTouched: false, meterTouched: false },
     };
 }

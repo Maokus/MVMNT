@@ -7,6 +7,7 @@ import {
     quantizeDivisionToTick,
     quantizeSettingToExactTicks,
 } from '@state/timeline/quantize';
+import { ticksPerBar as getTicksPerBar, ticksPerMeterBeat } from '@core/timing/meter';
 
 type Props = {
     width: number;
@@ -26,13 +27,14 @@ const COLOR: Record<GridLevel, string> = {
 };
 
 const GridLines: React.FC<Props> = ({ width, height, startTick, endTick }) => {
-    const bpb = useTimelineStore((s) => s.timeline.beatsPerBar || 4);
+    const meter = useTimelineStore((s) => s.timeline.timeSignature);
     const adaptiveSnap = useTimelineStore((s) => s.transport.adaptiveSnap);
     const quantize = useTimelineStore((s) => s.transport.quantize);
     const arbitrarySnapN = useTimelineStore((s) => s.transport.arbitrarySnapN);
     const ppq = CANONICAL_PPQ;
     const { toX } = useTickScale();
-    const ticksPerBar = bpb * ppq;
+    const ticksPerBar = getTicksPerBar(meter, ppq);
+    const beatTicks = ticksPerMeterBeat(meter, ppq);
 
     const lines = useMemo(() => {
         const arr: Array<{ tick: number; level: GridLevel }> = [];
@@ -44,16 +46,16 @@ const GridLines: React.FC<Props> = ({ width, height, startTick, endTick }) => {
             const { showBeats, showEighths, showSixteenths } = getAdaptiveGridSubdivisions(
                 width,
                 endTick - startTick,
-                bpb,
+                meter,
                 ppq
             );
             for (let bar = firstBar; bar <= lastBar; bar++) {
-                for (let beat = 0; beat < bpb; beat++) {
-                    const beatTick = bar * ticksPerBar + beat * ppq;
+                for (let beat = 0; beat < meter.numerator; beat++) {
+                    const beatTick = bar * ticksPerBar + beat * beatTicks;
                     const subdivisions = showSixteenths ? 4 : showEighths ? 2 : 1;
                     for (let sub = 0; sub < subdivisions; sub++) {
-                        const tick = beatTick + sub * (ppq / subdivisions);
-                        if (tick < startTick - ppq || tick > endTick + ppq) continue;
+                        const tick = beatTick + sub * (beatTicks / subdivisions);
+                        if (tick < startTick - beatTicks || tick > endTick + beatTicks) continue;
                         let level: GridLevel;
                         if (beat === 0 && sub === 0) level = 'bar';
                         else if (sub === 0) level = 'beat';
@@ -77,7 +79,7 @@ const GridLines: React.FC<Props> = ({ width, height, startTick, endTick }) => {
         }
 
         if (quantize !== 'off') {
-            const snapIntervalTicks = quantizeSettingToExactTicks(quantize, bpb, ppq, arbitrarySnapN);
+            const snapIntervalTicks = quantizeSettingToExactTicks(quantize, meter, ppq, arbitrarySnapN);
             if (snapIntervalTicks) {
                 const firstSnap = Math.floor(startTick / snapIntervalTicks) - 1;
                 const lastSnap = Math.ceil(endTick / snapIntervalTicks) + 1;
@@ -86,7 +88,7 @@ const GridLines: React.FC<Props> = ({ width, height, startTick, endTick }) => {
                     // Round each absolute division position, not the interval. This
                     // guarantees that divisions which do not evenly divide PPQ
                     // still realign exactly with every bar line.
-                    const tick = quantizeDivisionToTick(i, quantize, bpb, ppq, arbitrarySnapN);
+                    const tick = quantizeDivisionToTick(i, quantize, meter, ppq, arbitrarySnapN);
                     if (tick == null) continue;
                     if (tick < 0 || tick < startTick - ppq || tick > endTick + ppq) continue;
                     // Skip if coincides with a bar line
@@ -97,7 +99,7 @@ const GridLines: React.FC<Props> = ({ width, height, startTick, endTick }) => {
         }
 
         return arr;
-    }, [startTick, endTick, ticksPerBar, bpb, ppq, width, adaptiveSnap, quantize, arbitrarySnapN]);
+    }, [startTick, endTick, ticksPerBar, beatTicks, meter, ppq, width, adaptiveSnap, quantize, arbitrarySnapN]);
 
     return (
         <svg className="absolute inset-0 pointer-events-none" width={width} height={height} aria-hidden>

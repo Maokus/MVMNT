@@ -7,6 +7,7 @@ import {
     secondsToBeatsWithMap as _secondsToBeatsWithTempoMap,
 } from './tempo-utils';
 import { CANONICAL_PPQ } from './ppq';
+import { quarterNotesPerBar, ticksPerMeterBeat } from './meter';
 
 export interface TimeSignature {
     numerator: number;
@@ -179,6 +180,7 @@ export class TimingManager {
     setBeatsPerBar(beatsPerBar: number) {
         if (this.beatsPerBar === beatsPerBar) return;
         this.beatsPerBar = Math.max(1, Math.min(16, beatsPerBar));
+        this.timeSignature = { ...this.timeSignature, numerator: this.beatsPerBar };
         this._invalidateCache();
         // beatsPerBar does not affect absolute beats<->seconds mapping, so not bumping hash
     }
@@ -193,8 +195,15 @@ export class TimingManager {
         ) {
             return;
         }
-        this.timeSignature = ts;
-        this.beatsPerBar = ts.numerator;
+        this.timeSignature = {
+            ...ts,
+            numerator: Math.max(1, Math.min(64, Math.floor(ts.numerator))),
+            denominator:
+                ts.denominator > 0 && ts.denominator <= 64 && Number.isInteger(Math.log2(ts.denominator))
+                    ? ts.denominator
+                    : 4,
+        };
+        this.beatsPerBar = this.timeSignature.numerator;
         this._invalidateCache();
     }
 
@@ -218,11 +227,12 @@ export class TimingManager {
     }
 
     getSecondsPerBar(timeInSeconds?: number) {
+        const quarterBeatsPerBar = quarterNotesPerBar(this.timeSignature);
         if (this._tempoSegments && this._tempoSegments.length > 0 && typeof timeInSeconds === 'number') {
-            return this.getSecondsPerBeat(timeInSeconds) * this.beatsPerBar;
+            return this.getSecondsPerBeat(timeInSeconds) * quarterBeatsPerBar;
         }
         if (this._cache.secondsPerBar === undefined) {
-            this._cache.secondsPerBar = this.getSecondsPerBeat() * this.beatsPerBar;
+            this._cache.secondsPerBar = this.getSecondsPerBeat() * quarterBeatsPerBar;
         }
         return this._cache.secondsPerBar as number;
     }
@@ -244,14 +254,18 @@ export class TimingManager {
             const secondsPerBeat = this.getSecondsPerBeat();
             totalBeats = timeInSeconds / secondsPerBeat;
         }
-        const bar = Math.floor(totalBeats / this.beatsPerBar);
-        const beat = Math.floor(totalBeats % this.beatsPerBar) + 1;
-        const tick = Math.floor((totalBeats % 1) * this.ticksPerQuarter);
+        const beatUnitQuarters = 4 / this.timeSignature.denominator;
+        const beatsInMeter = totalBeats / beatUnitQuarters;
+        const bar = Math.floor(beatsInMeter / this.timeSignature.numerator);
+        const beat = Math.floor(beatsInMeter % this.timeSignature.numerator) + 1;
+        const tick = Math.floor((beatsInMeter % 1) * ticksPerMeterBeat(this.timeSignature, this.ticksPerQuarter));
         return { bar, beat, tick, totalBeats };
     }
 
     barBeatTickToTime(bar: number, beat: number, tick: number) {
-        const totalBeats = (bar - 1) * this.beatsPerBar + (beat - 1) + tick / this.ticksPerQuarter;
+        const beatUnitQuarters = 4 / this.timeSignature.denominator;
+        const totalBeats =
+            ((bar - 1) * this.timeSignature.numerator + (beat - 1)) * beatUnitQuarters + tick / this.ticksPerQuarter;
         if (this._tempoSegments && this._tempoSegments.length > 0) {
             return this._beatsToSeconds(totalBeats);
         }
@@ -327,8 +341,8 @@ export class TimingManager {
             try {
                 const spb = this.getSecondsPerBeat();
                 const totalBeats = this._secondsToBeats(referenceTimeInSeconds);
-                const nearIntegerBar =
-                    Math.abs(totalBeats / this.beatsPerBar - Math.round(totalBeats / this.beatsPerBar)) < 1e-9;
+                const barQuarters = quarterNotesPerBar(this.timeSignature);
+                const nearIntegerBar = Math.abs(totalBeats / barQuarters - Math.round(totalBeats / barQuarters)) < 1e-9;
                 if (nearIntegerBar) {
                     referenceTimeInSeconds -= EPS; // shift into previous window
                 }
@@ -336,16 +350,17 @@ export class TimingManager {
                 /* conservative fallback */
             }
         }
-        const beatsPerWindow = bars * this.beatsPerBar;
+        const barQuarters = quarterNotesPerBar(this.timeSignature);
+        const beatsPerWindow = bars * barQuarters;
         let totalBeatsAtRef: number;
         if (this._tempoSegments && this._tempoSegments.length > 0) {
             totalBeatsAtRef = this._secondsToBeats(referenceTimeInSeconds);
         } else {
             totalBeatsAtRef = referenceTimeInSeconds / this.getSecondsPerBeat();
         }
-        const barIndex = Math.floor(totalBeatsAtRef / this.beatsPerBar);
+        const barIndex = Math.floor(totalBeatsAtRef / barQuarters);
         const windowStartBarIndex = Math.floor(barIndex / bars) * bars;
-        const startBeats = windowStartBarIndex * this.beatsPerBar;
+        const startBeats = windowStartBarIndex * barQuarters;
         const endBeats = startBeats + beatsPerWindow;
         const start = this._beatsToSeconds(startBeats);
         const end = this._beatsToSeconds(endBeats);
@@ -363,6 +378,7 @@ export class TimingManager {
     getBeatGridInWindow(windowStart: number, windowEnd: number) {
         const startBeats = this._secondsToBeats(windowStart);
         const endBeats = this._secondsToBeats(windowEnd);
+        const beatUnitQuarters = 4 / this.timeSignature.denominator;
         const beats: Array<{
             time: number;
             isBarStart: boolean;
@@ -370,13 +386,13 @@ export class TimingManager {
             barNumber: number;
             beatNumber: number;
         }> = [];
-        const startIndex = Math.ceil(startBeats - 1e-9);
-        const endIndex = Math.floor(endBeats + 1e-9);
+        const startIndex = Math.ceil(startBeats / beatUnitQuarters - 1e-9);
+        const endIndex = Math.floor(endBeats / beatUnitQuarters + 1e-9);
         for (let bi = startIndex; bi <= endIndex; bi++) {
-            const time = this._beatsToSeconds(bi);
-            const isBarStart = bi % this.beatsPerBar === 0;
-            const barNumber = Math.floor(bi / this.beatsPerBar) + 1;
-            const beatNumber = (bi % this.beatsPerBar) + 1;
+            const time = this._beatsToSeconds(bi * beatUnitQuarters);
+            const isBarStart = bi % this.timeSignature.numerator === 0;
+            const barNumber = Math.floor(bi / this.timeSignature.numerator) + 1;
+            const beatNumber = (bi % this.timeSignature.numerator) + 1;
             beats.push({ time, isBarStart, beatIndex: bi, barNumber, beatNumber });
         }
         return beats;
@@ -430,10 +446,9 @@ export class TimingManager {
      */
     getBeatGridInTicks(startTick: number, endTick: number) {
         if (endTick < startTick) [startTick, endTick] = [endTick, startTick];
-        const startBeats = startTick / this.ticksPerQuarter;
-        const endBeats = endTick / this.ticksPerQuarter;
-        const startIndex = Math.ceil(startBeats - 1e-9);
-        const endIndex = Math.floor(endBeats + 1e-9);
+        const meterBeatTicks = ticksPerMeterBeat(this.timeSignature, this.ticksPerQuarter);
+        const startIndex = Math.ceil(startTick / meterBeatTicks - 1e-9);
+        const endIndex = Math.floor(endTick / meterBeatTicks + 1e-9);
         const beats: Array<{
             tick: number;
             isBarStart: boolean;
@@ -442,10 +457,10 @@ export class TimingManager {
             beatNumber: number; // 1-based within bar
         }> = [];
         for (let bi = startIndex; bi <= endIndex; bi++) {
-            const tick = Math.round(bi * this.ticksPerQuarter);
-            const isBarStart = bi % this.beatsPerBar === 0;
-            const barNumber = Math.floor(bi / this.beatsPerBar) + 1;
-            const beatNumber = (bi % this.beatsPerBar) + 1;
+            const tick = Math.round(bi * meterBeatTicks);
+            const isBarStart = bi % this.timeSignature.numerator === 0;
+            const barNumber = Math.floor(bi / this.timeSignature.numerator) + 1;
+            const beatNumber = (bi % this.timeSignature.numerator) + 1;
             beats.push({ tick, isBarStart, beatIndex: bi, barNumber, beatNumber });
         }
         return beats;

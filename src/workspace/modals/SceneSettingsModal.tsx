@@ -3,6 +3,7 @@ import { FaTimes } from 'react-icons/fa';
 import { useVisualizer } from '@context/VisualizerContext';
 import { useTimelineStore } from '@state/timelineStore';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
+import { ticksPerBar } from '@core/timing/meter';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { useScene } from '@context/SceneContext';
 import { useSceneStore } from '@state/sceneStore';
@@ -54,7 +55,7 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
     const { exportSettings, setExportSettings, debugSettings, setDebugSettings } = useVisualizer();
     const view = useTimelineStore((s) => s.timelineView);
     const playbackRange = useTimelineStore((s) => s.playbackRange);
-    const beatsPerBar = useTimelineStore((s) => s.timeline.beatsPerBar || 4);
+    const timeSignature = useTimelineStore((s) => s.timeline.timeSignature);
     const setPlaybackRangeExplicitTicks = useTimelineStore((s) => s.setPlaybackRangeExplicitTicks);
 
     const metadata = useSceneMetadataStore((state) => state.metadata);
@@ -67,12 +68,12 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
     const endTick = playbackRange?.endTick ?? view.endTick;
     const startBars = useMemo(() => {
         if (typeof startTick !== 'number') return 0;
-        return startTick / CANONICAL_PPQ / (beatsPerBar || 4);
-    }, [startTick, beatsPerBar]);
+        return startTick / ticksPerBar(timeSignature, CANONICAL_PPQ);
+    }, [startTick, timeSignature]);
     const endBars = useMemo(() => {
         if (typeof endTick !== 'number') return 0;
-        return endTick / CANONICAL_PPQ / (beatsPerBar || 4);
-    }, [endTick, beatsPerBar]);
+        return endTick / ticksPerBar(timeSignature, CANONICAL_PPQ);
+    }, [endTick, timeSignature]);
 
     const [localWidth, setLocalWidth] = useState<string>(() => String(exportSettings.width));
     const [localHeight, setLocalHeight] = useState<string>(() => String(exportSettings.height));
@@ -347,9 +348,8 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
             setPlaybackRangeExplicitTicks(undefined, undefined);
             return;
         }
-        const beatsPerBarNow = beatsPerBar || 4;
-        const toTicks = (bars?: number) =>
-            typeof bars === 'number' ? Math.round(bars * beatsPerBarNow * CANONICAL_PPQ) : undefined;
+        const ticksPerBarNow = ticksPerBar(timeSignature, CANONICAL_PPQ);
+        const toTicks = (bars?: number) => (typeof bars === 'number' ? Math.round(bars * ticksPerBarNow) : undefined);
         setPlaybackRangeExplicitTicks(toTicks(startVal ?? undefined), toTicks(endVal ?? undefined));
     };
 

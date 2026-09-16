@@ -16,7 +16,7 @@ export function useSnapTicks() {
     const quantize = useTimelineStore((s) => s.transport.quantize);
     const adaptiveSnap = useTimelineStore((s) => s.transport.adaptiveSnap);
     const arbitrarySnapN = useTimelineStore((s) => s.transport.arbitrarySnapN);
-    const bpb = useTimelineStore((s) => s.timeline.beatsPerBar || 4);
+    const meter = useTimelineStore((s) => s.timeline.timeSignature);
     const viewStart = useTimelineStore((s) => s.timelineView.startTick);
     const viewEnd = useTimelineStore((s) => s.timelineView.endTick);
     const ppq = CANONICAL_PPQ;
@@ -32,22 +32,22 @@ export function useSnapTicks() {
             if (forceSnap) {
                 target = 'bar';
             } else if (adaptiveSnap && quantize !== 'off') {
-                target = getAdaptiveSnapSetting(viewEnd - viewStart, bpb, ppq);
+                target = getAdaptiveSnapSetting(viewEnd - viewStart, meter, ppq);
             } else {
                 target = quantize;
             }
             if (target === 'off') return clamp(candidateTick);
-            const resolution = quantizeSettingToExactTicks(target, bpb, ppq, arbitrarySnapN);
+            const resolution = quantizeSettingToExactTicks(target, meter, ppq, arbitrarySnapN);
             if (!resolution) return clamp(candidateTick);
             const snapped = quantizeDivisionToTick(
                 Math.round(candidateTick / resolution),
                 target,
-                bpb,
+                meter,
                 ppq,
                 arbitrarySnapN
             );
             return clamp(snapped ?? candidateTick);
         },
-        [quantize, adaptiveSnap, arbitrarySnapN, bpb, ppq, viewStart, viewEnd]
+        [quantize, adaptiveSnap, arbitrarySnapN, meter, ppq, viewStart, viewEnd]
     );
 }

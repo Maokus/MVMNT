@@ -99,7 +99,7 @@ export interface TimelinePatchUpdateAudioClipsPayload {
 
 export type TimelineTimingSnapshot = Pick<
     TimelineState['timeline'],
-    'globalBpm' | 'beatsPerBar' | 'masterTempoMap' | 'tempoAutomation'
+    'globalBpm' | 'beatsPerBar' | 'timeSignature' | 'masterTempoMap' | 'tempoAutomation'
 >;
 
 export interface TimelinePatchSetTimingPayload {
@@ -560,6 +560,7 @@ function applySetTiming(context: TimelinePatchContext, payload: TimelinePatchSet
             ...state.timeline,
             globalBpm: timing.globalBpm,
             beatsPerBar: timing.beatsPerBar,
+            timeSignature: timing.timeSignature,
             masterTempoMap: timing.masterTempoMap?.map((entry) => ({ ...entry })),
             tempoAutomation: timing.tempoAutomation
                 ? {
@@ -578,7 +579,7 @@ function applySetTiming(context: TimelinePatchContext, payload: TimelinePatchSet
     const manager = getSharedTimingManager();
     manager.setBPM(timing.globalBpm);
     manager.setTempoMap(timing.masterTempoMap?.length ? timing.masterTempoMap : null, 'seconds');
-    manager.setBeatsPerBar(timing.beatsPerBar);
+    manager.setTimeSignature(timing.timeSignature);
 }
 
 export function applyTimelinePatchActions(context: TimelinePatchContext, actions: TimelinePatchAction[]): void {

@@ -45,6 +45,7 @@ export function simulationInputIdentity(scene: SceneStoreState, state: TimelineS
         state.playbackRange,
         state.timeline.globalBpm,
         state.timeline.beatsPerBar,
+        state.timeline.timeSignature,
         state.timeline.masterTempoMap,
         CANONICAL_PPQ,
         ...Object.entries(state.audioCache).flatMap(([id, entry]) => [
@@ -80,6 +81,7 @@ export function simulationAuthoredIdentity(scene: SceneStoreState, state: Timeli
         state.playbackRange,
         state.timeline.globalBpm,
         state.timeline.beatsPerBar,
+        state.timeline.timeSignature,
         state.timeline.masterTempoMap,
         ...Object.entries(state.audioCache).flatMap(([id, entry]) => [id, entry.originalFile]),
     ];

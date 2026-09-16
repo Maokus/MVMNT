@@ -639,6 +639,8 @@ const TemplateInitializer: React.FC = () => {
                                     setSceneName(SceneNameGenerator.generate());
                                     setSceneAuthor('');
                                     setSceneAttribution(attribution);
+                                    useSceneMetadataStore.getState().stampNewDocument();
+                                    useTimelineStore.getState().resetMidiTimingImportEligibility();
                                     // Browser/community imports remain new unsaved remixes.
                                     markDirty();
                                 }
@@ -688,6 +690,8 @@ const TemplateInitializer: React.FC = () => {
                             await loadDefaultScene('MidiVisualizer.TemplateInitializer.fallback');
                     }
                     setSceneAuthor('');
+                    useSceneMetadataStore.getState().stampNewDocument();
+                    useTimelineStore.getState().resetMidiTimingImportEligibility();
                     refreshSceneUI();
                     if (state.desktopNew) {
                         localStorage.setItem('mvmnt.desktop.recovery-state', 'dirty');
@@ -778,6 +782,8 @@ const TemplateInitializer: React.FC = () => {
                         if (loaded) {
                             // Give the fresh scene a generated name (default template may have a generic one).
                             useSceneMetadataStore.getState().setName(SceneNameGenerator.generate());
+                            useSceneMetadataStore.getState().stampNewDocument();
+                            useTimelineStore.getState().resetMidiTimingImportEligibility();
                             refreshSceneUI();
                             // Establish a clean baseline so the asterisk doesn't show immediately.
                             markSaveClean();

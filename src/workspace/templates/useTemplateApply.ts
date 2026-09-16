@@ -8,6 +8,7 @@ import { useScene } from '@context/SceneContext';
 import { useVisualizer } from '@context/VisualizerContext';
 import { analytics } from '@app/analytics';
 import type { LoadedTemplateArtifact, TemplateDefinition } from './types';
+import { useTimelineStore } from '@state/timelineStore';
 
 export function useTemplateApply() {
     const { refreshSceneUI, isDirty, markDirty } = useScene();
@@ -66,6 +67,8 @@ export function useTemplateApply() {
                 metadataStore.setName(SceneNameGenerator.generate());
                 metadataStore.setAuthor('');
                 metadataStore.setAttribution(attribution);
+                metadataStore.stampNewDocument();
+                useTimelineStore.getState().resetMidiTimingImportEligibility();
 
                 if (typeof undo?.reset === 'function') {
                     undo.reset();

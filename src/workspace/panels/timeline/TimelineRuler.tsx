@@ -5,6 +5,7 @@ import { useTickScale } from './hooks/useTickScale';
 import { sharedTimingManager } from '@state/timelineStore';
 import { formatTickAsBBT } from '@core/timing/time-domain';
 import { useSnapTicks as useSnapTicksBase } from './hooks/useSnapTicks';
+import { ticksPerBar as getTicksPerBar, ticksPerMeterBeat } from '@core/timing/meter';
 
 // Adapter: ruler callers use { altKey, forceBar } opts; shared hook uses positional args.
 function useSnapTicks() {
@@ -25,7 +26,7 @@ const TimelineRuler: React.FC = () => {
     const height = RULER_HEIGHT;
     const currentTick = useTimelineStore((s) => s.timeline.currentTick);
     const { view, toTick, toX } = useTickScale();
-    const beatsPerBar = useTimelineStore((s) => s.timeline.beatsPerBar);
+    const meter = useTimelineStore((s) => s.timeline.timeSignature);
     const seekTick = useTimelineStore((s) => s.seekTick);
     const setCurrentTick = useTimelineStore((s) => s.setCurrentTick);
     const setTimelineViewTicks = useTimelineStore((s) => s.setTimelineViewTicks);
@@ -47,19 +48,20 @@ const TimelineRuler: React.FC = () => {
     // Build bar ticks for the visible range (with slight padding for readability)
     const bars = useMemo(() => {
         const tpq = sharedTimingManager.ticksPerQuarter;
-        const ticksPerBar = beatsPerBar * tpq;
+        const ticksPerBar = getTicksPerBar(meter, tpq);
         const startBar = Math.floor(view.startTick / ticksPerBar) - 1;
         const endBar = Math.ceil(view.endTick / ticksPerBar) + 1;
         const arr: Array<{ barIdx: number; tick: number }> = [];
         for (let b = Math.max(0, startBar); b <= endBar; b++) arr.push({ barIdx: b, tick: b * ticksPerBar });
         return arr;
-    }, [view.startTick, view.endTick, beatsPerBar]);
+    }, [view.startTick, view.endTick, meter]);
 
     // Optionally compute beat ticks if there's enough room per bar
     const beatTicks = useMemo(() => {
         if (!width || bars.length < 2) return [] as Array<{ tick: number; isBar: boolean }>;
         const tpq = sharedTimingManager.ticksPerQuarter;
-        const ticksPerBar = beatsPerBar * tpq;
+        const ticksPerBar = getTicksPerBar(meter, tpq);
+        const beatTicks = ticksPerMeterBeat(meter, tpq);
         const pxPerBar = Math.abs(toX(bars[1].tick, width) - toX(bars[0].tick, width));
         const showBeats = pxPerBar > 48;
         const arr: Array<{ tick: number; isBar: boolean }> = [];
@@ -67,13 +69,13 @@ const TimelineRuler: React.FC = () => {
             const b = bars[i];
             arr.push({ tick: b.tick, isBar: true });
             if (showBeats) {
-                for (let beat = 1; beat < beatsPerBar; beat++) {
-                    arr.push({ tick: b.tick + beat * tpq, isBar: false });
+                for (let beat = 1; beat < meter.numerator; beat++) {
+                    arr.push({ tick: b.tick + beat * beatTicks, isBar: false });
                 }
             }
         }
         return arr;
-    }, [bars, width, toX, beatsPerBar]);
+    }, [bars, width, toX, meter]);
 
     // Pointer interactions: click to seek, drag braces
     const dragState = useRef<null | {

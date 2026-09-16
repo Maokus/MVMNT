@@ -63,9 +63,9 @@ const HeaderRightControls: React.FC<{
     };
     // Global timing state
     const globalBpm = useTimelineStore((s) => s.timeline.globalBpm);
-    const beatsPerBar = useTimelineStore((s) => s.timeline.beatsPerBar);
+    const timeSignature = useTimelineStore((s) => s.timeline.timeSignature);
     const setGlobalBpm = useTimelineStore((s) => s.setGlobalBpm);
-    const setBeatsPerBar = useTimelineStore((s) => s.setBeatsPerBar);
+    const setTimeSignature = useTimelineStore((s) => s.setTimeSignature);
     const tempoAutomationEnabled = useTimelineStore((s) => !!s.timeline.tempoAutomation?.enabled);
     // When tempo automation is enabled, derive the instantaneous BPM at the playhead
     const currentTick = useTimelineStore((s) => s.timeline.currentTick);
@@ -117,14 +117,14 @@ const HeaderRightControls: React.FC<{
 
     // Local editable buffers so typing isn't instantly overwritten by store updates
     const [localTempo, setLocalTempo] = useState<string>('');
-    const [localBeatsPerBar, setLocalBeatsPerBar] = useState<string>('');
+    const [localTimeSignature, setLocalTimeSignature] = useState<string>('');
     useEffect(() => {
         const v = tempoAutomationEnabled ? displayBpm : globalBpm;
         setLocalTempo(String(Number.isFinite(v) ? v : 120));
     }, [globalBpm, tempoAutomationEnabled, displayBpm]);
     useEffect(() => {
-        setLocalBeatsPerBar(String(Number.isFinite(beatsPerBar) ? beatsPerBar : 4));
-    }, [beatsPerBar]);
+        setLocalTimeSignature(`${timeSignature?.numerator ?? 4}/${timeSignature?.denominator ?? 4}`);
+    }, [timeSignature]);
     const commitTempo = () => {
         const v = parseFloat(localTempo);
         const value = Number.isFinite(v) && v > 0 ? v : Number.isFinite(globalBpm) ? globalBpm : 120;
@@ -133,13 +133,17 @@ const HeaderRightControls: React.FC<{
         } catch {}
         setLocalTempo(String(value));
     };
-    const commitBeatsPerBar = () => {
-        const v = parseInt(localBeatsPerBar);
-        const value = Number.isFinite(v) && v > 0 ? Math.floor(v) : Number.isFinite(beatsPerBar) ? beatsPerBar : 4;
-        try {
-            setBeatsPerBar(value);
-        } catch {}
-        setLocalBeatsPerBar(String(value));
+    const commitTimeSignature = () => {
+        const match = localTimeSignature.trim().match(/^(\d+)\s*\/\s*(\d+)$/);
+        const numerator = match ? Number(match[1]) : NaN;
+        const denominator = match ? Number(match[2]) : NaN;
+        const validDenominator = denominator > 0 && denominator <= 64 && Number.isInteger(Math.log2(denominator));
+        const value =
+            numerator > 0 && numerator <= 64 && validDenominator
+                ? { numerator, denominator }
+                : (timeSignature ?? { numerator: 4, denominator: 4 });
+        setTimeSignature(value);
+        setLocalTimeSignature(`${value.numerator}/${value.denominator}`);
     };
 
     return (
@@ -174,21 +178,19 @@ const HeaderRightControls: React.FC<{
                         disabled={tempoAutomationEnabled}
                     />
                 </label>
-                <label className="flex items-center gap-1 text-neutral-300" title="Beats per bar (meter numerator)">
-                    <span>BPB</span>
+                <label className="flex items-center gap-1 text-neutral-300" title="Project time signature">
+                    <span>Meter</span>
                     <input
-                        aria-label="Beats per bar"
+                        aria-label="Time signature"
                         className="number-input w-[60px]"
-                        type="number"
-                        min={1}
-                        max={16}
-                        step={1}
-                        value={localBeatsPerBar}
-                        onChange={(e) => setLocalBeatsPerBar(e.target.value)}
-                        onBlur={commitBeatsPerBar}
+                        type="text"
+                        inputMode="numeric"
+                        value={localTimeSignature}
+                        onChange={(e) => setLocalTimeSignature(e.target.value)}
+                        onBlur={commitTimeSignature}
                         onKeyDown={(e) => {
                             if (e.key === 'Enter') {
-                                commitBeatsPerBar();
+                                commitTimeSignature();
                                 (e.currentTarget as any).blur?.();
                             }
                         }}

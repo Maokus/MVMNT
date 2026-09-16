@@ -10,6 +10,7 @@ import type {
 import type { TempoAlignedAdapterDiagnostics } from '@audio/features/tempoAlignedViewAdapter';
 import type { TempoMapEntry, NoteRaw, CCEventRaw, MidiCacheBounds } from '@state/timelineTypes';
 import type { TempoKeyframe } from '@core/timing/types';
+import type { TimeSignature } from '@core/timing/meter';
 import type { QuantizeSetting } from './quantize';
 import type { MidiClip } from './midiClips';
 import type {
@@ -57,7 +58,9 @@ export type TimelineState = {
         masterTempoMap?: TempoMapEntry[];
         currentTick: number; // canonical playhead position in ticks
         globalBpm: number; // fallback bpm for conversions when map is empty
-        beatsPerBar: number; // global meter (constant for now)
+        /** @deprecated Compatibility mirror of timeSignature.numerator. */
+        beatsPerBar: number;
+        timeSignature: TimeSignature; // global meter (constant for now)
         playheadAuthority?: 'tick' | 'seconds' | 'clock' | 'user'; // last domain that authored the playhead
         tempoAutomation?: {
             enabled: boolean;
@@ -104,6 +107,7 @@ export type TimelineState = {
         fallbackLog: HybridCacheFallbackEvent[];
     };
     tempoAlignedDiagnostics: Record<string, TempoAlignedAdapterDiagnostics>;
+    midiTimingImport: { pending: boolean; bpmTouched: boolean; meterTouched: boolean };
     // UI preferences
     rowHeight: number; // track row height in px
     /** Session-only test-synth routing. This is deliberately not part of a track/document. */
@@ -151,6 +155,10 @@ export type TimelineState = {
     setMasterTempoMap: (map?: TempoMapEntry[]) => void;
     setGlobalBpm: (bpm: number) => void;
     setBeatsPerBar: (n: number) => void;
+    setTimeSignature: (signature: TimeSignature) => void;
+    finishInitialMidiTimingImport: () => void;
+    resetMidiTimingImportEligibility: () => void;
+    disableMidiTimingImportEligibility: () => void;
     setCurrentTick: (tick: number, authority?: 'tick' | 'seconds' | 'clock' | 'user') => void; // dual-write API
     play: () => void;
     pause: () => void;

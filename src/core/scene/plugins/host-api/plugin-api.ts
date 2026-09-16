@@ -649,8 +649,8 @@ export function createPluginHostServices(deps: CreatePluginHostServicesDeps = {}
             ticksToBeats,
             getTimeSignature() {
                 if (!timelineStore || typeof timelineStore.getState !== 'function') return null;
-                const { beatsPerBar } = timelineStore.getState().timeline;
-                return { numerator: beatsPerBar, denominator: 4 };
+                const { timeSignature, beatsPerBar } = timelineStore.getState().timeline;
+                return timeSignature ?? { numerator: beatsPerBar, denominator: 4 };
             },
         },
         utilities: {

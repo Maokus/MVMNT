@@ -23,6 +23,7 @@ export type TimelineCommandId =
     | 'timeline.moveAudioClipsBetweenTracks'
     | 'timeline.setGlobalBpm'
     | 'timeline.setBeatsPerBar'
+    | 'timeline.setTimeSignature'
     | 'timeline.setTempoAutomation'
     | 'timeline.setPlaybackRange';
 

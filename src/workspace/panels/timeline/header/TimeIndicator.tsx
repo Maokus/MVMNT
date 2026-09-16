@@ -2,11 +2,12 @@ import React from 'react';
 import { useTimelineStore } from '@state/timelineStore';
 import { formatTickAsBBT } from '@core/timing/time-domain';
 import { sharedTimingManager } from '@state/timelineStore';
+import { quarterNotesPerBar } from '@core/timing/meter';
 
 // Time indicator component (moved to the left header beside Add MIDI Track)
 const TimeIndicator: React.FC = () => {
     const currentTick = useTimelineStore((s) => s.timeline.currentTick);
-    const beatsPerBar = useTimelineStore((s) => s.timeline.beatsPerBar);
+    const meter = useTimelineStore((s) => s.timeline.timeSignature);
     const tempoMap = useTimelineStore((s) => s.timeline.masterTempoMap);
     const bpm = useTimelineStore((s) => s.timeline.globalBpm);
     // Use TimingManager for canonical ticksPerQuarter instead of hard-coded constant (was 960 vs core 480 mismatch)
@@ -14,7 +15,7 @@ const TimeIndicator: React.FC = () => {
     const ticksPerQuarter = sharedTimingManager.ticksPerQuarter;
     // Derive beats/seconds from tick
     const beatsFloat = currentTick / ticksPerQuarter;
-    const barsFloat = beatsFloat / (beatsPerBar || 4);
+    const barsFloat = beatsFloat / quarterNotesPerBar(meter);
     // seconds derivation using fallback tempo map util (simplified uniform tempo assumption if no map)
     const spb = 60 / (bpm || 120);
     let seconds = beatsFloat * spb;
@@ -39,7 +40,7 @@ const TimeIndicator: React.FC = () => {
     };
     return (
         <div className="flex items-center gap-2 text-[12px] text-neutral-400 select-none">
-            <span>{formatTickAsBBT(currentTick, ticksPerQuarter, beatsPerBar)}</span>
+            <span>{formatTickAsBBT(currentTick, ticksPerQuarter, meter)}</span>
             <span className="hidden sm:inline">({fmt(seconds)})</span>
             <span className="hidden sm:inline whitespace-nowrap">beats: {beatsFloat.toFixed(2)}</span>
             <span className="hidden sm:inline whitespace-nowrap">bars: {barsFloat.toFixed(2)}</span>

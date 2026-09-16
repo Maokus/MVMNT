@@ -93,13 +93,16 @@ export const timeDisplay = defineBuiltInElement<Props, undefined>({
     render({ props, time, context }) {
         const metadata = context.timeline?.getMetadata();
         const bpm = metadata?.ok ? metadata.value.tempoBpm : 120;
-        const beatsPerBar = metadata?.ok ? metadata.value.timeSignature.numerator : 4;
+        const signature = metadata?.ok ? metadata.value.timeSignature : { numerator: 4, denominator: 4 };
+        const beatUnitQuarters = 4 / signature.denominator;
+        const quarterNotesPerBar = signature.numerator * beatUnitQuarters;
         const secondsPerBeat = 60 / bpm;
-        const displaySeconds = time.seconds + props.offsetBars * beatsPerBar * secondsPerBeat;
-        const totalBeats = displaySeconds / secondsPerBeat;
-        const bar = Math.floor(totalBeats / beatsPerBar);
-        const beat = Math.floor(((totalBeats % beatsPerBar) + beatsPerBar) % beatsPerBar) + 1;
-        const tick = Math.floor((totalBeats - Math.floor(totalBeats)) * 480);
+        const displaySeconds = time.seconds + props.offsetBars * quarterNotesPerBar * secondsPerBeat;
+        const totalMeterBeats = displaySeconds / secondsPerBeat / beatUnitQuarters;
+        const bar = Math.floor(totalMeterBeats / signature.numerator);
+        const beat =
+            Math.floor(((totalMeterBeats % signature.numerator) + signature.numerator) % signature.numerator) + 1;
+        const tick = Math.floor((totalMeterBeats - Math.floor(totalMeterBeats)) * 480);
         const totalMs = displaySeconds * 1000;
         const minutes = Math.floor(totalMs / 60000);
         const seconds = Math.floor((totalMs % 60000) / 1000);
@@ -150,7 +153,7 @@ export const timeDisplay = defineBuiltInElement<Props, undefined>({
                 new Rectangle(
                     size * 2.8,
                     beatY + size * 0.1,
-                    size * Math.max(0, Math.min(1, (beat - 1) / beatsPerBar)),
+                    size * Math.max(0, Math.min(1, (beat - 1) / signature.numerator)),
                     4,
                     { fillColor: withOpacity(secondary, 0.6) }
                 )

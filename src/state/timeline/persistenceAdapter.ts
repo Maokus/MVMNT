@@ -53,7 +53,7 @@ export function restoreTimelineStoreSnapshot(
     const manager = getSharedTimingManager();
     manager.setBPM(snapshot.timeline.globalBpm);
     manager.setTempoMap(snapshot.timeline.masterTempoMap?.length ? snapshot.timeline.masterTempoMap : null, 'seconds');
-    manager.setBeatsPerBar(snapshot.timeline.beatsPerBar);
+    manager.setTimeSignature(snapshot.timeline.timeSignature);
 }
 
 export function createClearedTimelinePersistenceState(

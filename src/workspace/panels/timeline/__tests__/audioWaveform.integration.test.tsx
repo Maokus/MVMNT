@@ -94,7 +94,14 @@ describe('AudioWaveform integration in TrackLanes', () => {
                 audioFeatureCaches: {},
                 audioFeatureCacheStatus: {},
                 midiCache: {},
-                timeline: { id: 'tl1', name: 'Test', currentTick: 0, globalBpm: 120, beatsPerBar: 4 },
+                timeline: {
+                    id: 'tl1',
+                    name: 'Test',
+                    currentTick: 0,
+                    globalBpm: 120,
+                    beatsPerBar: 4,
+                    timeSignature: { numerator: 4, denominator: 4 },
+                },
                 timelineView: { startTick: 0, endTick: 800 },
                 transport: {
                     state: 'idle',

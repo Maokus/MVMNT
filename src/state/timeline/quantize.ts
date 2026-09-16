@@ -1,4 +1,13 @@
 import { CANONICAL_PPQ } from '@core/timing/ppq';
+import { normalizeTimeSignature, quarterNotesPerBar, type TimeSignature } from '@core/timing/meter';
+
+type MeterInput = number | TimeSignature;
+
+function barQuarterNotes(meter: MeterInput): number {
+    return quarterNotesPerBar(
+        normalizeTimeSignature(typeof meter === 'number' ? { numerator: meter, denominator: 4 } : meter)
+    );
+}
 
 export type QuantizeSetting =
     | 'off'
@@ -48,10 +57,10 @@ export function formatQuantizeShortLabel(setting: QuantizeSetting, arbitraryN?: 
 
 export function quantizeSettingToBeats(
     setting: QuantizeSetting,
-    beatsPerBar: number,
+    beatsPerBar: MeterInput,
     arbitraryN?: number
 ): number | null {
-    const safeBeatsPerBar = Number.isFinite(beatsPerBar) && beatsPerBar > 0 ? beatsPerBar : 4;
+    const safeBeatsPerBar = barQuarterNotes(beatsPerBar);
     switch (setting) {
         case 'off':
             return null;
@@ -84,7 +93,7 @@ export function quantizeSettingToBeats(
 
 export function quantizeSettingToTicks(
     setting: QuantizeSetting,
-    beatsPerBar: number,
+    beatsPerBar: MeterInput,
     ticksPerQuarter: number = CANONICAL_PPQ,
     arbitraryN?: number
 ): number | null {
@@ -102,7 +111,7 @@ export function quantizeSettingToTicks(
  */
 export function quantizeSettingToExactTicks(
     setting: QuantizeSetting,
-    beatsPerBar: number,
+    beatsPerBar: MeterInput,
     ticksPerQuarter: number = CANONICAL_PPQ,
     arbitraryN?: number
 ): number | null {
@@ -116,7 +125,7 @@ export function quantizeSettingToExactTicks(
 export function quantizeDivisionToTick(
     division: number,
     setting: QuantizeSetting,
-    beatsPerBar: number,
+    beatsPerBar: MeterInput,
     ticksPerQuarter: number = CANONICAL_PPQ,
     arbitraryN?: number
 ): number | null {
@@ -130,10 +139,10 @@ export function quantizeDivisionToTick(
  */
 export function getAdaptiveSnapSetting(
     viewRangeTicks: number,
-    beatsPerBar: number,
+    beatsPerBar: MeterInput,
     ticksPerQuarter: number = CANONICAL_PPQ
 ): SnapQuantizeOption {
-    const safeBpb = Number.isFinite(beatsPerBar) && beatsPerBar > 0 ? beatsPerBar : 4;
+    const safeBpb = barQuarterNotes(beatsPerBar);
     const barsVisible = viewRangeTicks / (safeBpb * ticksPerQuarter);
     if (barsVisible > 32) return 'bar';
     if (barsVisible > 8) return 'quarter';
@@ -149,7 +158,7 @@ export function getAdaptiveSnapSetting(
 export function getAdaptiveGridSubdivisions(
     widthPx: number,
     viewRangeTicks: number,
-    beatsPerBar: number,
+    beatsPerBar: MeterInput,
     ticksPerQuarter: number = CANONICAL_PPQ
 ): { showBeats: boolean; showEighths: boolean; showSixteenths: boolean } {
     const MIN_PX = 18;

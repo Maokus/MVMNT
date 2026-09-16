@@ -53,6 +53,7 @@ import {
     createTimingCommand,
     type SetBeatsPerBarPayload,
     type SetGlobalBpmPayload,
+    type SetTimeSignaturePayload,
     type SetTempoAutomationPayload,
 } from './commands/timingCommands';
 import { createUpdateTrackCommand, type UpdateTrackPayload } from './commands/updateTrackCommand';
@@ -92,6 +93,7 @@ type TimelineRegistryMap = {
     >;
     'timeline.setGlobalBpm': TimelineCommandRegistration<SetGlobalBpmPayload>;
     'timeline.setBeatsPerBar': TimelineCommandRegistration<SetBeatsPerBarPayload>;
+    'timeline.setTimeSignature': TimelineCommandRegistration<SetTimeSignaturePayload>;
     'timeline.setTempoAutomation': TimelineCommandRegistration<SetTempoAutomationPayload>;
     'timeline.setPlaybackRange': TimelineCommandRegistration<SetPlaybackRangePayload>;
 };
@@ -285,6 +287,15 @@ const registry: TimelineRegistryMap = {
             telemetryEvent: 'timeline_set_beats_per_bar',
         }),
         factory: (payload, metadata) => createTimingCommand('timeline.setBeatsPerBar', payload, metadata),
+    },
+    'timeline.setTimeSignature': {
+        id: 'timeline.setTimeSignature',
+        buildMetadata: () => ({
+            commandId: 'timeline.setTimeSignature',
+            undoLabel: 'Change Time Signature',
+            telemetryEvent: 'timeline_set_time_signature',
+        }),
+        factory: (payload, metadata) => createTimingCommand('timeline.setTimeSignature', payload, metadata),
     },
     'timeline.setTempoAutomation': {
         id: 'timeline.setTempoAutomation',

@@ -1,7 +1,6 @@
 import { TimingManager } from '@core/timing';
 import {
     createTimingContext,
-    beatsToTicks,
     ticksToBeats,
     secondsToTicks as timingSecondsToTicks,
     type TimelineTimingContext,
@@ -10,6 +9,7 @@ import type { TimelineState } from '../timelineStore';
 import type { TempoMapEntry } from '../timelineTypes';
 import { getMidiClipTimelineBounds, getMidiClipsForTrack } from './midiClips';
 import { getAudioClipTimelineBounds, getAudioClipsForTrack } from './audioClips';
+import { ticksPerBar } from '@core/timing/meter';
 
 export const sharedTimingManager = new TimingManager();
 
@@ -18,7 +18,7 @@ export function getSharedTimingManager(): TimingManager {
 }
 
 export const DEFAULT_TIMING_CONTEXT: TimelineTimingContext = createTimingContext(
-    { globalBpm: 120, beatsPerBar: 4, masterTempoMap: undefined },
+    { globalBpm: 120, beatsPerBar: 4, timeSignature: { numerator: 4, denominator: 4 }, masterTempoMap: undefined },
     sharedTimingManager.ticksPerQuarter
 );
 
@@ -27,6 +27,7 @@ export function createTimelineTimingContext(state: TimelineState): TimelineTimin
         {
             globalBpm: state.timeline.globalBpm,
             beatsPerBar: state.timeline.beatsPerBar,
+            timeSignature: state.timeline.timeSignature,
             masterTempoMap: state.timeline.masterTempoMap,
         },
         sharedTimingManager.ticksPerQuarter
@@ -137,9 +138,8 @@ export function autoAdjustSceneRangeIfNeeded(
     const current = s.playbackRange || {};
     const same = Math.abs((current.startTick ?? -1) - start) < 1 && Math.abs((current.endTick ?? -1) - end) < 1;
     if (same) return;
-    const oneBarBeats = s.timeline.beatsPerBar;
     const timing = createTimelineTimingContext(s);
-    const oneBarTicks = Math.round(beatsToTicks(timing, oneBarBeats));
+    const oneBarTicks = Math.round(ticksPerBar(s.timeline.timeSignature, timing.ticksPerQuarter));
     const maxBars = 200;
     const clippedEnd = Math.min(end, start + oneBarTicks * maxBars);
     set((prev: TimelineState) => ({
