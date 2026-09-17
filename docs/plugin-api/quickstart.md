@@ -25,7 +25,8 @@ checkout:
 ```bash
 cd ..
 npm create mvmnt-plugin@latest
-cd pulse
+# Use the interactive menu
+cd plugindirname
 npm install
 npm run check
 ```
@@ -37,6 +38,23 @@ public SDK dependency.
 
 Running the generator again from the plugin (or one of its nested directories) detects `plugin.json`
 and offers to add another scene element instead of creating a separate plugin.
+
+## Start development server
+
+Start both development servers in separate terminals. From the MVMNT checkout, run:
+
+```bash
+npm run dev
+```
+
+From the generated plugin directory, run:
+
+```bash
+npm run dev
+```
+
+Then open **Scene Settings → Developer** in MVMNT and scan for the Development Plugin Server.
+The plugin generator creates a complete project with validation, hot reload, and packaging.
 
 ## Edit the element
 
