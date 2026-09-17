@@ -1,4 +1,4 @@
-import { Rectangle, Text, type RenderObject } from '@core/render/render-objects';
+import { EmptyRenderObject, Rectangle, Text, type RenderObject } from '@core/render/render-objects';
 import { applyOpacity } from '@utils/color';
 import { defineBuiltInElement } from '@core/scene/built-ins/define-built-in';
 import { parseFontSelection } from '@fonts/font-loader';
@@ -7,6 +7,54 @@ interface Props extends Readonly<Record<string, any>> {}
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = (note: number) => `${NAMES[note % 12]}${Math.floor(note / 12) - 1}`;
 const num = (key: string, label: string, value: number) => ({ key, label, type: 'number', default: value });
+
+interface GridMotion {
+    scale: number;
+    offsetY: number;
+    opacity: number;
+}
+
+interface EndedNote {
+    startSeconds: number;
+    endSeconds: number;
+}
+
+const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
+const lerp = (from: number, to: number, progress: number) => from + (to - from) * progress;
+const easeOutCubic = (progress: number) => 1 - (1 - clamp01(progress)) ** 3;
+
+const settledGridMotion = (): GridMotion => ({ scale: 1, offsetY: 0, opacity: 1 });
+
+const getGridMotion = (animationType: string, elapsed: number, cellHeight: number): GridMotion => {
+    const time = Math.max(0, elapsed);
+    if (animationType === 'bump') {
+        if (time >= 0.22) return settledGridMotion();
+        const scale =
+            time <= 0.07 ? lerp(1, 1.08, easeOutCubic(time / 0.07)) : lerp(1.08, 1, easeOutCubic((time - 0.07) / 0.15));
+        return { scale, offsetY: 0, opacity: 1 };
+    }
+    if (animationType === 'scale') {
+        if (time >= 0.18) return settledGridMotion();
+        const progress = easeOutCubic(time / 0.18);
+        return { scale: lerp(0.82, 1, progress), offsetY: 0, opacity: progress };
+    }
+    if (animationType === 'softPop') {
+        if (time >= 0.26) return settledGridMotion();
+        const scale =
+            time <= 0.1 ? lerp(0.9, 1.04, easeOutCubic(time / 0.1)) : lerp(1.04, 1, easeOutCubic((time - 0.1) / 0.16));
+        return { scale, offsetY: 0, opacity: easeOutCubic(time / 0.1) };
+    }
+    if (animationType === 'lift') {
+        if (time >= 0.2) return settledGridMotion();
+        const progress = easeOutCubic(time / 0.2);
+        return {
+            scale: lerp(0.97, 1, progress),
+            offsetY: lerp(cellHeight * 0.12, 0, progress),
+            opacity: progress,
+        };
+    }
+    return settledGridMotion();
+};
 export const notesPlayingDisplay = defineBuiltInElement<Props, undefined>({
     type: 'notesPlayingDisplay',
     metadata: {
@@ -124,11 +172,13 @@ export const notesPlayingDisplay = defineBuiltInElement<Props, undefined>({
                                 key: 'animationType',
                                 label: 'Animation',
                                 type: 'select',
-                                default: 'none',
+                                default: 'bump',
                                 options: [
                                     { value: 'none', label: 'None' },
                                     { value: 'bump', label: 'Bump' },
                                     { value: 'scale', label: 'Scale' },
+                                    { value: 'softPop', label: 'Soft Pop' },
+                                    { value: 'lift', label: 'Lift' },
                                 ],
                             },
                         ],
@@ -260,29 +310,36 @@ export const notesPlayingDisplay = defineBuiltInElement<Props, undefined>({
         });
         const recent = recentResult.ok ? recentResult.value : [];
         const active = new Map<number, number>();
-        const ended = new Map<number, number>();
+        const ended = new Map<number, EndedNote>();
         recent.forEach((note) => {
             if (note.startSeconds <= current && current < note.endSeconds)
                 active.set(note.note, Math.max(active.get(note.note) ?? 0, note.startSeconds));
-            else if (fade > 0 && note.endSeconds <= current && note.endSeconds >= current - fade)
-                ended.set(note.note, Math.max(ended.get(note.note) ?? 0, note.endSeconds));
+            else if (fade > 0 && note.endSeconds <= current && note.endSeconds >= current - fade) {
+                const previous = ended.get(note.note);
+                if (!previous || note.endSeconds > previous.endSeconds) {
+                    ended.set(note.note, {
+                        startSeconds: note.startSeconds,
+                        endSeconds: note.endSeconds,
+                    });
+                }
+            }
         });
         active.forEach((_value, note) => ended.delete(note));
-        const opacity = (note: number) =>
-            active.has(note)
-                ? 1
-                : Math.max(0, 1 - (current - (ended.get(note) ?? current - fade)) / Math.max(fade, 1e-6));
-        const scale = (note: number) => {
-            const elapsed = current - (active.get(note) ?? current);
-            if (props.animationType === 'bump' && elapsed < 0.15) return 1 + 0.3 * (1 - (elapsed / 0.15) ** 2);
-            if (props.animationType === 'scale' && elapsed < 0.2) return (elapsed / 0.2) ** 2;
-            return 1;
+        const releaseOpacity = (note: number) => {
+            if (active.has(note)) return 1;
+            const endedNote = ended.get(note);
+            if (!endedNote) return 1;
+            return Math.max(0, 1 - (current - endedNote.endSeconds) / Math.max(fade, 1e-6));
+        };
+        const noteElapsed = (note: number) => {
+            const startSeconds = active.get(note) ?? ended.get(note)?.startSeconds;
+            return startSeconds === undefined ? Number.POSITIVE_INFINITY : current - startSeconds;
         };
         const notes = new Set([...active.keys(), ...ended.keys()]);
         const { family, weight = '400' } = parseFontSelection(String(props.fontFamily));
         const font = `${weight} ${props.fontSize}px ${family}, sans-serif`;
         const color = applyOpacity(props.textColor, props.textOpacity);
-        const objects: RenderObject[] = [];
+        const visibleObjects: RenderObject[] = [];
         let width: number;
         let height: number;
         let layoutX: number;
@@ -313,25 +370,36 @@ export const notesPlayingDisplay = defineBuiltInElement<Props, undefined>({
                     if (!notes.has(note)) continue;
                     const x = layoutX + col * (props.gridCellWidth + props.gridCellGap);
                     const y = (rows - row - 1) * (props.gridCellHeight + props.gridCellGap);
-                    const cell = new Rectangle(x, y, props.gridCellWidth, props.gridCellHeight, {
-                        fillColor: applyOpacity(props.gridFillColor, props.gridFillOpacity),
-                        strokeColor:
-                            props.gridStrokeWidth > 0
-                                ? applyOpacity(props.gridStrokeColor, props.gridStrokeOpacity)
-                                : null,
-                        strokeWidth: props.gridStrokeWidth,
-                    });
-                    cell.cornerRadius = props.gridCornerRadius;
-                    cell.opacity = opacity(note);
-                    cell.scaleX = cell.scaleY = scale(note);
-                    objects.push(
-                        cell,
-                        new Text(x + props.gridCellWidth / 2, y + props.gridCellHeight / 2, noteName(note), font, {
-                            color,
-                            align: 'center',
-                            baseline: 'middle',
-                        })
+                    const centerX = x + props.gridCellWidth / 2;
+                    const centerY = y + props.gridCellHeight / 2;
+                    const motion = getGridMotion(props.animationType, noteElapsed(note), props.gridCellHeight);
+                    const pad = new EmptyRenderObject(centerX, centerY + motion.offsetY);
+                    pad.scaleX = pad.scaleY = motion.scale;
+                    pad.opacity = releaseOpacity(note) * motion.opacity;
+                    const cell = new Rectangle(
+                        -props.gridCellWidth / 2,
+                        -props.gridCellHeight / 2,
+                        props.gridCellWidth,
+                        props.gridCellHeight,
+                        {
+                            fillColor: applyOpacity(props.gridFillColor, props.gridFillOpacity),
+                            strokeColor:
+                                props.gridStrokeWidth > 0
+                                    ? applyOpacity(props.gridStrokeColor, props.gridStrokeOpacity)
+                                    : null,
+                            strokeWidth: props.gridStrokeWidth,
+                            layoutParticipation: 'exclude',
+                        }
                     );
+                    cell.cornerRadius = props.gridCornerRadius;
+                    const label = new Text(0, 0, noteName(note), font, {
+                        color,
+                        align: 'center',
+                        baseline: 'middle',
+                        layoutParticipation: 'exclude',
+                    });
+                    pad.addChildren([cell, label]);
+                    visibleObjects.push(pad);
                 }
         } else {
             width = 11 * props.lettersSpacing + props.fontSize * 1.2;
@@ -342,23 +410,38 @@ export const notesPlayingDisplay = defineBuiltInElement<Props, undefined>({
                 if (!matching.length) continue;
                 const note = matching.find((value) => active.has(value)) ?? matching[0];
                 const text = new Text(layoutX + pitch * props.lettersSpacing, 0, NAMES[pitch], font, { color });
-                text.opacity = opacity(note);
-                text.scaleX = text.scaleY = scale(note);
-                objects.push(text);
+                text.opacity = releaseOpacity(note);
+                const elapsed = current - (active.get(note) ?? current);
+                if (props.animationType === 'bump' && elapsed < 0.15)
+                    text.scaleX = text.scaleY = 1 + 0.3 * (1 - (elapsed / 0.15) ** 2);
+                else if (props.animationType === 'scale' && elapsed < 0.2)
+                    text.scaleX = text.scaleY = (elapsed / 0.2) ** 2;
+                text.setLayoutParticipation('exclude');
+                visibleObjects.push(text);
             }
         }
-        objects.unshift(new Rectangle(layoutX, 0, width, height, { fillColor: null }));
+
+        const layoutBounds = new Rectangle(layoutX, 0, width, height, {
+            fillColor: null,
+            strokeColor: null,
+            layoutParticipation: 'include',
+        });
+        const objects: RenderObject[] = [layoutBounds];
         if (props.showBackground) {
             const bg = new Rectangle(
                 layoutX - props.backgroundPaddingX,
                 -props.backgroundPaddingY,
                 width + props.backgroundPaddingX * 2,
                 height + props.backgroundPaddingY * 2,
-                { fillColor: applyOpacity(props.backgroundColor, props.backgroundOpacity) }
+                {
+                    fillColor: applyOpacity(props.backgroundColor, props.backgroundOpacity),
+                    layoutParticipation: 'exclude',
+                }
             );
             bg.cornerRadius = props.backgroundCornerRadius;
-            objects.unshift(bg);
+            objects.push(bg);
         }
+        objects.push(...visibleObjects);
         return objects;
     },
 });
