@@ -22,8 +22,6 @@
         "@mediabunny/mp3-encoder": "^1.18.0",
         "@mvmnt-app/plugin-sdk": "file:packages/plugin-sdk",
         "@supabase/supabase-js": "^2.102.1",
-        "@uiw/color-convert": "^2.10.1",
-        "@uiw/react-color-sketch": "^2.10.1",
         "compare-versions": "^6.1.1",
         "fflate": "^0.8.2",
         "gifuct-js": "^2.1.2",

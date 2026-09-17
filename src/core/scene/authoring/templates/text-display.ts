@@ -39,7 +39,16 @@ export const textDisplay = definePluginElement({
                         label: 'Formatting',
                         collapsed: false,
                         properties: [
-                            { key: 'textColor', label: 'Text Color', type: 'colorAlpha', default: '#FFFFFFFF' },
+                            { key: 'textColor', label: 'Text Color', type: 'color', default: '#FFFFFF' },
+                            {
+                                key: 'textOpacity',
+                                label: 'Text Opacity',
+                                type: 'number',
+                                default: 1,
+                                min: 0,
+                                max: 1,
+                                step: 0.01,
+                            },
                             {
                                 key: 'textAlign',
                                 label: 'Alignment',
@@ -66,8 +75,17 @@ export const textDisplay = definePluginElement({
                             {
                                 key: 'backgroundColor',
                                 label: 'Background Color',
-                                type: 'colorAlpha',
-                                default: '#00000080',
+                                type: 'color',
+                                default: '#000000',
+                            },
+                            {
+                                key: 'backgroundOpacity',
+                                label: 'Background Opacity',
+                                type: 'number',
+                                default: 0.5,
+                                min: 0,
+                                max: 1,
+                                step: 0.01,
                             },
                             {
                                 key: 'backgroundPadding',
@@ -98,7 +116,7 @@ export const textDisplay = definePluginElement({
             objects.push(
                 new Rectangle(x, y, textWidth + props.backgroundPadding * 2, textHeight + props.backgroundPadding * 2, {
                     fillColor: props.backgroundColor,
-                })
+                }).setOpacity(props.backgroundOpacity)
             );
         }
         const font = parseFont(props.fontFamily);
@@ -107,7 +125,7 @@ export const textDisplay = definePluginElement({
                 color: props.textColor,
                 align: props.textAlign,
                 baseline: props.textBaseline,
-            })
+            }).setOpacity(props.textOpacity)
         );
         return objects;
     },

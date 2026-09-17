@@ -1,6 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import type { ColorResult } from '@uiw/color-convert';
-import Sketch from '@uiw/react-color-sketch';
 
 import {
     FloatingPortal,
@@ -15,13 +13,16 @@ import {
     useRole,
 } from '@floating-ui/react';
 
+import { ColorPicker, type ColorPickerGesture } from './ColorPicker';
+import { colorToHsva, hsvaToHex, preserveAchromaticHue, type HsvaColor } from './colorPickerUtils';
+
 interface ColorInputProps {
     id: string;
     value: unknown;
     schema: any;
     disabled?: boolean;
     title?: string;
-    onChange: (value: string) => void;
+    onChange: (value: string, gesture?: ColorPickerGesture) => void;
 }
 
 const DEFAULT_COLOR = '#000000';
@@ -46,12 +47,17 @@ export const normalizeColor = (candidate: unknown, fallback: string): string => 
 
 const ColorInput: React.FC<ColorInputProps> = ({ id, value, schema, disabled = false, title, onChange }) => {
     const schemaDefault = useMemo(() => normalizeColor(schema?.default, DEFAULT_COLOR), [schema?.default]);
-    const [currentColor, setCurrentColor] = useState<string>(() => normalizeColor(value, schemaDefault));
+    const defaultColor = useMemo(() => colorToHsva(schemaDefault), [schemaDefault]);
+    const [pickerColor, setPickerColor] = useState<HsvaColor>(() => ({
+        ...colorToHsva(normalizeColor(value, schemaDefault), defaultColor),
+        a: 1,
+    }));
     const [isOpen, setIsOpen] = useState(false);
 
     useEffect(() => {
-        setCurrentColor(normalizeColor(value, schemaDefault));
-    }, [value, schemaDefault]);
+        const next = { ...colorToHsva(normalizeColor(value, schemaDefault), defaultColor), a: 1 };
+        setPickerColor((current) => preserveAchromaticHue(current, next));
+    }, [defaultColor, schemaDefault, value]);
 
     useEffect(() => {
         if (disabled && isOpen) {
@@ -77,19 +83,15 @@ const ColorInput: React.FC<ColorInputProps> = ({ id, value, schema, disabled = f
     const { getReferenceProps, getFloatingProps } = useInteractions([click, dismiss, role]);
 
     const handleColorChange = useCallback(
-        (nextColor: ColorResult) => {
-            const hex =
-                typeof nextColor?.hex === 'string' && nextColor.hex ? nextColor.hex.toUpperCase() : DEFAULT_COLOR;
-            setCurrentColor(hex);
-            onChange(hex);
+        (nextColor: HsvaColor, gesture?: ColorPickerGesture) => {
+            const opaqueColor = { ...nextColor, a: 1 };
+            setPickerColor(opaqueColor);
+            onChange(hsvaToHex(opaqueColor), gesture);
         },
         [onChange]
     );
 
-    const displayLabel = useMemo(() => {
-        if (typeof currentColor !== 'string') return '';
-        return currentColor.startsWith('#') ? currentColor.toUpperCase() : currentColor;
-    }, [currentColor]);
+    const currentColor = hsvaToHex(pickerColor);
 
     return (
         <div className="color-input-wrapper" data-preserve-selection="true">
@@ -105,7 +107,7 @@ const ColorInput: React.FC<ColorInputProps> = ({ id, value, schema, disabled = f
                 {...getReferenceProps()}
             >
                 <span className="color-input-trigger__swatch" aria-hidden style={{ backgroundColor: currentColor }} />
-                <span className="color-input-trigger__label">{displayLabel}</span>
+                <span className="color-input-trigger__label">{currentColor}</span>
             </button>
 
             {!disabled && isOpen && (
@@ -117,7 +119,7 @@ const ColorInput: React.FC<ColorInputProps> = ({ id, value, schema, disabled = f
                         data-preserve-selection="true"
                         {...getFloatingProps()}
                     >
-                        <Sketch color={currentColor} disableAlpha onChange={handleColorChange} />
+                        <ColorPicker color={pickerColor} onChange={handleColorChange} />
                     </div>
                 </FloatingPortal>
             )}

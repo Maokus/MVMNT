@@ -13,15 +13,18 @@ import {
     type PatternChordResult,
 } from '@core/midi/music-theory/chord-estimator';
 import {
+    applySustainPedal,
     buildChordObservation,
     clusterChordOnsets,
     chordKey,
     detectChordFromObservation,
+    getSustainLookbackStart,
     stabiliseChordFrames,
     type CanonicalChordResult,
     type ChordAnalysisMode,
     type ChordDetectionMethod,
     type ChordTimelineNote,
+    type ChordSustainEvent,
 } from '@core/midi/music-theory/chord-detection-pipeline';
 import { PLUGIN_CAPABILITIES } from '@mvmnt-app/plugin-sdk';
 import { defineHostAdaptedBuiltIn, getEnginePrivateContext } from '@core/scene/built-ins/define-built-in';
@@ -49,6 +52,7 @@ type ChordEstimateRuntimeProps = {
     midiTrackId: string | null;
     detectionMethod: ChordDetectionMethod;
     analysisMode?: ChordAnalysisMode;
+    sustainPedalAware: boolean;
     bassMode?: 'included' | 'split-note' | 'separate-track';
     bassTrackId?: string | null;
     bassSplitNote?: number;
@@ -298,6 +302,7 @@ export class ChordEstimateDisplayElement extends BoundSceneElement {
                                 { value: 'active', label: 'Active Notes at Playhead' },
                                 { value: 'windowed', label: 'Windowed Chroma' },
                             ]),
+                            prop.boolean('sustainPedalAware', 'Sustain Pedal Aware', false),
                             prop.select('bassMode', 'Bass Source', 'included', [
                                 { value: 'included', label: 'Include in Harmonic Notes' },
                                 { value: 'split-note', label: 'Separate Below Split' },
@@ -469,6 +474,7 @@ export class ChordEstimateDisplayElement extends BoundSceneElement {
             midiTrackId,
             detectionMethod,
             analysisMode,
+            sustainPedalAware,
             bassMode,
             bassTrackId,
             bassSplitNote,
@@ -510,13 +516,31 @@ export class ChordEstimateDisplayElement extends BoundSceneElement {
             t - Math.max(holdSeconds, analysisMode === 'windowed' ? effectiveWindowSeconds : 0)
         );
         const queryEnd = t + Math.max(0.000_001, analysisMode === 'windowed' ? effectiveWindowSeconds : 0.000_001);
-        const noteEvents: ChordTimelineNote[] = [];
-        const bassEvents: ChordTimelineNote[] = [];
+        let noteEvents: ChordTimelineNote[] = [];
+        let bassEvents: ChordTimelineNote[] = [];
         const timeline = getEnginePrivateContext(this).timeline;
+        const readSustainEvents = (trackId: string): ChordSustainEvent[] => {
+            if (!sustainPedalAware || !timeline) return [];
+            const selected = timeline.selectCC({
+                trackIds: [trackId],
+                controller: 64,
+                startSeconds: 0,
+                endSeconds: queryEnd,
+            });
+            return selected.ok
+                ? selected.value.map((event) => ({
+                      channel: event.channel,
+                      value: event.value,
+                      time: event.timeSeconds,
+                  }))
+                : [];
+        };
+        const mainSustainEvents = midiTrackId ? readSustainEvents(midiTrackId) : [];
+        const mainQueryStart = getSustainLookbackStart(mainSustainEvents, queryStart);
         if (midiTrackId && timeline) {
             const selected = timeline.selectNotes({
                 trackIds: [midiTrackId],
-                startSeconds: queryStart,
+                startSeconds: mainQueryStart,
                 endSeconds: queryEnd,
             });
             const notes = selected.ok ? selected.value : [];
@@ -529,11 +553,13 @@ export class ChordEstimateDisplayElement extends BoundSceneElement {
                     velocity: n.velocity || 0,
                 });
             }
+            if (sustainPedalAware) noteEvents = applySustainPedal(noteEvents, mainSustainEvents, queryEnd);
         }
         if (bassMode === 'separate-track' && bassTrackId && timeline) {
+            const bassSustainEvents = readSustainEvents(bassTrackId);
             const selected = timeline.selectNotes({
                 trackIds: [bassTrackId],
-                startSeconds: queryStart,
+                startSeconds: getSustainLookbackStart(bassSustainEvents, queryStart),
                 endSeconds: queryEnd,
             });
             for (const n of selected.ok ? selected.value : []) {
@@ -545,6 +571,7 @@ export class ChordEstimateDisplayElement extends BoundSceneElement {
                     velocity: n.velocity || 0,
                 });
             }
+            if (sustainPedalAware) bassEvents = applySustainPedal(bassEvents, bassSustainEvents, queryEnd);
         }
         const harmonicNotes =
             bassMode === 'split-note' ? noteEvents.filter((note) => note.note >= (bassSplitNote ?? 48)) : noteEvents;

@@ -22,7 +22,7 @@ export const background = defineBuiltInElement<BackgroundProps, undefined>({
                         label: 'Appearance',
                         collapsed: false,
                         properties: [
-                            { key: 'color', label: 'Color', type: 'colorAlpha', default: '#1a1a1a' },
+                            { key: 'color', label: 'Color', type: 'color', default: '#1a1a1a' },
                             {
                                 key: 'opacity',
                                 label: 'Opacity',

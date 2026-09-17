@@ -271,6 +271,7 @@ export const prop = Object.freeze({
     color<const Key extends string>(key: Key, label: string, value: string, options?: CommonPropertyOptions) {
         return property('color', key, label, value, options as Record<string, unknown>);
     },
+    /** @deprecated Use a `color` property and a separate 0–1 `number` opacity property. */
     colorAlpha<const Key extends string>(key: Key, label: string, value: string, options?: CommonPropertyOptions) {
         return property('colorAlpha', key, label, value, options as Record<string, unknown>);
     },

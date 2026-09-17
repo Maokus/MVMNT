@@ -1,6 +1,7 @@
 import type { ProjectVisualAssetHandle } from '@mvmnt-app/plugin-sdk/visual-assets';
 import { Rectangle, VisualMedia, type RenderObject } from '@core/render/render-objects';
 import { defineBuiltInElement } from '@core/scene/built-ins/define-built-in';
+import { applyOpacity } from '@utils/color';
 
 interface ImageProps extends Readonly<Record<string, unknown>> {
     readonly imageSource: string | null;
@@ -13,10 +14,12 @@ interface ImageProps extends Readonly<Record<string, unknown>> {
     readonly blendMode: GlobalCompositeOperation;
     readonly showBorder: boolean;
     readonly borderColor: string;
+    readonly borderOpacity: number;
     readonly borderWidth: number;
     readonly cornerRadius: number;
     readonly shadowEnabled: boolean;
     readonly shadowColor: string;
+    readonly shadowOpacity: number;
     readonly shadowBlur: number;
     readonly shadowOffsetX: number;
     readonly shadowOffsetY: number;
@@ -127,7 +130,16 @@ export const image = defineBuiltInElement<ImageProps, ImageResources>({
                         collapsed: true,
                         properties: [
                             { key: 'showBorder', label: 'Show Border', type: 'boolean', default: false },
-                            { key: 'borderColor', label: 'Border Color', type: 'colorAlpha', default: '#FFFFFFFF' },
+                            { key: 'borderColor', label: 'Border Color', type: 'color', default: '#FFFFFF' },
+                            {
+                                key: 'borderOpacity',
+                                label: 'Border Opacity',
+                                type: 'number',
+                                default: 1,
+                                min: 0,
+                                max: 1,
+                                step: 0.01,
+                            },
                             {
                                 key: 'borderWidth',
                                 label: 'Border Width',
@@ -148,6 +160,8 @@ export const image = defineBuiltInElement<ImageProps, ImageResources>({
                             },
                         ],
                         layout: [
+                            { kind: 'control', control: 'slider', bindings: { value: 'borderOpacity' } },
+                            { kind: 'property', propertyKey: 'borderOpacity' },
                             { kind: 'control', control: 'slider', bindings: { value: 'borderWidth' } },
                             { kind: 'property', propertyKey: 'borderWidth' },
                             { kind: 'control', control: 'slider', bindings: { value: 'cornerRadius' } },
@@ -160,7 +174,16 @@ export const image = defineBuiltInElement<ImageProps, ImageResources>({
                         collapsed: true,
                         properties: [
                             { key: 'shadowEnabled', label: 'Enable Shadow', type: 'boolean', default: false },
-                            { key: 'shadowColor', label: 'Shadow Color', type: 'colorAlpha', default: '#000000FF' },
+                            { key: 'shadowColor', label: 'Shadow Color', type: 'color', default: '#000000' },
+                            {
+                                key: 'shadowOpacity',
+                                label: 'Shadow Opacity',
+                                type: 'number',
+                                default: 1,
+                                min: 0,
+                                max: 1,
+                                step: 0.01,
+                            },
                             { key: 'shadowBlur', label: 'Shadow Blur', type: 'number', default: 8 },
                             { key: 'shadowOffsetX', label: 'Shadow X', type: 'number', default: 2 },
                             { key: 'shadowOffsetY', label: 'Shadow Y', type: 'number', default: 2 },
@@ -191,13 +214,18 @@ export const image = defineBuiltInElement<ImageProps, ImageResources>({
         resources.media.opacity = props.opacity;
         resources.media.blendMode = props.blendMode === 'source-over' ? null : props.blendMode;
         if (props.shadowEnabled)
-            resources.media.setShadow(props.shadowColor, props.shadowBlur, props.shadowOffsetX, props.shadowOffsetY);
+            resources.media.setShadow(
+                applyOpacity(props.shadowColor, props.shadowOpacity),
+                props.shadowBlur,
+                props.shadowOffsetX,
+                props.shadowOffsetY
+            );
         else resources.media.setShadow(null, 0, 0, 0);
         const result: RenderObject[] = [resources.bounds, resources.media];
         if (props.showBorder && props.borderWidth > 0) {
             const border = new Rectangle(0, 0, props.width, props.height, {
                 fillColor: null,
-                strokeColor: props.borderColor,
+                strokeColor: applyOpacity(props.borderColor, props.borderOpacity),
                 strokeWidth: props.borderWidth,
             });
             border.cornerRadius = props.cornerRadius;

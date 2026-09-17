@@ -16,7 +16,16 @@ export const minimal = definePluginElement({
                         label: 'Appearance',
                         collapsed: false,
                         properties: [
-                            { key: 'color', label: 'Color', type: 'colorAlpha', default: '#3B82F6FF' },
+                            { key: 'color', label: 'Color', type: 'color', default: '#3B82F6' },
+                            {
+                                key: 'opacity',
+                                label: 'Opacity',
+                                type: 'number',
+                                default: 1,
+                                min: 0,
+                                max: 1,
+                                step: 0.01,
+                            },
                             { key: 'width', label: 'Width', type: 'number', default: 100, min: 1 },
                             { key: 'height', label: 'Height', type: 'number', default: 100, min: 1 },
                         ],
@@ -29,7 +38,7 @@ export const minimal = definePluginElement({
         return [
             new Rectangle(-props.width / 2, -props.height / 2, props.width, props.height, {
                 fillColor: props.color,
-            }),
+            }).setOpacity(props.opacity),
         ];
     },
 });

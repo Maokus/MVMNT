@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+    applySustainPedal,
     buildChordObservation,
     clusterChordOnsets,
     detectChordFromObservation,
+    getSustainLookbackStart,
     stabiliseChordFrames,
     type CanonicalChordResult,
     type ChordTimelineNote,
@@ -33,6 +35,26 @@ const cMajor = (time: number): CanonicalChordResult => ({
 });
 
 describe('chord detection pipeline', () => {
+    it('combines alternating bass and chord notes while the sustain pedal is held', () => {
+        const notes = [note(48, 0, 0.2), note(64, 0.5, 0.8), note(67, 0.5, 0.8)];
+        const sustain = [
+            { channel: 0, value: 127, time: 0.1 },
+            { channel: 0, value: 0, time: 1.5 },
+        ];
+
+        const sustainedNotes = applySustainPedal(notes, sustain, 2);
+        expect(getSustainLookbackStart(sustain, 0.6)).toBe(0.1);
+        expect(buildChordObservation({ targetTime: 0.6, notes: sustainedNotes }).midiNotes).toEqual([48, 64, 67]);
+        expect(buildChordObservation({ targetTime: 1.5, notes: sustainedNotes }).midiNotes).toEqual([]);
+    });
+
+    it('applies sustain pedal events only to their MIDI channel', () => {
+        const notes = [note(60, 0, 0.2), { ...note(64, 0, 0.2), channel: 1 }];
+        const sustainedNotes = applySustainPedal(notes, [{ channel: 0, value: 127, time: 0.1 }], 1);
+
+        expect(buildChordObservation({ targetTime: 0.5, notes: sustainedNotes }).midiNotes).toEqual([60]);
+    });
+
     it('uses exact active notes at chord boundaries rather than a window union', () => {
         const notes = [note(60, 0, 1), note(64, 0, 1), note(67, 0, 1), note(62, 1, 2), note(65, 1, 2), note(69, 1, 2)];
         expect(buildChordObservation({ targetTime: 1, notes }).midiNotes).toEqual([62, 65, 69]);

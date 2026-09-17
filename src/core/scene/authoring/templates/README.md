@@ -13,7 +13,7 @@ The simplest possible element. A single colored rectangle with two properties. S
 
 A geometric shape (circle or rectangle) with color and size controls. Demonstrates:
 
-- Multiple property types (select, number, colorAlpha)
+- Multiple property types (select, number, color)
 - Conditional rendering based on a property value
 - Property presets
 

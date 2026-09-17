@@ -69,8 +69,7 @@ export const propGroup = {
      * Pass `keyPrefix` to prefix all property keys, enabling multiple appearance groups
      * per element without key collisions (e.g. `keyPrefix: 'fill'` → `fillColor`, `fillOpacity`).
      *
-     * Pair with Phase 1 `colorAlpha` splits — elements that already have
-     * `color`+`opacity` props can adopt this group directly.
+     * Elements that already have `color` + `opacity` props can adopt this group directly.
      */
     appearance(opts?: AppearanceOpts): PropertyGroup {
         const prefix = opts?.keyPrefix ?? '';

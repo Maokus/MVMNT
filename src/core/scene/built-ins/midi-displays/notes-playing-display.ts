@@ -99,8 +99,18 @@ export const notesPlayingDisplay = defineBuiltInElement<Props, undefined>({
                             {
                                 key: 'gridStrokeColor',
                                 label: 'Stroke Color',
-                                type: 'colorAlpha',
-                                default: '#0F172AFF',
+                                type: 'color',
+                                default: '#0F172A',
+                                visibleWhen: [{ key: 'displayMode', equals: 'grid' }],
+                            },
+                            {
+                                key: 'gridStrokeOpacity',
+                                label: 'Stroke Opacity',
+                                type: 'number',
+                                default: 1,
+                                min: 0,
+                                max: 1,
+                                step: 0.01,
                                 visibleWhen: [{ key: 'displayMode', equals: 'grid' }],
                             },
                         ],
@@ -137,8 +147,8 @@ export const notesPlayingDisplay = defineBuiltInElement<Props, undefined>({
                             {
                                 key: 'textColor',
                                 label: 'Text Color',
-                                type: 'colorAlpha',
-                                default: '#CCCCCCFF',
+                                type: 'color',
+                                default: '#CCCCCC',
                                 visibleWhen: [{ key: 'displayMode', equals: 'letters' }],
                             },
                             {
@@ -153,8 +163,8 @@ export const notesPlayingDisplay = defineBuiltInElement<Props, undefined>({
                             {
                                 key: 'gridFillColor',
                                 label: 'Grid Fill Color',
-                                type: 'colorAlpha',
-                                default: '#EFEFEFFF',
+                                type: 'color',
+                                default: '#EFEFEF',
                                 visibleWhen: [{ key: 'displayMode', equals: 'grid' }],
                             },
                             {
@@ -211,7 +221,7 @@ export const notesPlayingDisplay = defineBuiltInElement<Props, undefined>({
                         collapsed: true,
                         properties: [
                             { key: 'showBackground', label: 'Show Background', type: 'boolean', default: false },
-                            { key: 'backgroundColor', label: 'Background', type: 'colorAlpha', default: '#000000FF' },
+                            { key: 'backgroundColor', label: 'Background', type: 'color', default: '#000000' },
                             {
                                 key: 'backgroundOpacity',
                                 label: 'Background Opacity',
@@ -305,7 +315,10 @@ export const notesPlayingDisplay = defineBuiltInElement<Props, undefined>({
                     const y = (rows - row - 1) * (props.gridCellHeight + props.gridCellGap);
                     const cell = new Rectangle(x, y, props.gridCellWidth, props.gridCellHeight, {
                         fillColor: applyOpacity(props.gridFillColor, props.gridFillOpacity),
-                        strokeColor: props.gridStrokeWidth > 0 ? props.gridStrokeColor : null,
+                        strokeColor:
+                            props.gridStrokeWidth > 0
+                                ? applyOpacity(props.gridStrokeColor, props.gridStrokeOpacity)
+                                : null,
                         strokeWidth: props.gridStrokeWidth,
                     });
                     cell.cornerRadius = props.gridCornerRadius;

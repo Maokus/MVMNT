@@ -57,7 +57,7 @@ export const notesPlayedTracker = defineBuiltInElement<Props, undefined>({
                         label: 'Appearance',
                         collapsed: false,
                         properties: [
-                            { key: 'color', label: 'Color', type: 'colorAlpha', default: '#CCCCCCFF' },
+                            { key: 'color', label: 'Color', type: 'color', default: '#CCCCCC' },
                             {
                                 key: 'opacity',
                                 label: 'Opacity',
@@ -100,7 +100,7 @@ export const notesPlayedTracker = defineBuiltInElement<Props, undefined>({
                         collapsed: true,
                         properties: [
                             { key: 'showBackground', label: 'Show Background', type: 'boolean', default: false },
-                            { key: 'backgroundColor', label: 'Background', type: 'colorAlpha', default: '#000000FF' },
+                            { key: 'backgroundColor', label: 'Background', type: 'color', default: '#000000' },
                             {
                                 key: 'backgroundOpacity',
                                 label: 'Background Opacity',

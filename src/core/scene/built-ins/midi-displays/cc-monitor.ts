@@ -102,11 +102,38 @@ export const ccMonitor = defineBuiltInElement<Props, undefined>({
                             },
                             { key: 'knobRadius', label: 'Knob Radius', type: 'number', default: 50 },
                             { key: 'knobTrackWidth', label: 'Track Width', type: 'number', default: 6 },
-                            { key: 'knobTrackColor', label: 'Track Color', type: 'colorAlpha', default: '#444444FF' },
-                            { key: 'knobValueColor', label: 'Value Color', type: 'colorAlpha', default: '#00AAFFFF' },
+                            { key: 'knobTrackColor', label: 'Track Color', type: 'color', default: '#444444' },
+                            {
+                                key: 'knobTrackOpacity',
+                                label: 'Track Opacity',
+                                type: 'number',
+                                default: 1,
+                                min: 0,
+                                max: 1,
+                                step: 0.01,
+                            },
+                            { key: 'knobValueColor', label: 'Value Color', type: 'color', default: '#00AAFF' },
+                            {
+                                key: 'knobValueOpacity',
+                                label: 'Value Opacity',
+                                type: 'number',
+                                default: 1,
+                                min: 0,
+                                max: 1,
+                                step: 0.01,
+                            },
                             { key: 'opacityRectWidth', label: 'Rect Width', type: 'number', default: 120 },
                             { key: 'opacityRectHeight', label: 'Rect Height', type: 'number', default: 120 },
-                            { key: 'opacityRectColor', label: 'Rect Color', type: 'colorAlpha', default: '#FFFFFFFF' },
+                            { key: 'opacityRectColor', label: 'Rect Color', type: 'color', default: '#FFFFFF' },
+                            {
+                                key: 'opacityRectOpacity',
+                                label: 'Rect Opacity',
+                                type: 'number',
+                                default: 1,
+                                min: 0,
+                                max: 1,
+                                step: 0.01,
+                            },
                         ],
                     },
                 ],
@@ -120,7 +147,7 @@ export const ccMonitor = defineBuiltInElement<Props, undefined>({
                         label: 'Appearance',
                         collapsed: false,
                         properties: [
-                            { key: 'color', label: 'Color', type: 'colorAlpha', default: '#CCCCCCFF' },
+                            { key: 'color', label: 'Color', type: 'color', default: '#CCCCCC' },
                             {
                                 key: 'opacity',
                                 label: 'Opacity',
@@ -183,7 +210,9 @@ export const ccMonitor = defineBuiltInElement<Props, undefined>({
                 : [];
             if (!events.length)
                 content.push(
-                    new Text(0, 0, 'CC Monitor — no recent events', font, { color: applyOpacity(color, 0.4) })
+                    new Text(0, 0, 'CC Monitor — no recent events', font, {
+                        color: applyOpacity(props.color, props.opacity * 0.4),
+                    })
                 );
             events.forEach((event, index) =>
                 content.push(
@@ -194,8 +223,8 @@ export const ccMonitor = defineBuiltInElement<Props, undefined>({
                         font,
                         {
                             color: applyOpacity(
-                                color,
-                                Math.max(0, 1 - (time.seconds - event.timeSeconds) / props.fadeDuration)
+                                props.color,
+                                props.opacity * Math.max(0, 1 - (time.seconds - event.timeSeconds) / props.fadeDuration)
                             ),
                         }
                     )
@@ -219,7 +248,9 @@ export const ccMonitor = defineBuiltInElement<Props, undefined>({
             else if (props.singleCCDisplayMode === 'opacity') {
                 width = props.opacityRectWidth;
                 height = props.opacityRectHeight;
-                const rect = new Rectangle(0, 0, width, height, { fillColor: props.opacityRectColor });
+                const rect = new Rectangle(0, 0, width, height, {
+                    fillColor: applyOpacity(props.opacityRectColor, props.opacityRectOpacity),
+                });
                 rect.setOpacity(value / 127);
                 content.push(rect);
             } else {
@@ -233,7 +264,7 @@ export const ccMonitor = defineBuiltInElement<Props, undefined>({
                     startAngle: start,
                     endAngle: start + sweep,
                     fillColor: null,
-                    strokeColor: props.knobTrackColor,
+                    strokeColor: applyOpacity(props.knobTrackColor, props.knobTrackOpacity),
                     strokeWidth: trackWidth,
                 });
                 track.setLineCap('round');
@@ -243,14 +274,14 @@ export const ccMonitor = defineBuiltInElement<Props, undefined>({
                         startAngle: start,
                         endAngle: angle,
                         fillColor: null,
-                        strokeColor: props.knobValueColor,
+                        strokeColor: applyOpacity(props.knobValueColor, props.knobValueOpacity),
                         strokeWidth: trackWidth,
                     });
                     arc.setLineCap('round');
                     content.push(arc);
                 }
                 const pointer = new Line(0, 0, Math.cos(angle) * radius * 0.65, Math.sin(angle) * radius * 0.65, {
-                    color: props.knobValueColor,
+                    color: applyOpacity(props.knobValueColor, props.knobValueOpacity),
                     lineWidth: Math.max(1, trackWidth * 0.75),
                 });
                 pointer.lineCap = 'round';
@@ -269,7 +300,7 @@ export const ccMonitor = defineBuiltInElement<Props, undefined>({
             const sustained = result.ok && result.value;
             content.push(
                 new Text(0, 0, sustained ? 'SUSTAIN  ON' : 'SUSTAIN  OFF', font, {
-                    color: sustained ? '#FFFFFFFF' : applyOpacity(color, 0.4),
+                    color: sustained ? '#FFFFFFFF' : applyOpacity(props.color, props.opacity * 0.4),
                 })
             );
         }

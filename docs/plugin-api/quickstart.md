@@ -50,7 +50,14 @@ export const pulse = definePluginElement({
     type: 'pulse',
     metadata: { name: 'Pulse' },
     schema: {
-        tabs: [tab.properties([group('shape', 'Shape', [prop.colorAlpha('color', 'Color', '#FF66CCFF')])])],
+        tabs: [
+            tab.properties([
+                group('shape', 'Shape', [
+                    prop.color('color', 'Color', '#FF66CC'),
+                    prop.number('opacity', 'Opacity', 1, { min: 0, max: 1, step: 0.01 }),
+                ]),
+            ]),
+        ],
     },
     render({ props }) {
         const layoutBounds = new Rectangle(-50, -50, 100, 100, {
@@ -61,7 +68,7 @@ export const pulse = definePluginElement({
         const shape = new Rectangle(-50, -50, 100, 100, {
             fillColor: props.color,
             layoutParticipation: 'exclude',
-        });
+        }).setOpacity(props.opacity);
         return [layoutBounds, shape];
     },
 });

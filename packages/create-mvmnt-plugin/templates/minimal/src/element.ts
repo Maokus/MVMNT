@@ -12,7 +12,8 @@ export const element = definePluginElement({
         tabs: [
             tab.properties([
                 group('appearance', 'Appearance', [
-                    prop.colorAlpha('color', 'Color', '#3B82F6FF'),
+                    prop.color('color', 'Color', '#3B82F6'),
+                    prop.number('opacity', 'Opacity', 1, { min: 0, max: 1, step: 0.01 }),
                     prop.number('width', 'Width', 100, { min: 1 }),
                     prop.number('height', 'Height', 100, { min: 1 }),
                 ]),
@@ -23,7 +24,7 @@ export const element = definePluginElement({
         return [
             new Rectangle(-props.width / 2, -props.height / 2, props.width, props.height, {
                 fillColor: props.color,
-            }),
+            }).setOpacity(props.opacity),
         ];
     },
 });

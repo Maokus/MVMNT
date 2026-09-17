@@ -30,6 +30,7 @@ interface Props extends Readonly<Record<string, unknown>> {
     readonly verticalAlign?: 'top' | 'center' | 'bottom';
     readonly letterSpacing: number;
     readonly strokeColor: string;
+    readonly strokeOpacity: number;
     readonly strokeWidth: number;
     readonly showBackground: boolean;
     readonly backgroundColor: string;
@@ -75,7 +76,7 @@ export const textOverlay = defineBuiltInElement<Props, undefined>({
                         label: 'Appearance',
                         collapsed: false,
                         properties: [
-                            { key: 'color', label: 'Color', type: 'colorAlpha', default: '#FFFFFFFF' },
+                            { key: 'color', label: 'Color', type: 'color', default: '#FFFFFF' },
                             {
                                 key: 'opacity',
                                 label: 'Opacity',
@@ -121,7 +122,16 @@ export const textOverlay = defineBuiltInElement<Props, undefined>({
                                 ],
                             },
                             { key: 'letterSpacing', label: 'Letter Spacing', type: 'number', default: 0 },
-                            { key: 'strokeColor', label: 'Stroke Color', type: 'colorAlpha', default: '#000000' },
+                            { key: 'strokeColor', label: 'Stroke Color', type: 'color', default: '#000000' },
+                            {
+                                key: 'strokeOpacity',
+                                label: 'Stroke Opacity',
+                                type: 'number',
+                                default: 1,
+                                min: 0,
+                                max: 1,
+                                step: 0.01,
+                            },
                             { key: 'strokeWidth', label: 'Stroke Width', type: 'number', default: 0, min: 0 },
                         ],
                         layout: [
@@ -130,6 +140,8 @@ export const textOverlay = defineBuiltInElement<Props, undefined>({
                             { kind: 'property', propertyKey: 'justification' },
                             { kind: 'property', propertyKey: 'letterSpacing' },
                             { kind: 'property', propertyKey: 'strokeColor' },
+                            { kind: 'control', control: 'slider', bindings: { value: 'strokeOpacity' } },
+                            { kind: 'property', propertyKey: 'strokeOpacity' },
                             { kind: 'property', propertyKey: 'strokeWidth' },
                         ],
                     },
@@ -142,7 +154,7 @@ export const textOverlay = defineBuiltInElement<Props, undefined>({
                             {
                                 key: 'backgroundColor',
                                 label: 'Background Color',
-                                type: 'colorAlpha',
+                                type: 'color',
                                 default: '#000000',
                             },
                             {
@@ -190,7 +202,8 @@ export const textOverlay = defineBuiltInElement<Props, undefined>({
             });
             item.letterSpacing = props.letterSpacing;
             item.blendMode = props.blendMode === 'source-over' ? null : props.blendMode;
-            if (props.strokeWidth > 0) item.setStroke(props.strokeColor, props.strokeWidth);
+            if (props.strokeWidth > 0)
+                item.setStroke(applyOpacity(props.strokeColor, props.strokeOpacity), props.strokeWidth);
             objects.push(item);
         });
         if (props.showBackground) {

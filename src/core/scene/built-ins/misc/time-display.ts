@@ -42,12 +42,30 @@ export const timeDisplay = defineBuiltInElement<Props, undefined>({
                         label: 'Colors',
                         collapsed: false,
                         properties: [
-                            { key: 'color', label: 'Primary Text Color', type: 'colorAlpha', default: '#FFFFFFFF' },
+                            { key: 'color', label: 'Primary Text Color', type: 'color', default: '#FFFFFF' },
+                            {
+                                key: 'opacity',
+                                label: 'Primary Text Opacity',
+                                type: 'number',
+                                default: 1,
+                                min: 0,
+                                max: 1,
+                                step: 0.01,
+                            },
                             {
                                 key: 'textSecondaryColor',
                                 label: 'Secondary Text Color',
-                                type: 'colorAlpha',
-                                default: '#FFFFFFE6',
+                                type: 'color',
+                                default: '#FFFFFF',
+                            },
+                            {
+                                key: 'textSecondaryOpacity',
+                                label: 'Secondary Text Opacity',
+                                type: 'number',
+                                default: 0.9,
+                                min: 0,
+                                max: 1,
+                                step: 0.01,
                             },
                         ],
                     },
@@ -66,7 +84,7 @@ export const timeDisplay = defineBuiltInElement<Props, undefined>({
                         collapsed: true,
                         properties: [
                             { key: 'showBackground', label: 'Show Background', type: 'boolean', default: false },
-                            { key: 'backgroundColor', label: 'Background', type: 'colorAlpha', default: '#000000FF' },
+                            { key: 'backgroundColor', label: 'Background', type: 'color', default: '#000000' },
                             {
                                 key: 'backgroundOpacity',
                                 label: 'Background Opacity',
@@ -113,8 +131,8 @@ export const timeDisplay = defineBuiltInElement<Props, undefined>({
         const font = `${weight} ${size}px ${family}, sans-serif`;
         const labelFont = `${weight} ${size * 0.8}px ${family}, sans-serif`;
         const beatY = size * 1.8;
-        const primary = props.color;
-        const secondary = props.textSecondaryColor;
+        const primary = applyOpacity(props.color, props.opacity);
+        const secondary = applyOpacity(props.textSecondaryColor, props.textSecondaryOpacity);
         const values = [
             pad(minutes, 3),
             pad(seconds, 2),
@@ -139,15 +157,19 @@ export const timeDisplay = defineBuiltInElement<Props, undefined>({
         ];
         if (props.showProgress) {
             objects.push(
-                new Rectangle(size * 4, beatY + size * 0.1, size * 2, 4, { fillColor: withOpacity(secondary, 0.2) })
-            );
-            objects.push(
-                new Rectangle(size * 4, beatY + size * 0.1, size * 2 * Math.max(0, Math.min(1, tick / 480)), 4, {
-                    fillColor: withOpacity(secondary, 0.6),
+                new Rectangle(size * 4, beatY + size * 0.1, size * 2, 4, {
+                    fillColor: withOpacity(props.textSecondaryColor, props.textSecondaryOpacity * 0.2),
                 })
             );
             objects.push(
-                new Rectangle(size * 2.8, beatY + size * 0.1, size, 4, { fillColor: withOpacity(secondary, 0.2) })
+                new Rectangle(size * 4, beatY + size * 0.1, size * 2 * Math.max(0, Math.min(1, tick / 480)), 4, {
+                    fillColor: withOpacity(props.textSecondaryColor, props.textSecondaryOpacity * 0.6),
+                })
+            );
+            objects.push(
+                new Rectangle(size * 2.8, beatY + size * 0.1, size, 4, {
+                    fillColor: withOpacity(props.textSecondaryColor, props.textSecondaryOpacity * 0.2),
+                })
             );
             objects.push(
                 new Rectangle(
@@ -155,7 +177,7 @@ export const timeDisplay = defineBuiltInElement<Props, undefined>({
                     beatY + size * 0.1,
                     size * Math.max(0, Math.min(1, (beat - 1) / signature.numerator)),
                     4,
-                    { fillColor: withOpacity(secondary, 0.6) }
+                    { fillColor: withOpacity(props.textSecondaryColor, props.textSecondaryOpacity * 0.6) }
                 )
             );
         }

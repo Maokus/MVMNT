@@ -130,8 +130,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
     const stringMacroComposingRef = useRef(false);
     const [newMacro, setNewMacro] = useState({
         name: '',
-        type: 'number' as
-            'number' | 'string' | 'boolean' | 'color' | 'colorAlpha' | 'select' | 'file' | 'font' | 'timelineTrackRef',
+        type: 'number' as 'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'font' | 'timelineTrackRef',
         value: '',
         min: '',
         max: '',
@@ -288,15 +287,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
             setNewMacro({
                 name: '',
                 type: 'number' as
-                    | 'number'
-                    | 'string'
-                    | 'boolean'
-                    | 'color'
-                    | 'colorAlpha'
-                    | 'select'
-                    | 'file'
-                    | 'font'
-                    | 'timelineTrackRef',
+                    'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'font' | 'timelineTrackRef',
                 value: '',
                 min: '',
                 max: '',
@@ -408,15 +399,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
             const updated = {
                 ...prev,
                 type: type as
-                    | 'number'
-                    | 'string'
-                    | 'boolean'
-                    | 'color'
-                    | 'colorAlpha'
-                    | 'select'
-                    | 'file'
-                    | 'font'
-                    | 'timelineTrackRef',
+                    'number' | 'string' | 'boolean' | 'color' | 'select' | 'file' | 'font' | 'timelineTrackRef',
             };
             switch (type) {
                 case 'number':
@@ -427,9 +410,6 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                     break;
                 case 'color':
                     updated.value = '#ffffff';
-                    break;
-                case 'colorAlpha':
-                    updated.value = '#ffffffff';
                     break;
                 case 'file':
                     updated.value = '';
@@ -816,7 +796,6 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                                 <option value="string">Text</option>
                                 <option value="boolean">Boolean</option>
                                 <option value="color">Color</option>
-                                <option value="colorAlpha">Color (alpha)</option>
                                 <option value="select">Select</option>
                                 <option value="file">File</option>
                                 <option value="font">Font</option>

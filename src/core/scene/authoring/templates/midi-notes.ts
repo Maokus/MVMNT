@@ -63,7 +63,16 @@ export const midiNotes = definePluginElement({
                                 max: 50,
                                 step: 1,
                             },
-                            { key: 'noteColor', label: 'Note Color', type: 'colorAlpha', default: '#10B981FF' },
+                            { key: 'noteColor', label: 'Note Color', type: 'color', default: '#10B981' },
+                            {
+                                key: 'noteOpacity',
+                                label: 'Note Opacity',
+                                type: 'number',
+                                default: 1,
+                                min: 0,
+                                max: 1,
+                                step: 0.01,
+                            },
                             { key: 'showNoteNames', label: 'Show Note Names', type: 'boolean', default: true },
                         ],
                     },
@@ -85,7 +94,11 @@ export const midiNotes = definePluginElement({
         const objects: RenderObject[] = [];
         active.value.forEach((note, index) => {
             const x = index * (props.noteWidth + props.noteSpacing);
-            objects.push(new Rectangle(x, 0, props.noteWidth, props.noteHeight, { fillColor: props.noteColor }));
+            objects.push(
+                new Rectangle(x, 0, props.noteWidth, props.noteHeight, { fillColor: props.noteColor }).setOpacity(
+                    props.noteOpacity
+                )
+            );
             if (props.showNoteNames)
                 objects.push(
                     new Text(

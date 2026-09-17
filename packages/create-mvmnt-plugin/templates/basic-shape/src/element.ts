@@ -12,7 +12,8 @@ export const basicShape = definePluginElement({
                         { label: 'Rectangle', value: 'rectangle' },
                     ]),
                     prop.number('shapeSize', 'Size', 100, { min: 10, max: 500 }),
-                    prop.colorAlpha('shapeColor', 'Color', '#3B82F6FF'),
+                    prop.color('shapeColor', 'Color', '#3B82F6'),
+                    prop.number('shapeOpacity', 'Opacity', 1, { min: 0, max: 1, step: 0.01 }),
                 ]),
             ]),
         ],
@@ -25,12 +26,12 @@ export const basicShape = definePluginElement({
                       endAngle: Math.PI * 2,
                       fillColor: props.shapeColor,
                       strokeColor: null,
-                  }),
+                  }).setOpacity(props.shapeOpacity),
               ]
             : [
                   new Rectangle(-props.shapeSize / 2, -props.shapeSize / 2, props.shapeSize, props.shapeSize, {
                       fillColor: props.shapeColor,
-                  }),
+                  }).setOpacity(props.shapeOpacity),
               ];
     },
 });

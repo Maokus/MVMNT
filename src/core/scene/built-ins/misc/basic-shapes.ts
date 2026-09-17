@@ -130,7 +130,7 @@ export const basicShapes = defineBuiltInElement<Props, undefined>({
                         label: 'Fill',
                         collapsed: false,
                         properties: [
-                            { key: 'color', label: 'Fill Color', type: 'colorAlpha', default: '#4488FFFF' },
+                            { key: 'color', label: 'Fill Color', type: 'color', default: '#4488FF' },
                             {
                                 key: 'opacity',
                                 label: 'Fill Opacity',
@@ -151,7 +151,7 @@ export const basicShapes = defineBuiltInElement<Props, undefined>({
                         label: 'Stroke',
                         collapsed: false,
                         properties: [
-                            { key: 'strokeColor', label: 'Stroke Color', type: 'colorAlpha', default: '#FFFFFFFF' },
+                            { key: 'strokeColor', label: 'Stroke Color', type: 'color', default: '#FFFFFF' },
                             {
                                 key: 'strokeOpacity',
                                 label: 'Stroke Opacity',
@@ -187,7 +187,8 @@ export const basicShapes = defineBuiltInElement<Props, undefined>({
                         collapsed: true,
                         properties: [
                             { key: 'shadowEnabled', label: 'Enable Shadow', type: 'boolean', default: false },
-                            { key: 'shadowColor', label: 'Shadow Color', type: 'colorAlpha', default: '#000000FF' },
+                            { key: 'shadowColor', label: 'Shadow Color', type: 'color', default: '#000000' },
+                            number('shadowOpacity', 'Shadow Opacity', 1, { min: 0, max: 1, step: 0.01 }),
                             number('shadowBlur', 'Shadow Blur', 8),
                             number('shadowOffsetX', 'Shadow X', 2),
                             number('shadowOffsetY', 'Shadow Y', 2),
@@ -212,7 +213,7 @@ export const basicShapes = defineBuiltInElement<Props, undefined>({
             }
             if (props.shadowEnabled)
                 object.setShadow(
-                    applyOpacity(props.shadowColor, 1),
+                    applyOpacity(props.shadowColor, props.shadowOpacity),
                     props.shadowBlur,
                     props.shadowOffsetX,
                     props.shadowOffsetY

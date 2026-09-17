@@ -4,6 +4,39 @@ import { textOverlay } from '../misc/text-overlay';
 import { sceneElementRegistry } from '@core/scene/registry';
 
 describe('text overlay anchoring', () => {
+    it('applies separate fill, stroke, and background opacity properties', () => {
+        const objects = textOverlay.render({
+            props: {
+                text: 'Text',
+                lineSpacing: 4,
+                color: '#336699',
+                opacity: 0.5,
+                blendMode: 'source-over',
+                fontFamily: 'Arial|400',
+                fontSize: 10,
+                justification: 'left',
+                letterSpacing: 0,
+                strokeColor: '#112233',
+                strokeOpacity: 0.25,
+                strokeWidth: 2,
+                showBackground: true,
+                backgroundColor: '#445566',
+                backgroundOpacity: 0.75,
+                backgroundPaddingX: 0,
+                backgroundPaddingY: 0,
+                backgroundCornerRadius: 0,
+            },
+            resources: undefined,
+            simulation: undefined,
+            time: {} as any,
+            context: {} as any,
+        });
+
+        expect((objects[0] as Rectangle).fillColor).toBe('#445566BF');
+        expect((objects[1] as Text).color).toBe('#33669980');
+        expect((objects[1] as Text).strokeColor).toBe('#11223340');
+    });
+
     it('anchors the selected horizontal text-block edge at the element origin', () => {
         const objects = textOverlay.render({
             props: {
@@ -17,6 +50,7 @@ describe('text overlay anchoring', () => {
                 justification: 'left',
                 letterSpacing: 0,
                 strokeColor: '#000000',
+                strokeOpacity: 1,
                 strokeWidth: 0,
                 showBackground: true,
                 backgroundColor: '#000000',
@@ -52,6 +86,7 @@ describe('text overlay anchoring', () => {
                 justification: 'right',
                 letterSpacing: 0,
                 strokeColor: '#000000',
+                strokeOpacity: 1,
                 strokeWidth: 0,
                 showBackground: true,
                 backgroundColor: '#000000',
@@ -86,6 +121,7 @@ describe('text overlay anchoring', () => {
                 justification: 'left',
                 letterSpacing: 0,
                 strokeColor: '#000000',
+                strokeOpacity: 1,
                 strokeWidth: 0,
                 showBackground: false,
                 backgroundColor: '#000000',

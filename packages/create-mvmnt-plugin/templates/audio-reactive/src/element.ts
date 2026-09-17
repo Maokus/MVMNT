@@ -15,7 +15,8 @@ export const audioReactive = definePluginElement({
                 group('reactiveAppearance', 'Appearance', [
                     prop.number('baseSize', 'Base Size', 50, { min: 10, max: 500, step: 1 }),
                     prop.number('reactivityScale', 'Reactivity', 200, { min: 0, max: 1000, step: 10 }),
-                    prop.colorAlpha('shapeColor', 'Color', '#F472B6FF'),
+                    prop.color('shapeColor', 'Color', '#F472B6'),
+                    prop.number('shapeOpacity', 'Opacity', 1, { min: 0, max: 1, step: 0.01 }),
                 ]),
             ]),
         ],
@@ -32,6 +33,10 @@ export const audioReactive = definePluginElement({
         const values = rms?.ok ? rms.value : [];
         const volume = values.length ? Array.from(values).reduce((sum, value) => sum + value, 0) / values.length : 0;
         const size = props.baseSize + volume * props.reactivityScale;
-        return [new Rectangle(-size / 2, -size / 2, size, size, { fillColor: props.shapeColor })];
+        return [
+            new Rectangle(-size / 2, -size / 2, size, size, { fillColor: props.shapeColor }).setOpacity(
+                props.shapeOpacity
+            ),
+        ];
     },
 });

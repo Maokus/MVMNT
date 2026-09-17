@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import type { ElementSchema } from '@mvmnt-app/plugin-sdk';
 import { builtInCatalog } from '../catalog';
 import { audioReactive } from '@core/scene/authoring/templates/audio-reactive';
 import { basicShape } from '@core/scene/authoring/templates/basic-shape';
@@ -48,6 +49,69 @@ describe('SDK 2 element migration inventory', () => {
         ]) {
             const source = readFileSync(resolve(process.cwd(), 'src/core/scene/authoring/templates', filename), 'utf8');
             expect(source).not.toMatch(/\bSceneElement\b|\bgetRequiredPluginApi\b|\bgetPluginHostApi\b|\bprop\./);
+        }
+    });
+
+    it('uses separate color and opacity properties for formerly alpha-enabled colors', () => {
+        const expectedPairs: Record<string, Array<[string, string]>> = {
+            background: [['color', 'opacity']],
+            basicShapes: [
+                ['color', 'opacity'],
+                ['strokeColor', 'strokeOpacity'],
+                ['shadowColor', 'shadowOpacity'],
+            ],
+            image: [
+                ['borderColor', 'borderOpacity'],
+                ['shadowColor', 'shadowOpacity'],
+            ],
+            progressDisplay: [
+                ['barColor', 'barOpacity'],
+                ['barBgColor', 'barBgOpacity'],
+                ['borderColor', 'borderOpacity'],
+                ['statsTextColor', 'statsTextOpacity'],
+            ],
+            textOverlay: [
+                ['color', 'opacity'],
+                ['strokeColor', 'strokeOpacity'],
+                ['backgroundColor', 'backgroundOpacity'],
+            ],
+            timeDisplay: [
+                ['color', 'opacity'],
+                ['textSecondaryColor', 'textSecondaryOpacity'],
+                ['backgroundColor', 'backgroundOpacity'],
+            ],
+            notesPlayedTracker: [
+                ['color', 'opacity'],
+                ['backgroundColor', 'backgroundOpacity'],
+            ],
+            notesPlayingDisplay: [
+                ['gridStrokeColor', 'gridStrokeOpacity'],
+                ['textColor', 'textOpacity'],
+                ['gridFillColor', 'gridFillOpacity'],
+                ['backgroundColor', 'backgroundOpacity'],
+            ],
+            ccMonitor: [
+                ['knobTrackColor', 'knobTrackOpacity'],
+                ['knobValueColor', 'knobValueOpacity'],
+                ['opacityRectColor', 'opacityRectOpacity'],
+                ['color', 'opacity'],
+            ],
+        };
+
+        for (const { type, definition } of builtInCatalog) {
+            const schema = definition.schema as ElementSchema;
+            const properties = schema.tabs.flatMap((tab) => tab.groups.flatMap((group) => group.properties));
+            expect(properties.map((property) => property.type)).not.toContain('colorAlpha');
+
+            const propertiesByKey = new Map(properties.map((property) => [property.key, property]));
+            for (const [colorKey, opacityKey] of expectedPairs[type] ?? []) {
+                expect(propertiesByKey.get(colorKey)?.type, `${type}.${colorKey}`).toBe('color');
+                expect(propertiesByKey.get(opacityKey), `${type}.${opacityKey}`).toMatchObject({
+                    type: 'number',
+                    min: 0,
+                    max: 1,
+                });
+            }
         }
     });
 

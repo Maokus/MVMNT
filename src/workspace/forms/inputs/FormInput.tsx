@@ -108,6 +108,7 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
         );
     }
 
+    // SDK 2 compatibility only. New schemas use separate color and opacity properties.
     if (type === 'colorAlpha' || type === 'color-alpha' || type === 'colorWithAlpha') {
         return (
             <ColorAlphaInput
@@ -116,7 +117,7 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
                 schema={schema}
                 disabled={disabled}
                 title={title}
-                onChange={(next) => emitChange(next)}
+                onChange={(next, gesture) => emitChange(next, gesture ? { mergeSession: gesture } : undefined)}
             />
         );
     }
@@ -129,7 +130,7 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
                 schema={schema}
                 disabled={disabled}
                 title={title}
-                onChange={(next) => emitChange(next)}
+                onChange={(next, gesture) => emitChange(next, gesture ? { mergeSession: gesture } : undefined)}
             />
         );
     }

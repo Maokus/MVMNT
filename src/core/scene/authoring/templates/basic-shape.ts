@@ -35,18 +35,32 @@ export const basicShape = definePluginElement({
                                 max: 500,
                                 step: 1,
                             },
-                            { key: 'shapeColor', label: 'Color', type: 'colorAlpha', default: '#3B82F6FF' },
+                            { key: 'shapeColor', label: 'Color', type: 'color', default: '#3B82F6' },
+                            {
+                                key: 'shapeOpacity',
+                                label: 'Opacity',
+                                type: 'number',
+                                default: 1,
+                                min: 0,
+                                max: 1,
+                                step: 0.01,
+                            },
                         ],
                         presets: [
                             {
                                 id: 'smallBlue',
                                 label: 'Small Blue',
-                                values: { shapeType: 'circle', shapeSize: 50, shapeColor: '#3B82F6FF' },
+                                values: { shapeType: 'circle', shapeSize: 50, shapeColor: '#3B82F6', shapeOpacity: 1 },
                             },
                             {
                                 id: 'largeRed',
                                 label: 'Large Red',
-                                values: { shapeType: 'rectangle', shapeSize: 150, shapeColor: '#EF4444FF' },
+                                values: {
+                                    shapeType: 'rectangle',
+                                    shapeSize: 150,
+                                    shapeColor: '#EF4444',
+                                    shapeOpacity: 1,
+                                },
                             },
                         ],
                     },
@@ -62,13 +76,13 @@ export const basicShape = definePluginElement({
                     endAngle: Math.PI * 2,
                     fillColor: props.shapeColor,
                     strokeColor: null,
-                }),
+                }).setOpacity(props.shapeOpacity),
             ];
         }
         return [
             new Rectangle(-props.shapeSize / 2, -props.shapeSize / 2, props.shapeSize, props.shapeSize, {
                 fillColor: props.shapeColor,
-            }),
+            }).setOpacity(props.shapeOpacity),
         ];
     },
 });

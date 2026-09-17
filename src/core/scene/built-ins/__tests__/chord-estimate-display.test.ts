@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { estimateChordPB } from '@core/midi/music-theory/chord-estimator';
+import { Text } from '@core/render/render-objects';
 import { ChordEstimateDisplayElement, formatScaleDegree } from '../midi-displays/chord-estimate-display';
 
 function makeChroma(indices: number[]): Float32Array {
@@ -100,5 +101,54 @@ describe('Chord Estimate Display controls', () => {
         expect(source.properties.find((property: any) => property.key === 'windowSeconds').visibleWhen).toEqual([
             { key: 'analysisMode', equals: 'windowed' },
         ]);
+    });
+
+    it('offers sustain-aware chord estimation as an opt-in setting', () => {
+        const schema = ChordEstimateDisplayElement.getConfigSchema() as any;
+        const content = schema.tabs.find((tab: any) => tab.id === 'content');
+        const source = content.groups.find((group: any) => group.id === 'chordSource');
+        const sustainPedalAware = source.properties.find((property: any) => property.key === 'sustainPedalAware');
+
+        expect(sustainPedalAware).toMatchObject({
+            type: 'boolean',
+            label: 'Sustain Pedal Aware',
+            default: false,
+        });
+    });
+
+    it('renders a whole chord from alternating notes held by the sustain pedal', () => {
+        const element = new ChordEstimateDisplayElement('sustained-chord', {
+            midiTrackId: 'piano',
+            sustainPedalAware: true,
+            detectionMethod: 'simple-interval',
+            showActiveNotes: false,
+            showChroma: false,
+            smoothingMs: 0,
+        }) as any;
+        const notes = [
+            { note: 48, channel: 0, velocity: 100, startSeconds: 0, endSeconds: 0.2 },
+            { note: 64, channel: 0, velocity: 100, startSeconds: 0.5, endSeconds: 0.8 },
+            { note: 67, channel: 0, velocity: 100, startSeconds: 0.5, endSeconds: 0.8 },
+        ];
+        element.__capabilityContext = {
+            timeline: {
+                selectCC: () => ({
+                    ok: true,
+                    value: [
+                        { channel: 0, value: 127, timeSeconds: 0.1 },
+                        { channel: 0, value: 0, timeSeconds: 1.5 },
+                    ],
+                }),
+                selectNotes: ({ startSeconds, endSeconds }: { startSeconds: number; endSeconds: number }) => ({
+                    ok: true,
+                    value: notes.filter((note) => note.endSeconds > startSeconds && note.startSeconds < endSeconds),
+                }),
+            },
+        };
+
+        const renderObjects = element._buildRenderObjects({}, 0.6);
+        const chordLabel = renderObjects.find((object: unknown) => object instanceof Text) as Text;
+
+        expect(chordLabel.text).toBe('C');
     });
 });

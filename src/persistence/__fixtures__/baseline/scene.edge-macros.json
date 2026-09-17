@@ -22,6 +22,7 @@
                 "opacity": { "type": "constant", "value": 1 },
                 "showBackground": { "type": "constant", "value": false },
                 "strokeColor": { "type": "constant", "value": "#000000" },
+                "strokeOpacity": { "type": "constant", "value": 1 },
                 "strokeWidth": { "type": "constant", "value": 0 },
                 "contentAnchorX": { "type": "constant", "value": 0.5 },
                 "contentAnchorY": { "type": "constant", "value": 0.5 },

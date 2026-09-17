@@ -9,9 +9,11 @@ export const textDisplay = definePluginElement({
                 group('text', 'Text', [
                     prop.string('textContent', 'Text', 'Hello World'),
                     prop.number('fontSize', 'Font Size', 36),
-                    prop.colorAlpha('textColor', 'Color', '#FFFFFFFF'),
+                    prop.color('textColor', 'Color', '#FFFFFF'),
+                    prop.number('textOpacity', 'Text Opacity', 1, { min: 0, max: 1, step: 0.01 }),
                     prop.boolean('showBackground', 'Show Background', false),
-                    prop.colorAlpha('backgroundColor', 'Background', '#00000080'),
+                    prop.color('backgroundColor', 'Background', '#000000'),
+                    prop.number('backgroundOpacity', 'Background Opacity', 0.5, { min: 0, max: 1, step: 0.01 }),
                 ]),
             ]),
         ],
@@ -22,7 +24,7 @@ export const textDisplay = definePluginElement({
             ? [
                   new Rectangle(-width / 2, -props.fontSize / 2, width, props.fontSize * 1.2, {
                       fillColor: props.backgroundColor,
-                  }),
+                  }).setOpacity(props.backgroundOpacity),
               ]
             : [];
         return [
@@ -31,7 +33,7 @@ export const textDisplay = definePluginElement({
                 color: props.textColor,
                 align: 'center',
                 baseline: 'middle',
-            }),
+            }).setOpacity(props.textOpacity),
         ];
     },
 });

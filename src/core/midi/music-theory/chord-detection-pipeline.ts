@@ -13,6 +13,12 @@ export type ChordTimelineNote = {
     velocity: number;
 };
 
+export type ChordSustainEvent = {
+    channel: number;
+    value: number;
+    time: number;
+};
+
 export type ChordObservation = {
     targetTime: number;
     notes: ChordTimelineNote[];
@@ -48,6 +54,53 @@ export type CanonicalChordResult = {
 export type ChordDetectorAdapterOptions = ChordEstimatorOptions & { previousChordKey?: string };
 
 const pc = (note: number) => ((note % 12) + 12) % 12;
+
+/**
+ * Extends notes whose key-up occurs while CC64 is down until the pedal is
+ * released. MIDI sustain is channel-scoped, so events on other channels do
+ * not affect the note.
+ */
+export function applySustainPedal(
+    notes: readonly ChordTimelineNote[],
+    events: readonly ChordSustainEvent[],
+    throughTime: number
+): ChordTimelineNote[] {
+    const sortedEvents = [...events].sort((left, right) => left.time - right.time);
+    return notes.map((note) => {
+        let pedalDown = false;
+        let releaseTime: number | undefined;
+        for (const event of sortedEvents) {
+            if (event.channel !== note.channel) continue;
+            if (event.time <= note.endTime) {
+                pedalDown = event.value >= 64;
+                continue;
+            }
+            if (pedalDown && event.value < 64) {
+                releaseTime = event.time;
+                break;
+            }
+        }
+        if (!pedalDown) return { ...note };
+        return {
+            ...note,
+            endTime: Math.max(note.endTime, Math.min(releaseTime ?? throughTime, throughTime)),
+        };
+    });
+}
+
+/** Finds how far note lookup must reach back to include notes held at startTime by CC64. */
+export function getSustainLookbackStart(events: readonly ChordSustainEvent[], startTime: number): number {
+    const downSinceByChannel = new Map<number, number>();
+    for (const event of [...events].sort((left, right) => left.time - right.time)) {
+        if (event.time > startTime) break;
+        if (event.value >= 64) {
+            if (!downSinceByChannel.has(event.channel)) downSinceByChannel.set(event.channel, event.time);
+        } else {
+            downSinceByChannel.delete(event.channel);
+        }
+    }
+    return Math.min(startTime, ...downSinceByChannel.values());
+}
 
 function activeAt(notes: readonly ChordTimelineNote[], time: number): ChordTimelineNote[] {
     return notes.filter((note) => note.startTime <= time && time < note.endTime);

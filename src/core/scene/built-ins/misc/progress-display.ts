@@ -56,7 +56,7 @@ export const progressDisplay = defineBuiltInElement<Props, undefined>({
                         label: 'Colors',
                         collapsed: true,
                         properties: [
-                            { key: 'barColor', label: 'Bar Color', type: 'colorAlpha', default: '#CCCCCCFF' },
+                            { key: 'barColor', label: 'Bar Color', type: 'color', default: '#CCCCCC' },
                             {
                                 key: 'barOpacity',
                                 label: 'Bar Opacity',
@@ -66,7 +66,7 @@ export const progressDisplay = defineBuiltInElement<Props, undefined>({
                                 max: 1,
                                 step: 0.01,
                             },
-                            { key: 'barBgColor', label: 'Background Color', type: 'colorAlpha', default: '#FFFFFFFF' },
+                            { key: 'barBgColor', label: 'Background Color', type: 'color', default: '#FFFFFF' },
                             {
                                 key: 'barBgOpacity',
                                 label: 'Background Opacity',
@@ -76,7 +76,7 @@ export const progressDisplay = defineBuiltInElement<Props, undefined>({
                                 max: 1,
                                 step: 0.01,
                             },
-                            { key: 'borderColor', label: 'Border Color', type: 'colorAlpha', default: '#FFFFFFFF' },
+                            { key: 'borderColor', label: 'Border Color', type: 'color', default: '#FFFFFF' },
                             {
                                 key: 'borderOpacity',
                                 label: 'Border Opacity',
@@ -86,7 +86,7 @@ export const progressDisplay = defineBuiltInElement<Props, undefined>({
                                 max: 1,
                                 step: 0.01,
                             },
-                            { key: 'statsTextColor', label: 'Stats Text', type: 'colorAlpha', default: '#CCCCCCFF' },
+                            { key: 'statsTextColor', label: 'Stats Text', type: 'color', default: '#CCCCCC' },
                             {
                                 key: 'statsTextOpacity',
                                 label: 'Text Opacity',

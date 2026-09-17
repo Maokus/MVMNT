@@ -15,7 +15,7 @@ const schema = {
                         { key: 'size', label: 'Size', type: 'number', default: 24 },
                         { key: 'opacity', label: 'Opacity', type: 'number', default: 1, min: 0, max: 1, step: 0.01 },
                         { key: 'enabled', label: 'Enabled', type: 'boolean', default: true },
-                        { key: 'color', label: 'Color', type: 'colorAlpha', default: '#FFFFFFFF' },
+                        { key: 'color', label: 'Color', type: 'color', default: '#FFFFFF' },
                         {
                             key: 'align',
                             label: 'Alignment',

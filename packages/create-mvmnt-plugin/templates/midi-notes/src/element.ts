@@ -11,7 +11,8 @@ export const midiNotes = definePluginElement({
                     prop.number('noteWidth', 'Note Width', 40),
                     prop.number('noteHeight', 'Note Height', 100),
                     prop.number('noteSpacing', 'Note Spacing', 8),
-                    prop.colorAlpha('noteColor', 'Note Color', '#10B981FF'),
+                    prop.color('noteColor', 'Note Color', '#10B981'),
+                    prop.number('noteOpacity', 'Note Opacity', 1, { min: 0, max: 1, step: 0.01 }),
                     prop.boolean('showNoteNames', 'Show Note Names', true),
                 ]),
             ]),
@@ -28,7 +29,9 @@ export const midiNotes = definePluginElement({
         return active.value.flatMap((note, index) => {
             const x = index * (props.noteWidth + props.noteSpacing);
             return [
-                new Rectangle(x, 0, props.noteWidth, props.noteHeight, { fillColor: props.noteColor }),
+                new Rectangle(x, 0, props.noteWidth, props.noteHeight, { fillColor: props.noteColor }).setOpacity(
+                    props.noteOpacity
+                ),
                 ...(props.showNoteNames
                     ? [
                           new Text(

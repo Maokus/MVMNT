@@ -43,7 +43,8 @@ function normalizeChoices(choices: SelectChoice[]): Array<{ value: any; label: s
  * @example
  * properties: [
  *   prop.number('fontSize', 'Font Size (px)', 36, { min: 8, max: 160, step: 1 }),
- *   prop.colorAlpha('textColor', 'Text Color', '#FFFFFFFF'),
+ *   prop.color('textColor', 'Text Color', '#FFFFFF'),
+ *   prop.number('textOpacity', 'Text Opacity', 1, { min: 0, max: 1, step: 0.01 }),
  *   prop.select('textAlign', 'Alignment', 'left', ['left', 'center', 'right']),
  *   prop.boolean('showBackground', 'Show Background', false),
  *   prop.font('fontFamily', 'Font Family', 'Inter'),
@@ -111,19 +112,6 @@ export const prop = {
         return {
             key,
             type: 'color',
-            label,
-            default: defaultValue,
-            ...(opts?.description && { description: opts.description }),
-            ...(opts?.visibleWhen && { visibleWhen: opts.visibleWhen }),
-            runtime: { transform: asTrimmedString, defaultValue },
-        };
-    },
-
-    /** A colour with alpha channel. Stored as an 8-digit hex string (`#RRGGBBAA`). */
-    colorAlpha(key: string, label: string, defaultValue: string, opts?: CommonOpts): PropertyDefinition {
-        return {
-            key,
-            type: 'colorAlpha',
             label,
             default: defaultValue,
             ...(opts?.description && { description: opts.description }),
