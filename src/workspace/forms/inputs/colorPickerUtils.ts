@@ -12,6 +12,12 @@ export interface HsvaColor {
     a: number;
 }
 
+export type ColorFieldMode = 'hsv' | 'rgb';
+
+export const COLOR_FIELD_MODE_STORAGE_KEY = 'mvmnt.color-picker.field-mode.v1';
+export const RECENT_COLORS_STORAGE_KEY = 'mvmnt.color-picker.recent-colors.v1';
+export const MAX_RECENT_COLORS = 8;
+
 const HEX_PATTERN = /^#?([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
 const RGB_PATTERN = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*[,/]\s*([\d.]+)%?\s*)?\)$/i;
 
@@ -133,6 +139,87 @@ export function colorToHsva(value: unknown, fallback: HsvaColor = { h: 0, s: 0, 
 
 export function preserveAchromaticHue(previous: HsvaColor, next: HsvaColor): HsvaColor {
     return next.s <= 0.0001 || next.v <= 0.0001 ? { ...next, h: previous.h } : next;
+}
+
+const storageOrNull = (): Storage | null => {
+    try {
+        return typeof window === 'undefined' ? null : window.localStorage;
+    } catch {
+        return null;
+    }
+};
+
+export function loadColorFieldMode(storage: Storage | null = storageOrNull()): ColorFieldMode {
+    try {
+        const value = storage?.getItem(COLOR_FIELD_MODE_STORAGE_KEY);
+        return value === 'rgb' || value === 'hsv' ? value : 'hsv';
+    } catch {
+        return 'hsv';
+    }
+}
+
+export function saveColorFieldMode(mode: ColorFieldMode, storage: Storage | null = storageOrNull()): void {
+    try {
+        storage?.setItem(COLOR_FIELD_MODE_STORAGE_KEY, mode);
+    } catch {
+        // Picker preferences remain optional when storage is unavailable.
+    }
+}
+
+export function normalizeRecentColors(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+
+    const unique = new Set<string>();
+    for (const candidate of value) {
+        const parsed = parseHexColor(typeof candidate === 'string' ? candidate : '');
+        if (!parsed) continue;
+        unique.add(hsvaToHex(rgbaToHsva(parsed)));
+        if (unique.size === MAX_RECENT_COLORS) break;
+    }
+    return [...unique];
+}
+
+export function loadRecentColors(storage: Storage | null = storageOrNull()): string[] {
+    try {
+        const stored = storage?.getItem(RECENT_COLORS_STORAGE_KEY);
+        return stored ? normalizeRecentColors(JSON.parse(stored)) : [];
+    } catch {
+        return [];
+    }
+}
+
+export function storeRecentColor(color: HsvaColor, storage: Storage | null = storageOrNull()): string[] {
+    const canonical = hsvaToHex(color);
+    const next = [canonical, ...loadRecentColors(storage).filter((recent) => recent !== canonical)].slice(
+        0,
+        MAX_RECENT_COLORS
+    );
+    try {
+        storage?.setItem(RECENT_COLORS_STORAGE_KEY, JSON.stringify(next));
+    } catch {
+        // Recent colors remain an in-memory convenience when storage is unavailable.
+    }
+    return next;
+}
+
+export function generateTonePalette(hue: number): string[] {
+    const normalizedHue = normalizeHue(hue);
+    return [
+        { s: 15, v: 100 },
+        { s: 25, v: 96 },
+        { s: 42, v: 93 },
+        { s: 62, v: 90 },
+        { s: 82, v: 87 },
+        { s: 100, v: 80 },
+        { s: 100, v: 64 },
+        { s: 100, v: 47 },
+    ].map(({ s, v }) => hsvaToHex({ h: normalizedHue, s, v, a: 1 }));
+}
+
+export function generateBasePalette(): string[] {
+    const accents = [0, 30, 60, 120, 180, 210, 270, 330].map((h) => hsvaToHex({ h, s: 78, v: 90, a: 1 }));
+    const neutrals = [100, 88, 75, 60, 45, 30, 15, 0].map((v) => hsvaToHex({ h: 0, s: 0, v, a: 1 }));
+    return [...accents, ...neutrals];
 }
 
 export function saturationValueFromPoint(

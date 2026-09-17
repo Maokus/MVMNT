@@ -4,6 +4,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 
 import ColorInput from '../ColorInput';
 import type { ColorPickerGesture } from '../ColorPicker';
+import { COLOR_FIELD_MODE_STORAGE_KEY, RECENT_COLORS_STORAGE_KEY } from '../colorPickerUtils';
 
 const OriginalPointerEvent = window.PointerEvent;
 
@@ -50,6 +51,8 @@ const openPicker = () => {
 
 afterEach(() => {
     delete (window as Window & { EyeDropper?: typeof EyeDropper }).EyeDropper;
+    localStorage.removeItem(COLOR_FIELD_MODE_STORAGE_KEY);
+    localStorage.removeItem(RECENT_COLORS_STORAGE_KEY);
 });
 
 describe('ColorInput', () => {
@@ -75,6 +78,83 @@ describe('ColorInput', () => {
 
         fireEvent.keyDown(saturation, { key: 'ArrowRight' });
         await waitFor(() => expect(onChange).toHaveBeenLastCalledWith('#FFFFFC', undefined));
+    });
+
+    it('can set a latent hue on white with the HSV field before adding saturation', async () => {
+        const onChange = vi.fn();
+        render(<Harness initial="#FFFFFF" onChange={onChange} />);
+        openPicker();
+
+        const hue = screen.getByRole('textbox', { name: 'H' });
+        fireEvent.change(hue, { target: { value: '240' } });
+        fireEvent.blur(hue);
+
+        expect(screen.getByRole('slider', { name: 'Hue' })).toHaveAttribute('aria-valuenow', '240');
+        expect(onChange).toHaveBeenLastCalledWith('#FFFFFF', undefined);
+
+        const saturation = screen.getByRole('textbox', { name: 'S%' });
+        fireEvent.change(saturation, { target: { value: '100' } });
+        fireEvent.blur(saturation);
+
+        await waitFor(() => expect(onChange).toHaveBeenLastCalledWith('#0000FF', undefined));
+    });
+
+    it('can change latent hue on white with the hue slider keyboard', () => {
+        render(<Harness initial="#FFFFFF" />);
+        openPicker();
+        const hue = screen.getByRole('slider', { name: 'Hue' });
+
+        fireEvent.keyDown(hue, { key: 'ArrowRight' });
+
+        expect(hue).toHaveAttribute('aria-valuenow', '1');
+        expect(screen.getByRole('textbox', { name: 'H' })).toHaveValue('1');
+    });
+
+    it('can change latent hue on white by dragging the hue slider', () => {
+        render(<Harness initial="#FFFFFF" />);
+        const saturation = openPicker();
+        const hue = screen.getByRole('slider', { name: 'Hue' });
+        vi.spyOn(hue, 'getBoundingClientRect').mockReturnValue({
+            left: 0,
+            top: 0,
+            width: 360,
+            height: 10,
+            right: 360,
+            bottom: 10,
+            x: 0,
+            y: 0,
+            toJSON: () => ({}),
+        });
+
+        fireEvent.pointerDown(hue, { button: 0, pointerId: 7, clientX: 180, clientY: 5 });
+        fireEvent.pointerUp(hue, { pointerId: 7, clientX: 180, clientY: 5 });
+        fireEvent.keyDown(saturation, { key: 'ArrowRight' });
+
+        expect(screen.getByRole('button', { name: '#FCFFFF' })).toBeInTheDocument();
+    });
+
+    it('preserves latent hue when an achromatic hex value is entered', () => {
+        render(<Harness initial="#FFFF00" />);
+        openPicker();
+        const hex = screen.getByRole('textbox', { name: 'Hex' });
+
+        fireEvent.change(hex, { target: { value: 'FFFFFF' } });
+        fireEvent.blur(hex);
+
+        expect(screen.getByRole('textbox', { name: 'H' })).toHaveValue('60');
+    });
+
+    it('remembers the RGB field mode across picker instances', () => {
+        const first = render(<Harness />);
+        openPicker();
+        fireEvent.click(screen.getByRole('button', { name: 'RGB' }));
+        expect(screen.getByRole('textbox', { name: 'R' })).toBeInTheDocument();
+        expect(localStorage.getItem(COLOR_FIELD_MODE_STORAGE_KEY)).toBe('rgb');
+
+        first.unmount();
+        render(<Harness />);
+        openPicker();
+        expect(screen.getByRole('textbox', { name: 'R' })).toBeInTheDocument();
     });
 
     it('uses one merge session for a continuous pointer drag', () => {

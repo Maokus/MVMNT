@@ -1273,7 +1273,27 @@
     }
 
     .color-picker__fields {
-        @apply mt-2 flex items-end gap-1;
+        @apply mt-1 flex items-end gap-1;
+    }
+
+    .color-picker__field-toolbar {
+        @apply mt-2 flex h-5 items-center justify-between border-t border-white/10 pt-1 text-[9px] uppercase tracking-wide text-neutral-500;
+    }
+
+    .color-picker__field-mode {
+        @apply flex overflow-hidden rounded-sm border border-control2;
+    }
+
+    .color-picker__field-mode button {
+        @apply h-4 min-w-8 bg-[#333] px-1 text-[8px] text-neutral-400 outline-none transition-colors hover:text-white focus-visible:bg-accent/40 focus-visible:text-white;
+    }
+
+    .color-picker__field-mode button + button {
+        @apply border-l border-control2;
+    }
+
+    .color-picker__field-mode button.is-selected {
+        @apply bg-accent/50 text-white;
     }
 
     .color-picker__field {
@@ -1304,12 +1324,24 @@
         @apply mt-1.5 rounded-sm border border-red-400/30 bg-red-500/10 px-1.5 py-1 text-[10px] text-red-200;
     }
 
+    .color-picker__palette {
+        @apply mt-2 flex flex-col gap-1.5 border-t border-white/10 pt-2;
+    }
+
+    .color-picker__palette-section {
+        @apply grid grid-cols-[32px_1fr] items-center gap-1;
+    }
+
+    .color-picker__palette-label {
+        @apply text-[8px] uppercase tracking-wide text-neutral-500;
+    }
+
     .color-picker__presets {
-        @apply mt-2 grid grid-cols-8 gap-1 border-t border-white/10 pt-2;
+        @apply grid grid-cols-8 gap-1;
     }
 
     .color-picker__preset {
-        @apply h-5 w-5 rounded-sm border border-black/60 shadow-inner outline-none transition-transform hover:scale-110 focus-visible:ring-1 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-[#252525];
+        @apply h-4 w-full rounded-sm border border-black/60 shadow-inner outline-none transition-transform hover:scale-110 focus-visible:ring-1 focus-visible:ring-accent focus-visible:ring-offset-1 focus-visible:ring-offset-[#252525];
     }
 
     .color-picker__preset.is-selected {

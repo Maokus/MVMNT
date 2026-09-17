@@ -5,13 +5,20 @@ import {
     alphaFromPoint,
     clamp,
     colorToHsva,
+    generateBasePalette,
+    generateTonePalette,
     hsvaToHex,
     hsvaToRgba,
     hueFromPoint,
+    loadColorFieldMode,
+    loadRecentColors,
     normalizeHue,
     preserveAchromaticHue,
     rgbaToHsva,
+    saveColorFieldMode,
     saturationValueFromPoint,
+    storeRecentColor,
+    type ColorFieldMode,
     type HsvaColor,
 } from './colorPickerUtils';
 
@@ -41,26 +48,11 @@ interface InputDrafts {
     r: string;
     g: string;
     b: string;
+    h: string;
+    s: string;
+    v: string;
     a: string;
 }
-
-const PRESET_COLORS = [
-    '#D0021B',
-    '#F5A623',
-    '#F8E61B',
-    '#8B572A',
-    '#7ED321',
-    '#417505',
-    '#BD10E0',
-    '#9013FE',
-    '#4A90E2',
-    '#50E3C2',
-    '#B8E986',
-    '#000000',
-    '#4A4A4A',
-    '#9B9B9B',
-    '#FFFFFF',
-] as const;
 
 const colorDrafts = (color: HsvaColor): InputDrafts => {
     const rgba = hsvaToRgba(color);
@@ -69,6 +61,9 @@ const colorDrafts = (color: HsvaColor): InputDrafts => {
         r: String(rgba.r),
         g: String(rgba.g),
         b: String(rgba.b),
+        h: String(Math.round(normalizeHue(color.h))),
+        s: String(Math.round(color.s)),
+        v: String(Math.round(color.v)),
         a: String(Math.round(color.a * 100)),
     };
 };
@@ -78,8 +73,16 @@ const isSameColor = (first: HsvaColor, second: HsvaColor, includeAlpha: boolean)
 
 const createSessionId = (): string => `color-drag-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
+interface EmitOptions {
+    gesture?: ColorPickerGesture;
+    preserveHue?: boolean;
+    record?: boolean;
+}
+
 export const ColorPicker: React.FC<ColorPickerProps> = ({ color, includeAlpha = false, onChange }) => {
     const [drafts, setDrafts] = useState<InputDrafts>(() => colorDrafts(color));
+    const [fieldMode, setFieldMode] = useState<ColorFieldMode>(loadColorFieldMode);
+    const [recentColors, setRecentColors] = useState<string[]>(loadRecentColors);
     const [eyeDropperPending, setEyeDropperPending] = useState(false);
     const [eyeDropperError, setEyeDropperError] = useState<string | null>(null);
     const latestColorRef = useRef(color);
@@ -88,6 +91,7 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({ color, includeAlpha = 
     const eyeDropperAbortRef = useRef<AbortController | null>(null);
     const mountedRef = useRef(true);
     const skipBlurCommitRef = useRef(false);
+    const keyboardRecentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     latestColorRef.current = color;
     onChangeRef.current = onChange;
@@ -96,36 +100,62 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({ color, includeAlpha = 
         setDrafts(colorDrafts(color));
     }, [color]);
 
+    const recordRecent = useCallback((committed: HsvaColor) => {
+        const next = storeRecentColor(committed);
+        if (mountedRef.current) setRecentColors(next);
+    }, []);
+
+    const flushKeyboardRecent = useCallback(() => {
+        if (keyboardRecentTimerRef.current === null) return;
+        clearTimeout(keyboardRecentTimerRef.current);
+        keyboardRecentTimerRef.current = null;
+        recordRecent(latestColorRef.current);
+    }, [recordRecent]);
+
+    const scheduleKeyboardRecent = useCallback(() => {
+        if (keyboardRecentTimerRef.current !== null) clearTimeout(keyboardRecentTimerRef.current);
+        keyboardRecentTimerRef.current = setTimeout(() => {
+            keyboardRecentTimerRef.current = null;
+            recordRecent(latestColorRef.current);
+        }, 300);
+    }, [recordRecent]);
+
     const emit = useCallback(
-        (candidate: HsvaColor, gesture?: ColorPickerGesture) => {
-            const next = preserveAchromaticHue(latestColorRef.current, {
+        (candidate: HsvaColor, options: EmitOptions = {}) => {
+            const normalized = {
                 h: normalizeHue(candidate.h),
                 s: clamp(candidate.s, 0, 100),
                 v: clamp(candidate.v, 0, 100),
                 a: includeAlpha ? clamp(candidate.a, 0, 1) : 1,
-            });
+            };
+            const next = options.preserveHue ? preserveAchromaticHue(latestColorRef.current, normalized) : normalized;
             latestColorRef.current = next;
-            onChangeRef.current(next, gesture);
+            onChangeRef.current(next, options.gesture);
+            if (options.record) recordRecent(next);
             return next;
         },
-        [includeAlpha]
+        [includeAlpha, recordRecent]
     );
 
     const finalizeDrag = useCallback(() => {
         const drag = dragRef.current;
         if (!drag) return;
         dragRef.current = null;
-        if (drag.changed) onChangeRef.current(drag.latest, { id: drag.id, finalize: true });
-    }, []);
+        if (drag.changed) {
+            onChangeRef.current(drag.latest, { id: drag.id, finalize: true });
+            recordRecent(drag.latest);
+        }
+    }, [recordRecent]);
 
     useEffect(() => {
         mountedRef.current = true;
         return () => {
             mountedRef.current = false;
             finalizeDrag();
+            flushKeyboardRecent();
             eyeDropperAbortRef.current?.abort();
         };
-    }, [finalizeDrag]);
+    }, [finalizeDrag, flushKeyboardRecent]);
 
     const colorAtPointer = useCallback((kind: DragKind, event: React.PointerEvent<HTMLElement>): HsvaColor => {
         const current = latestColorRef.current;
@@ -143,7 +173,7 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({ color, includeAlpha = 
             event.preventDefault();
             event.currentTarget.setPointerCapture?.(event.pointerId);
             const id = createSessionId();
-            const next = emit(colorAtPointer(kind, event), { id, finalize: false });
+            const next = emit(colorAtPointer(kind, event), { gesture: { id, finalize: false } });
             dragRef.current = { pointerId: event.pointerId, kind, id, latest: next, changed: true };
         },
         [colorAtPointer, emit]
@@ -154,7 +184,7 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({ color, includeAlpha = 
             const drag = dragRef.current;
             if (!drag || drag.pointerId !== event.pointerId) return;
             event.preventDefault();
-            const next = emit(colorAtPointer(drag.kind, event), { id: drag.id, finalize: false });
+            const next = emit(colorAtPointer(drag.kind, event), { gesture: { id: drag.id, finalize: false } });
             drag.latest = next;
             drag.changed = true;
         },
@@ -185,8 +215,9 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({ color, includeAlpha = 
             if (!next) return;
             event.preventDefault();
             emit(next);
+            scheduleKeyboardRecent();
         },
-        [emit]
+        [emit, scheduleKeyboardRecent]
     );
 
     const handleSliderKeyDown = useCallback(
@@ -201,8 +232,9 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({ color, includeAlpha = 
                     ? { ...current, h: current.h + direction * step }
                     : { ...current, a: current.a + (direction * step) / 100 }
             );
+            scheduleKeyboardRecent();
         },
-        [emit]
+        [emit, scheduleKeyboardRecent]
     );
 
     const restoreDrafts = useCallback(() => setDrafts(colorDrafts(latestColorRef.current)), []);
@@ -211,25 +243,39 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({ color, includeAlpha = 
         (field: keyof InputDrafts) => {
             const current = latestColorRef.current;
             let next: HsvaColor | null = null;
+            let preserveHue = false;
             if (field === 'hex') {
                 const value = drafts.hex.trim().replace(/^#/, '');
                 if (/^([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value)) {
                     next = colorToHsva(`#${value}`, current);
                     next.a = current.a;
+                    preserveHue = true;
                 }
             } else if (field === 'a') {
                 const value = Number(drafts.a);
                 if (Number.isFinite(value)) next = { ...current, a: clamp(value, 0, 100) / 100 };
+            } else if (field === 'h' || field === 's' || field === 'v') {
+                const value = Number(drafts[field]);
+                if (Number.isFinite(value)) {
+                    next = {
+                        ...current,
+                        [field]: field === 'h' ? normalizeHue(Math.round(value)) : clamp(value, 0, 100),
+                    };
+                }
             } else {
                 const value = Number(drafts[field]);
                 if (Number.isFinite(value)) {
                     const rgba = hsvaToRgba(current);
                     rgba[field] = clamp(Math.round(value), 0, 255);
                     next = rgbaToHsva(rgba);
+                    next.a = current.a;
+                    preserveHue = true;
                 }
             }
 
-            if (next && !isSameColor(current, next, includeAlpha)) emit(next);
+            if (next && (!isSameColor(current, next, includeAlpha) || ['h', 's', 'v'].includes(field))) {
+                emit(next, { preserveHue, record: true });
+            }
             restoreDrafts();
         },
         [drafts, emit, includeAlpha, restoreDrafts]
@@ -261,7 +307,7 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({ color, includeAlpha = 
             const result = await new eyeDropperConstructor().open({ signal: abortController.signal });
             const sampled = colorToHsva(result.sRGBHex, latestColorRef.current);
             sampled.a = latestColorRef.current.a;
-            emit(sampled);
+            emit(sampled, { preserveHue: true, record: true });
         } catch (cause) {
             if (mountedRef.current && (cause as Error)?.name !== 'AbortError') {
                 setEyeDropperError('Could not sample a screen color.');
@@ -278,16 +324,57 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({ color, includeAlpha = 
         backgroundImage: `linear-gradient(to right, rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, 0), rgb(${rgba.r}, ${rgba.g}, ${rgba.b}))`,
     };
     const saturationValue = `Saturation ${Math.round(color.s)}%, brightness ${Math.round(color.v)}%`;
-    const fieldDefinitions = useMemo(
-        () => [
+    const toneColors = useMemo(() => generateTonePalette(color.h), [color.h]);
+    const baseColors = useMemo(generateBasePalette, []);
+    const fieldDefinitions = useMemo(() => {
+        const components =
+            fieldMode === 'hsv'
+                ? [
+                      { key: 'h' as const, label: 'H', inputMode: 'numeric' as const },
+                      { key: 's' as const, label: 'S%', inputMode: 'numeric' as const },
+                      { key: 'v' as const, label: 'V%', inputMode: 'numeric' as const },
+                  ]
+                : [
+                      { key: 'r' as const, label: 'R', inputMode: 'numeric' as const },
+                      { key: 'g' as const, label: 'G', inputMode: 'numeric' as const },
+                      { key: 'b' as const, label: 'B', inputMode: 'numeric' as const },
+                  ];
+        return [
             { key: 'hex' as const, label: 'Hex', inputMode: 'text' as const },
-            { key: 'r' as const, label: 'R', inputMode: 'numeric' as const },
-            { key: 'g' as const, label: 'G', inputMode: 'numeric' as const },
-            { key: 'b' as const, label: 'B', inputMode: 'numeric' as const },
+            ...components,
             ...(includeAlpha ? [{ key: 'a' as const, label: 'A%', inputMode: 'numeric' as const }] : []),
-        ],
-        [includeAlpha]
+        ];
+    }, [fieldMode, includeAlpha]);
+
+    const selectFieldMode = useCallback((mode: ColorFieldMode) => {
+        setFieldMode(mode);
+        saveColorFieldMode(mode);
+    }, []);
+
+    const selectPaletteColor = useCallback(
+        (hex: string) => {
+            const next = colorToHsva(hex, latestColorRef.current);
+            next.a = latestColorRef.current.a;
+            emit(next, { preserveHue: true, record: true });
+        },
+        [emit]
     );
+
+    const renderSwatches = (colors: string[], section: string) =>
+        colors.map((swatch) => {
+            const selected = hsvaToHex(color) === swatch;
+            return (
+                <button
+                    key={`${section}-${swatch}`}
+                    type="button"
+                    className={`color-picker__preset${selected ? ' is-selected' : ''}`}
+                    style={{ backgroundColor: swatch }}
+                    aria-label={`Use ${swatch} from ${section}`}
+                    aria-pressed={selected}
+                    onClick={() => selectPaletteColor(swatch)}
+                />
+            );
+        });
 
     return (
         <div className="color-picker" aria-label="Color picker">
@@ -320,7 +407,7 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({ color, includeAlpha = 
                     role="slider"
                     aria-label="Hue"
                     aria-valuemin={0}
-                    aria-valuemax={360}
+                    aria-valuemax={359}
                     aria-valuenow={Math.round(color.h)}
                     tabIndex={0}
                     onKeyDown={(event) => handleSliderKeyDown('hue', event)}
@@ -360,6 +447,23 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({ color, includeAlpha = 
                         />
                     </div>
                 )}
+            </div>
+
+            <div className="color-picker__field-toolbar">
+                <span>Values</span>
+                <div className="color-picker__field-mode" role="group" aria-label="Color value format">
+                    {(['hsv', 'rgb'] as const).map((mode) => (
+                        <button
+                            key={mode}
+                            type="button"
+                            className={fieldMode === mode ? 'is-selected' : ''}
+                            aria-pressed={fieldMode === mode}
+                            onClick={() => selectFieldMode(mode)}
+                        >
+                            {mode.toUpperCase()}
+                        </button>
+                    ))}
+                </div>
             </div>
 
             <div className="color-picker__fields">
@@ -402,22 +506,21 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({ color, includeAlpha = 
                 </p>
             )}
 
-            <div className="color-picker__presets" aria-label="Preset colors">
-                {PRESET_COLORS.map((preset) => (
-                    <button
-                        key={preset}
-                        type="button"
-                        className={`color-picker__preset${hsvaToHex(color) === preset ? ' is-selected' : ''}`}
-                        style={{ backgroundColor: preset }}
-                        aria-label={`Use ${preset}`}
-                        aria-pressed={hsvaToHex(color) === preset}
-                        onClick={() => {
-                            const next = colorToHsva(preset, latestColorRef.current);
-                            next.a = latestColorRef.current.a;
-                            emit(next);
-                        }}
-                    />
-                ))}
+            <div className="color-picker__palette">
+                <section className="color-picker__palette-section" aria-label="Tone colors">
+                    <span className="color-picker__palette-label">Tone</span>
+                    <div className="color-picker__presets">{renderSwatches(toneColors, 'Tone')}</div>
+                </section>
+                {recentColors.length > 0 && (
+                    <section className="color-picker__palette-section" aria-label="Recent colors">
+                        <span className="color-picker__palette-label">Recent</span>
+                        <div className="color-picker__presets">{renderSwatches(recentColors, 'Recent')}</div>
+                    </section>
+                )}
+                <section className="color-picker__palette-section" aria-label="Base colors">
+                    <span className="color-picker__palette-label">Base</span>
+                    <div className="color-picker__presets">{renderSwatches(baseColors, 'Base')}</div>
+                </section>
             </div>
         </div>
     );
