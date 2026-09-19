@@ -1855,7 +1855,7 @@
         min-width: 0;
         padding: 0 6px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-        background: rgba(23, 23, 23, 0.48);
+        background: rgba(23, 23, 23, 1);
         color: #d4d4d8;
         cursor: pointer;
         transition:
@@ -1864,7 +1864,7 @@
     }
 
     .timeline-track-editor-row:hover {
-        background: rgba(255, 255, 255, 0.055);
+        background: rgba(30, 30, 30, 1);
     }
 
     .timeline-track-editor-row.is-selected {
