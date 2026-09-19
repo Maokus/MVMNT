@@ -1,175 +1,66 @@
-import React, { useRef, useLayoutEffect } from 'react';
+import { useCallback, useMemo } from 'react';
 import type { NoteRaw } from '@state/timelineTypes';
-import { getCanvasRenderScale } from './canvasRenderScale';
-
-interface MidiCacheBoundsRef {
-    minNote?: number;
-    maxNote?: number;
-    maxDurationTicks?: number;
-}
+import { PreviewCanvas, type PreviewPainter } from './PreviewCanvas';
+import { getNoteVerticalBounds } from './previewGeometry';
 
 interface MidiNotePreviewProps {
     notes: NoteRaw[];
     visibleStartTick: number;
     visibleEndTick: number;
-    height: number;
-    className?: string;
-    bounds?: MidiCacheBoundsRef;
+    bounds?: { minNote?: number; maxNote?: number; maxDurationTicks?: number };
 }
 
-const MIN_BAR_THICKNESS = 4;
-const MIN_NOTE_WIDTH_PX = 1.5;
+export function findFirstPreviewNote(notes: NoteRaw[], startTick: number, maxDuration: number) {
+    let lo = 0;
+    let hi = notes.length;
+    while (lo < hi) {
+        const mid = (lo + hi) >>> 1;
+        if (notes[mid].startTick < startTick - maxDuration) lo = mid + 1;
+        else hi = mid;
+    }
+    return lo;
+}
 
-const MidiNotePreview: React.FC<MidiNotePreviewProps> = ({
-    notes,
-    visibleStartTick,
-    visibleEndTick,
-    height,
-    className,
-    bounds,
-}) => {
-    const containerRef = useRef<HTMLDivElement>(null);
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-
-    useLayoutEffect(() => {
-        const canvas = canvasRef.current;
-        const container = containerRef.current;
-        if (!canvas || !container) return;
-
-        const doRender = () => {
-            const width = container.offsetWidth;
-            if (width <= 0 || height <= 0) return;
-
-            const renderScale = getCanvasRenderScale(width, height, window.devicePixelRatio || 1);
-            const physW = Math.max(1, Math.floor(width * renderScale));
-            const physH = Math.max(1, Math.floor(height * renderScale));
-            if (canvas.width !== physW || canvas.height !== physH) {
-                canvas.width = physW;
-                canvas.height = physH;
+const MidiNotePreview = ({ notes, visibleStartTick, visibleEndTick, bounds }: MidiNotePreviewProps) => {
+    const pitchBounds = useMemo(() => {
+        if (bounds?.minNote !== undefined && bounds.maxNote !== undefined) return [bounds.minNote, bounds.maxNote];
+        let min = 127;
+        let max = 0;
+        for (const note of notes) {
+            min = Math.min(min, note.note);
+            max = Math.max(max, note.note);
+        }
+        return min <= max ? [min, max] : [60, 60];
+    }, [notes, bounds]);
+    const draw = useCallback<PreviewPainter>(
+        (ctx, { width, height, scale, pixelX, pixelWidth }) => {
+            const duration = visibleEndTick - visibleStartTick;
+            if (duration <= 0) return;
+            const tileStart = visibleStartTick + (pixelX / scale / width) * duration;
+            const tileEnd = visibleStartTick + ((pixelX + pixelWidth) / scale / width) * duration;
+            const first =
+                bounds?.maxDurationTicks !== undefined
+                    ? findFirstPreviewNote(notes, tileStart, bounds.maxDurationTicks)
+                    : 0;
+            for (let i = first; i < notes.length; i++) {
+                const note = notes[i];
+                if (note.startTick >= tileEnd) break;
+                if (note.endTick <= tileStart) continue;
+                const start = Math.max(note.startTick, visibleStartTick);
+                const end = Math.min(note.endTick, visibleEndTick);
+                if (end <= start) continue;
+                const x = ((start - visibleStartTick) / duration) * width;
+                const w = Math.min(width - x, Math.max(1 / scale, ((end - start) / duration) * width));
+                const vertical = getNoteVerticalBounds(height, note.note, pitchBounds[0], pitchBounds[1]);
+                const velocity = Math.max(0.2, Math.min(1, (note.velocity ?? 96) / 127));
+                ctx.fillStyle = `rgba(125, 211, 252, ${0.4 + velocity * 0.5})`;
+                // Filled bars keep the lowest pitch and the onset inside the drawing bounds.
+                ctx.fillRect(x, vertical.y, w, vertical.height);
             }
-
-            const ctx = canvas.getContext('2d');
-            if (!ctx) return;
-
-            ctx.save();
-            ctx.scale(renderScale, renderScale);
-            ctx.clearRect(0, 0, width, height);
-
-            const hasNotes = Array.isArray(notes) && notes.length > 0;
-
-            if (!hasNotes) {
-                ctx.fillStyle = 'rgba(14, 165, 233, 0.05)';
-                ctx.fillRect(0, 0, width, height);
-                ctx.setLineDash([4, 4]);
-                ctx.strokeStyle = 'rgba(115, 115, 115, 0.4)';
-                ctx.lineWidth = 1;
-                ctx.strokeRect(0.5, 0.5, width - 1, height - 1);
-                ctx.restore();
-                return;
-            }
-
-            ctx.fillStyle = 'rgba(14, 165, 233, 0.10)';
-            ctx.fillRect(0, 0, width, height);
-
-            const windowStart = Math.min(visibleStartTick, visibleEndTick);
-            const windowEnd = Math.max(visibleStartTick, visibleEndTick);
-            const windowDuration = Math.max(1, windowEnd - windowStart);
-
-            // Binary search for start index (notes sorted by startTick when bounds present)
-            const maxDurationTicks = bounds?.maxDurationTicks ?? windowDuration;
-            const searchStartTick = windowStart - maxDurationTicks;
-            let startIdx = 0;
-            if (bounds && notes.length > 32) {
-                let lo = 0,
-                    hi = notes.length;
-                while (lo < hi) {
-                    const mid = (lo + hi) >>> 1;
-                    if (notes[mid].startTick < searchStartTick) lo = mid + 1;
-                    else hi = mid;
-                }
-                startIdx = lo;
-            }
-
-            // Determine pitch range from bounds or scan visible notes
-            let minPitch = bounds?.minNote ?? 127;
-            let maxPitch = bounds?.maxNote ?? 0;
-            if (bounds?.minNote === undefined || bounds?.maxNote === undefined) {
-                for (let i = startIdx; i < notes.length; i++) {
-                    const n = notes[i];
-                    if (n.startTick > windowEnd) break;
-                    if (n.endTick <= windowStart) continue;
-                    if (n.note < minPitch) minPitch = n.note;
-                    if (n.note > maxPitch) maxPitch = n.note;
-                }
-            }
-            if (minPitch > maxPitch) {
-                minPitch = 60;
-                maxPitch = 60;
-            }
-
-            const pitchRange = Math.max(0, maxPitch - minPitch);
-            const usableHeight = Math.max(MIN_BAR_THICKNESS, height - 4);
-            const baseThickness =
-                pitchRange === 0
-                    ? Math.min(Math.max(usableHeight * 0.6, MIN_BAR_THICKNESS), usableHeight)
-                    : Math.min(
-                          Math.max(usableHeight / Math.min(pitchRange + 1, 12), MIN_BAR_THICKNESS),
-                          usableHeight / 1.5
-                      );
-            const span = Math.max(usableHeight - baseThickness, 0);
-            const yOffset = (height - usableHeight) / 2;
-
-            for (let i = startIdx; i < notes.length; i++) {
-                const n = notes[i];
-                const rawStart = n.startTick;
-                const rawEnd = n.endTick;
-
-                if (rawStart > windowEnd) break;
-                if (rawEnd <= windowStart) continue;
-
-                const velocity = typeof n.velocity === 'number' ? n.velocity : 96;
-                const normV = Math.min(Math.max(velocity / 127, 0.2), 1);
-                const pitch = n.note;
-                const relPitch = pitchRange === 0 ? 0.5 : (maxPitch - pitch) / pitchRange;
-
-                const cs = Math.max(rawStart, windowStart) - windowStart;
-                const ce = Math.min(rawEnd, windowEnd) - windowStart;
-                const x = (cs / windowDuration) * width;
-                const w = Math.max(((ce - cs) / windowDuration) * width, MIN_NOTE_WIDTH_PX);
-                const topPx = Math.min(Math.max(2 + relPitch * span, 0), usableHeight - baseThickness) + yOffset;
-
-                ctx.fillStyle = `rgba(56, 189, 248, ${0.25 + normV * 0.55})`;
-                ctx.strokeStyle = `rgba(125, 211, 252, ${0.4 + normV * 0.45})`;
-                ctx.lineWidth = 1;
-
-                ctx.beginPath();
-                if ((ctx as any).roundRect) {
-                    (ctx as any).roundRect(x, topPx, w, baseThickness, 2);
-                } else {
-                    ctx.rect(x, topPx, w, baseThickness);
-                }
-                ctx.fill();
-                ctx.stroke();
-            }
-
-            ctx.restore();
-        };
-
-        doRender();
-
-        const observer = new ResizeObserver(doRender);
-        observer.observe(container);
-        return () => observer.disconnect();
-    }, [notes, visibleStartTick, visibleEndTick, height, bounds]);
-
-    return (
-        <div
-            ref={containerRef}
-            className={`pointer-events-none absolute inset-1 rounded-sm overflow-hidden ${className || ''}`}
-        >
-            <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height }} />
-        </div>
+        },
+        [notes, visibleStartTick, visibleEndTick, bounds, pitchBounds]
     );
+    return <PreviewCanvas draw={draw} />;
 };
 
 export default MidiNotePreview;

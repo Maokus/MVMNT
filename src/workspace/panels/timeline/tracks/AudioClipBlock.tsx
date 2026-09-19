@@ -11,6 +11,7 @@ import { formatQuantizeShortLabel } from '@state/timeline/quantize';
 import { useSelectionStore } from '@state/selectionStore';
 import { useTimelineStore } from '@state/timelineStore';
 import AudioWaveform from '@workspace/components/AudioWaveform';
+import { getClipPreviewLayout, getPreviewViewport } from '@workspace/components/previewGeometry';
 import { getAudioClipsInTimelineSelection, type TimelineClipRef } from '../clipboard/midiClipClipboard';
 import { useSnapTicks } from '../hooks/useSnapTicks';
 import { useTickScale } from '../hooks/useTickScale';
@@ -62,7 +63,7 @@ const AudioClipBlock: React.FC<Props> = ({
     const quantize = useTimelineStore((s) => s.transport.quantize);
     const selectClipTimeline = useSelectionStore((s) => s.selectClipTimeline);
     const clipTimelineSelection = useSelectionStore((s) => s.clipTimelineSelection);
-    const { view, toX } = useTickScale();
+    const { view, toX, toTickExact } = useTickScale();
     const snapTicks = useSnapTicks();
     const ppq = CANONICAL_PPQ;
 
@@ -123,8 +124,9 @@ const AudioClipBlock: React.FC<Props> = ({
     const widthPx = Math.max(0, rightX - leftX);
     if (widthPx <= 0) return null;
 
-    const clipHeight = Math.max(18, laneHeight * 0.6);
-    const isAudioLoading = !audioCacheEntry?.audioBuffer && audioCacheEntry?.decodedState !== 'failed';
+    const { height: clipHeight, headerHeight } = getClipPreviewLayout(laneHeight);
+    const preview = getPreviewViewport(leftX, rightX, laneWidth);
+    const isAudioLoading = !audioCacheEntry?.audioBuffer && audioCacheEntry?.decodedState === 'decoding';
     const audioLoadFailed = !audioCacheEntry?.audioBuffer && audioCacheEntry?.decodedState === 'failed';
     const offsetBeats = offsetTick / ppq;
     const beatsPerBar = Math.max(1, bpb);
@@ -422,7 +424,7 @@ const AudioClipBlock: React.FC<Props> = ({
 
     return (
         <div
-            className={`timeline-clip timeline-clip--audio absolute top-1/2 -translate-y-1/2 ${isCrossDragging ? 'opacity-30 pointer-events-none' : ''} ${isSelected ? 'bg-emerald-500/65 border border-emerald-200/90' : 'bg-blue-500/40 border border-blue-400/60'}`}
+            className={`timeline-clip timeline-clip--audio absolute top-1/2 -translate-y-1/2 ${isCrossDragging ? 'opacity-30 pointer-events-none' : ''} ${isSelected ? 'text-emerald-200' : 'text-blue-400'}`}
             ref={clipElRef}
             style={{
                 left: leftX,
@@ -446,29 +448,36 @@ const AudioClipBlock: React.FC<Props> = ({
             }}
             data-clip="1"
         >
-            {isAudioLoading ? (
-                <div
-                    className="absolute inset-0 pointer-events-none animate-pulse bg-slate-900/35"
-                    aria-label="Audio loading"
-                >
-                    <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-white/30" />
-                </div>
-            ) : (
-                <div className="absolute inset-0 pointer-events-none opacity-70">
-                    <AudioWaveform
-                        trackId={trackId}
-                        sourceId={clip.sourceId}
-                        clipOffsetTicks={offsetTick}
-                        sourceStartSeconds={previewSourceBounds.startSeconds}
-                        sourceEndSeconds={previewSourceBounds.endSeconds}
-                        sourceDurationSeconds={audioCacheEntry?.durationSeconds}
-                        height={clipHeight - 4}
-                        regionStartTickAbs={absStartTick}
-                        regionEndTickAbs={absEndTick}
-                    />
-                </div>
-            )}
-            <div className="relative z-10 flex min-w-0 items-center gap-1">
+            <div
+                className={`absolute inset-y-0 left-0 pointer-events-none rounded-sm border border-current ${isSelected ? 'bg-emerald-500/65' : 'bg-blue-500/40'}`}
+                style={{ width: widthPx }}
+            />
+            <div
+                className="absolute bottom-0 pointer-events-none"
+                style={{ left: preview.left, width: preview.width, top: headerHeight }}
+            >
+                <AudioWaveform
+                    trackId={trackId}
+                    sourceId={clip.sourceId}
+                    clipOffsetTicks={offsetTick}
+                    sourceStartSeconds={previewSourceBounds.startSeconds}
+                    sourceEndSeconds={previewSourceBounds.endSeconds}
+                    sourceDurationSeconds={audioCacheEntry?.durationSeconds}
+                    regionStartTickAbs={absStartTick}
+                    regionEndTickAbs={absEndTick}
+                    visibleStartTickAbs={toTickExact(preview.startX, laneWidth)}
+                    visibleEndTickAbs={toTickExact(preview.endX, laneWidth)}
+                />
+            </div>
+            <div
+                className="absolute top-0 z-10 flex min-w-0 items-center gap-1 px-1.5 text-white bg-black/15 overflow-hidden"
+                style={{
+                    left: preview.left,
+                    width: preview.width,
+                    height: headerHeight,
+                    display: headerHeight ? undefined : 'none',
+                }}
+            >
                 {isAudioLoading && <span className="shrink-0 opacity-90">Loading audio…</span>}
                 {audioLoadFailed && <span className="shrink-0 text-amber-100 opacity-90">Audio unavailable</span>}
                 {editingName ? (

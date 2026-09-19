@@ -1,8 +1,8 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useTimelineStore } from '@state/timelineStore';
-import { useSelectionStore } from '@state/selectionStore';
 import { createTimingContext, ticksToSeconds, type TimelineTimingContext } from '@state/timelineTime';
-import { getCanvasRenderScale } from './canvasRenderScale';
+import { getOverviewPeak, waveformDetailCache } from '@audio/waveform/previewPeaks';
+import { PreviewCanvas, type PreviewPainter } from './PreviewCanvas';
 
 interface AudioWaveformProps {
     trackId: string;
@@ -11,9 +11,7 @@ interface AudioWaveformProps {
     sourceStartSeconds: number;
     sourceEndSeconds: number;
     sourceDurationSeconds?: number;
-    height?: number;
     color?: string;
-    background?: string;
     regionStartTickAbs: number;
     regionEndTickAbs: number;
     visibleStartTickAbs?: number;
@@ -26,120 +24,124 @@ export function getWaveformBinAtTimelineTick({
     sourceDurationSeconds,
     binCount,
     timing,
+    sampleRate,
+    sampleStep,
 }: {
     tick: number;
     clipStartTick: number;
     sourceDurationSeconds: number;
     binCount: number;
     timing: TimelineTimingContext;
+    sampleRate?: number;
+    sampleStep?: number;
 }): number {
     if (!Number.isFinite(tick) || !Number.isFinite(clipStartTick) || sourceDurationSeconds <= 0 || binCount <= 0)
         return 0;
-    const sourceSeconds = ticksToSeconds(timing, tick) - ticksToSeconds(timing, clipStartTick);
-    const sourceFraction = Math.max(0, Math.min(1, sourceSeconds / sourceDurationSeconds));
-    return Math.min(binCount - 1, Math.floor(sourceFraction * binCount));
+    const seconds = ticksToSeconds(timing, tick) - ticksToSeconds(timing, clipStartTick);
+    const bin =
+        sampleRate && sampleStep ? (seconds * sampleRate) / sampleStep : (seconds / sourceDurationSeconds) * binCount;
+    return Math.max(0, Math.min(binCount - 1, Math.floor(bin)));
 }
 
-export const AudioWaveform: React.FC<AudioWaveformProps> = ({
+const rehydrations = new Map<string, Promise<boolean>>();
+
+export const AudioWaveform = ({
     trackId,
     sourceId,
     clipOffsetTicks,
     sourceStartSeconds,
     sourceEndSeconds,
-    sourceDurationSeconds,
-    height = 40,
     color = '#4ADE80',
-    background = 'transparent',
     regionStartTickAbs,
     regionEndTickAbs,
     visibleStartTickAbs,
     visibleEndTickAbs,
-}) => {
-    const canvasRef = useRef<HTMLCanvasElement | null>(null);
+}: AudioWaveformProps) => {
     const cache = useTimelineStore((state) => state.audioCache[sourceId]);
-    const selected = useSelectionStore((state) => state.selectedTrackIds.includes(trackId));
-    const timeline = useTimelineStore((state) => state.timeline);
-    const timing = useMemo(() => createTimingContext(timeline), [timeline]);
-    const durationSeconds = sourceDurationSeconds ?? cache?.durationSeconds ?? 0;
+    const globalBpm = useTimelineStore((state) => state.timeline.globalBpm);
+    const beatsPerBar = useTimelineStore((state) => state.timeline.beatsPerBar);
+    const masterTempoMap = useTimelineStore((state) => state.timeline.masterTempoMap);
+    const timing = useMemo(
+        () => createTimingContext({ globalBpm, beatsPerBar, masterTempoMap }),
+        [globalBpm, beatsPerBar, masterTempoMap]
+    );
+    const attempted = useRef(false);
+    useEffect(() => {
+        attempted.current = false;
+    }, [sourceId, cache?.originalFile]);
     const visibleStart = Math.max(regionStartTickAbs, visibleStartTickAbs ?? regionStartTickAbs);
     const visibleEnd = Math.min(regionEndTickAbs, visibleEndTickAbs ?? regionEndTickAbs);
-
-    useEffect(() => {
-        const canvas = canvasRef.current;
-        const context = canvas?.getContext('2d');
-        if (!canvas || !context) return;
-        const width = canvas.clientWidth;
-        if (width <= 0) return;
-        const renderScale = getCanvasRenderScale(width, height, window.devicePixelRatio || 1);
-        const renderWidth = Math.max(1, Math.floor(width * renderScale));
-        canvas.width = renderWidth;
-        canvas.height = Math.max(1, Math.floor(height * renderScale));
-        context.setTransform(renderScale, 0, 0, renderScale, 0, 0);
-        context.clearRect(0, 0, width, height);
-        if (background !== 'transparent') {
-            context.fillStyle = background;
-            context.fillRect(0, 0, width, height);
-        }
-        const peaks = cache?.waveform?.channelPeaks;
-        if (
-            !peaks?.length ||
-            durationSeconds <= 0 ||
-            sourceEndSeconds <= sourceStartSeconds ||
-            visibleEnd <= visibleStart
-        ) {
-            context.fillStyle = '#999';
-            context.font = '10px sans-serif';
-            context.fillText('Loading waveform…', 4, height / 2);
-            return;
-        }
-        context.strokeStyle = color;
-        context.lineWidth = 1;
-        const middle = height / 2;
-        context.beginPath();
-        for (let pixelX = 0; pixelX < renderWidth; pixelX++) {
-            const fraction = pixelX / Math.max(1, renderWidth - 1);
-            const tick = visibleStart + fraction * (visibleEnd - visibleStart);
-            const bin = getWaveformBinAtTimelineTick({
-                tick,
-                clipStartTick: clipOffsetTicks,
-                sourceDurationSeconds: durationSeconds,
-                binCount: peaks.length,
-                timing,
-            });
-            const amplitude = peaks[bin] ?? 0;
-            const y = amplitude * (middle - 1);
-            const x = pixelX / renderScale;
-            context.moveTo(x + 0.5, middle - y);
-            context.lineTo(x + 0.5, middle + y);
-        }
-        context.stroke();
-        if (selected) {
-            context.strokeStyle = '#FBBF24';
-            context.lineWidth = 2;
-            context.strokeRect(1, 1, width - 2, height - 2);
-        }
-    }, [
-        background,
-        cache?.waveform?.channelPeaks,
-        clipOffsetTicks,
-        color,
-        durationSeconds,
-        height,
-        selected,
-        sourceEndSeconds,
-        sourceStartSeconds,
-        timing,
-        visibleEnd,
-        visibleStart,
-    ]);
-
-    return (
-        <canvas
-            ref={canvasRef}
-            style={{ width: '100%', height: `${height}px`, display: 'block' }}
-            data-track={trackId}
-        />
+    const draw = useCallback<PreviewPainter>(
+        (ctx, area) => {
+            const { width, height, scale, pixelX, pixelWidth } = area;
+            if (!cache || visibleEnd <= visibleStart) return;
+            const peaks = cache.waveform?.channelPeaks;
+            const step = cache.waveform?.sampleStep ?? Infinity;
+            const placementSeconds = ticksToSeconds(timing, clipOffsetTicks);
+            const sourceSampleAtPixel = (pixel: number) => {
+                const tick = visibleStart + Math.min(1, pixel / scale / width) * (visibleEnd - visibleStart);
+                const seconds = ticksToSeconds(timing, tick) - placementSeconds;
+                return Math.min(
+                    cache.durationSamples,
+                    Math.max(0, Math.min(sourceEndSeconds, Math.max(sourceStartSeconds, seconds)) * cache.sampleRate)
+                );
+            };
+            ctx.fillStyle = color;
+            const middle = height / 2;
+            const amplitudeHeight = Math.max(0, middle - 2);
+            let startSample = sourceSampleAtPixel(pixelX);
+            for (let pixel = pixelX; pixel < pixelX + pixelWidth; pixel++) {
+                const endSample = sourceSampleAtPixel(pixel + 1);
+                let amplitude = peaks ? getOverviewPeak(peaks, step, startSample, endSample) : 0;
+                if (endSample > startSample && endSample - startSample < step) {
+                    if (cache.audioBuffer) {
+                        amplitude =
+                            waveformDetailCache.read(cache.audioBuffer, startSample, endSample, area) ?? amplitude;
+                    } else if (
+                        !attempted.current &&
+                        cache.decodedState !== 'failed' &&
+                        cache.decodedState !== 'decoding'
+                    ) {
+                        attempted.current = true;
+                        if (!rehydrations.has(sourceId)) {
+                            const pending = Promise.resolve().then(() => {
+                                const state = useTimelineStore.getState();
+                                if (
+                                    !area.isCurrent() ||
+                                    state.audioCache[sourceId]?.originalFile !== cache.originalFile
+                                )
+                                    return false;
+                                return state.rehydrateAudioSource(sourceId);
+                            });
+                            rehydrations.set(sourceId, pending);
+                            const done = () => {
+                                if (rehydrations.get(sourceId) === pending) rehydrations.delete(sourceId);
+                            };
+                            void pending.then(done, done);
+                        }
+                    }
+                }
+                const y = Math.min(1, amplitude) * amplitudeHeight;
+                if (y > 0) ctx.fillRect(pixel / scale, middle - y, 1 / scale, y * 2);
+                startSample = endSample;
+            }
+            // Silence and unavailable data have a quiet baseline, never a fabricated envelope.
+            ctx.fillStyle = 'rgba(255,255,255,0.16)';
+            ctx.fillRect(pixelX / scale, middle, pixelWidth / scale, 1 / scale);
+        },
+        [
+            cache,
+            visibleStart,
+            visibleEnd,
+            timing,
+            clipOffsetTicks,
+            sourceStartSeconds,
+            sourceEndSeconds,
+            color,
+            sourceId,
+        ]
     );
+    return <PreviewCanvas draw={draw} trackId={trackId} />;
 };
 
 export default AudioWaveform;

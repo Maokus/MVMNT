@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from
 import { useTimelineStore } from '@state/timelineStore';
 import { useSelectionStore } from '@state/selectionStore';
 import { useTickScale } from '../hooks/useTickScale';
+import { getClipPreviewLayout } from '@workspace/components/previewGeometry';
 import { useSnapTicks } from '../hooks/useSnapTicks';
 import { useMarqueeSelect } from '../hooks/useMarqueeSelect';
 import { isMidiFile, isAudioFile } from '../utils/fileTypeUtils';
@@ -388,7 +389,7 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
                             const leftPx = toX(absStart, w);
                             const rightPx = toX(absEnd, w);
                             const wPx = Math.max(8, rightPx - leftPx);
-                            const clipHeight = Math.max(18, rowHeight * 0.6);
+                            const { height: clipHeight } = getClipPreviewLayout(rowHeight);
                             return (
                                 <div
                                     key={`ghost-${preview.clipId}`}

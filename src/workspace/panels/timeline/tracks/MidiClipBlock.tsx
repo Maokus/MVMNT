@@ -5,6 +5,7 @@ import { getMidiClipLocalBounds, getMidiClipTimelineBounds, type MidiClip } from
 import { formatQuantizeShortLabel } from '@state/timeline/quantize';
 import { useTimelineStore } from '@state/timelineStore';
 import MidiNotePreview from '@workspace/components/MidiNotePreview';
+import { getClipPreviewLayout, getPreviewViewport } from '@workspace/components/previewGeometry';
 import { getMidiClipsInTimelineSelection, type TimelineClipRef } from '../clipboard/midiClipClipboard';
 import { useSnapTicks } from '../hooks/useSnapTicks';
 import { useTickScale } from '../hooks/useTickScale';
@@ -56,7 +57,7 @@ const MidiClipBlock: React.FC<Props> = ({
     const quantize = useTimelineStore((s) => s.transport.quantize);
     const selectClipTimeline = useSelectionStore((s) => s.selectClipTimeline);
     const clipTimelineSelection = useSelectionStore((s) => s.clipTimelineSelection);
-    const { view, toX } = useTickScale();
+    const { view, toX, toTickExact } = useTickScale();
     const snapTicks = useSnapTicks();
     const ppq = CANONICAL_PPQ;
 
@@ -86,7 +87,8 @@ const MidiClipBlock: React.FC<Props> = ({
     const widthPx = Math.max(0, rightX - leftX);
     if (widthPx <= 0) return null;
 
-    const clipHeight = Math.max(18, laneHeight * 0.6);
+    const { height: clipHeight, headerHeight } = getClipPreviewLayout(laneHeight);
+    const preview = getPreviewViewport(leftX, rightX, laneWidth);
     const meter = timeSignature ?? { numerator: 4, denominator: 4 };
     const formatStart = (tick: number) =>
         tick < 0 ? `-${formatTickAsBBT(Math.abs(tick), ppq, meter)}` : formatTickAsBBT(tick, ppq, meter);
@@ -401,7 +403,7 @@ const MidiClipBlock: React.FC<Props> = ({
         <div
             className={`timeline-clip timeline-clip--midi absolute top-1/2 -translate-y-1/2 ${
                 isCrossDragging ? 'opacity-30 pointer-events-none' : ''
-            } ${isSelected ? 'bg-sky-500/65 border border-sky-200/90' : 'bg-blue-500/40 border border-blue-400/60'}`}
+            } ${isSelected ? 'text-sky-200' : 'text-blue-400'}`}
             ref={clipElRef}
             style={
                 {
@@ -431,14 +433,30 @@ const MidiClipBlock: React.FC<Props> = ({
             }}
             data-clip="1"
         >
-            <MidiNotePreview
-                notes={midiCacheEntry?.notesRaw ?? []}
-                visibleStartTick={localStartTick}
-                visibleEndTick={localEndTick}
-                height={clipHeight - 4}
-                bounds={midiCacheEntry?.bounds}
+            <div
+                className={`absolute inset-y-0 left-0 pointer-events-none rounded-sm border border-current ${isSelected ? 'bg-sky-500/65' : 'bg-blue-500/40'}`}
+                style={{ width: widthPx }}
             />
-            <div className="relative z-10 flex min-w-0 items-center gap-1">
+            <div
+                className="absolute bottom-0 pointer-events-none"
+                style={{ left: preview.left, width: preview.width, top: headerHeight }}
+            >
+                <MidiNotePreview
+                    notes={midiCacheEntry?.notesRaw ?? []}
+                    visibleStartTick={toTickExact(preview.startX, laneWidth) - offsetTick}
+                    visibleEndTick={toTickExact(preview.endX, laneWidth) - offsetTick}
+                    bounds={midiCacheEntry?.bounds}
+                />
+            </div>
+            <div
+                className="absolute top-0 z-10 flex min-w-0 items-center gap-1 px-1.5 text-white bg-black/15 overflow-hidden"
+                style={{
+                    left: preview.left,
+                    width: preview.width,
+                    height: headerHeight,
+                    display: headerHeight ? undefined : 'none',
+                }}
+            >
                 {editingName ? (
                     <input
                         className="bg-transparent text-white outline-none border-b border-blue-300 w-[80px] text-[11px] min-w-0"

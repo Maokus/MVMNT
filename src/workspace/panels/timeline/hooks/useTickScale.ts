@@ -31,5 +31,9 @@ export function useTickScale() {
         },
         [dispStart, rangeTicks]
     );
-    return { view, toTick, toX };
+    const toTickExact = useCallback(
+        (x: number, width: number) => dispStart + (x / Math.max(1, width)) * rangeTicks,
+        [dispStart, rangeTicks]
+    );
+    return { view, toTick, toX, toTickExact };
 }

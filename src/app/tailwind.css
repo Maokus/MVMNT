@@ -1923,7 +1923,7 @@
     }
 
     .timeline-clip {
-        @apply cursor-grab select-none overflow-hidden rounded-sm px-1.5 py-0.5 text-[11px] text-white shadow-sm transition-[opacity,box-shadow,filter] active:cursor-grabbing;
+        @apply cursor-grab select-none overflow-hidden rounded-sm text-[11px] shadow-sm transition-[opacity,box-shadow,filter] active:cursor-grabbing;
     }
 
     .timeline-clip:hover {
