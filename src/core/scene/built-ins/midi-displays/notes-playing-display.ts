@@ -8,7 +8,7 @@ const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const noteName = (note: number) => `${NAMES[note % 12]}${Math.floor(note / 12) - 1}`;
 const num = (key: string, label: string, value: number) => ({ key, label, type: 'number', default: value });
 
-interface GridMotion {
+interface EntranceMotion {
     scale: number;
     offsetY: number;
     opacity: number;
@@ -23,37 +23,37 @@ const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 const lerp = (from: number, to: number, progress: number) => from + (to - from) * progress;
 const easeOutCubic = (progress: number) => 1 - (1 - clamp01(progress)) ** 3;
 
-const settledGridMotion = (): GridMotion => ({ scale: 1, offsetY: 0, opacity: 1 });
+const settledEntranceMotion = (): EntranceMotion => ({ scale: 1, offsetY: 0, opacity: 1 });
 
-const getGridMotion = (animationType: string, elapsed: number, cellHeight: number): GridMotion => {
+const getEntranceMotion = (animationType: string, elapsed: number, contentHeight: number): EntranceMotion => {
     const time = Math.max(0, elapsed);
     if (animationType === 'bump') {
-        if (time >= 0.22) return settledGridMotion();
+        if (time >= 0.22) return settledEntranceMotion();
         const scale =
             time <= 0.07 ? lerp(1, 1.08, easeOutCubic(time / 0.07)) : lerp(1.08, 1, easeOutCubic((time - 0.07) / 0.15));
         return { scale, offsetY: 0, opacity: 1 };
     }
     if (animationType === 'scale') {
-        if (time >= 0.18) return settledGridMotion();
+        if (time >= 0.18) return settledEntranceMotion();
         const progress = easeOutCubic(time / 0.18);
         return { scale: lerp(0.82, 1, progress), offsetY: 0, opacity: progress };
     }
     if (animationType === 'softPop') {
-        if (time >= 0.26) return settledGridMotion();
+        if (time >= 0.26) return settledEntranceMotion();
         const scale =
             time <= 0.1 ? lerp(0.9, 1.04, easeOutCubic(time / 0.1)) : lerp(1.04, 1, easeOutCubic((time - 0.1) / 0.16));
         return { scale, offsetY: 0, opacity: easeOutCubic(time / 0.1) };
     }
     if (animationType === 'lift') {
-        if (time >= 0.2) return settledGridMotion();
+        if (time >= 0.2) return settledEntranceMotion();
         const progress = easeOutCubic(time / 0.2);
         return {
             scale: lerp(0.97, 1, progress),
-            offsetY: lerp(cellHeight * 0.12, 0, progress),
+            offsetY: lerp(contentHeight * 0.12, 0, progress),
             opacity: progress,
         };
     }
-    return settledGridMotion();
+    return settledEntranceMotion();
 };
 export const notesPlayingDisplay = defineBuiltInElement<Props, undefined>({
     type: 'notesPlayingDisplay',
@@ -372,7 +372,7 @@ export const notesPlayingDisplay = defineBuiltInElement<Props, undefined>({
                     const y = (rows - row - 1) * (props.gridCellHeight + props.gridCellGap);
                     const centerX = x + props.gridCellWidth / 2;
                     const centerY = y + props.gridCellHeight / 2;
-                    const motion = getGridMotion(props.animationType, noteElapsed(note), props.gridCellHeight);
+                    const motion = getEntranceMotion(props.animationType, noteElapsed(note), props.gridCellHeight);
                     const pad = new EmptyRenderObject(centerX, centerY + motion.offsetY);
                     pad.scaleX = pad.scaleY = motion.scale;
                     pad.opacity = releaseOpacity(note) * motion.opacity;
@@ -409,15 +409,22 @@ export const notesPlayingDisplay = defineBuiltInElement<Props, undefined>({
                 const matching = [...notes].filter((note) => note % 12 === pitch);
                 if (!matching.length) continue;
                 const note = matching.find((value) => active.has(value)) ?? matching[0];
-                const text = new Text(layoutX + pitch * props.lettersSpacing, 0, NAMES[pitch], font, { color });
-                text.opacity = releaseOpacity(note);
-                const elapsed = current - (active.get(note) ?? current);
-                if (props.animationType === 'bump' && elapsed < 0.15)
-                    text.scaleX = text.scaleY = 1 + 0.3 * (1 - (elapsed / 0.15) ** 2);
-                else if (props.animationType === 'scale' && elapsed < 0.2)
-                    text.scaleX = text.scaleY = (elapsed / 0.2) ** 2;
-                text.setLayoutParticipation('exclude');
-                visibleObjects.push(text);
+                const motion = getEntranceMotion(props.animationType, noteElapsed(note), props.fontSize);
+                const letter = new EmptyRenderObject(
+                    layoutX + pitch * props.lettersSpacing + props.fontSize * 0.6,
+                    height / 2 + motion.offsetY
+                );
+                letter.scaleX = letter.scaleY = motion.scale;
+                letter.opacity = releaseOpacity(note) * motion.opacity;
+                letter.addChild(
+                    new Text(0, 0, NAMES[pitch], font, {
+                        color,
+                        align: 'center',
+                        baseline: 'middle',
+                        layoutParticipation: 'exclude',
+                    })
+                );
+                visibleObjects.push(letter);
             }
         }
 

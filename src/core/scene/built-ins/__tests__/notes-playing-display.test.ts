@@ -162,3 +162,57 @@ describe('notes playing display grid', () => {
         ]);
     });
 });
+
+describe('notes playing display letters', () => {
+    const renderLetters = (current: number, animationType: string, showBackground = false) =>
+        renderAt(current, {
+            props: {
+                displayMode: 'letters',
+                animationType,
+                showBackground,
+            },
+        });
+
+    it('keeps one stable layout rectangle throughout letter animations', () => {
+        for (const animationType of ['bump', 'scale', 'softPop', 'lift']) {
+            for (const current of [1, 1.1, 1.5, 2.25]) {
+                const objects = renderLetters(current, animationType, true);
+                expect(objects[0].getLayoutBounds()).toEqual({ x: 0, y: 0, width: 366.4, height: 12 });
+                expect(objects[0].layoutParticipation).toBe('include');
+                expect(objects.slice(1).every((object) => object.getLayoutBounds() === null)).toBe(true);
+            }
+        }
+    });
+
+    it('anchors each glyph at the center of its letter slot', () => {
+        const letter = getPad(renderLetters(1.5, 'none'));
+        const [label] = letter.getChildren() as [Text];
+
+        expect(letter.x).toBeCloseTo(7.2);
+        expect(letter).toMatchObject({ y: 6, scaleX: 1, scaleY: 1, opacity: 1 });
+        expect(label).toMatchObject({ x: 0, y: 0, text: 'C', align: 'center', baseline: 'middle' });
+        expect(label.layoutParticipation).toBe('exclude');
+    });
+
+    it.each([
+        ['bump', 1.07, 1.08, 6, 1],
+        ['scale', 1, 0.82, 6, 0],
+        ['softPop', 1.1, 1.04, 6, 1],
+        ['lift', 1, 0.97, 7.44, 0],
+    ])('applies the %s entrance motion to the complete glyph', (animationType, current, scale, y, opacity) => {
+        const letter = getPad(renderLetters(current, animationType));
+
+        expect(letter.scaleX).toBeCloseTo(scale);
+        expect(letter.scaleY).toBeCloseTo(scale);
+        expect(letter.y).toBeCloseTo(y);
+        expect(letter.opacity).toBeCloseTo(opacity);
+    });
+
+    it('settles letter motion before applying the release fade', () => {
+        for (const animationType of ['bump', 'scale', 'softPop', 'lift']) {
+            const released = getPad(renderLetters(2.25, animationType));
+            expect(released).toMatchObject({ scaleX: 1, scaleY: 1, y: 6 });
+            expect(released.opacity).toBeCloseTo(0.5);
+        }
+    });
+});
