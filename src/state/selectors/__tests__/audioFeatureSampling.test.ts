@@ -4,6 +4,7 @@ import { selectAudioFeatureFrame, sampleAudioFeatureRange } from '@state/selecto
 import type { AudioFeatureCache } from '@audio/features/audioFeatureTypes';
 import { getTempoAlignedFrame } from '@audio/features/tempoAlignedViewAdapter';
 import { buildFeatureTrackKey, DEFAULT_ANALYSIS_PROFILE_ID } from '@audio/features/featureTrackIdentity';
+import { sampleFeatureFrame } from '@audio/audioFeatureUtils';
 
 function createCache(trackId: string): AudioFeatureCache {
     const frameCount = 6;
@@ -128,6 +129,17 @@ describe('audio feature sampling selectors', () => {
         expect(sample).toBeDefined();
         expect(sample?.frameIndex).toBe(0);
         expect(sample?.values[0]).toBeCloseTo(0, 5);
+    });
+
+    it('does not reuse a source-time sample across tempo revisions', () => {
+        const descriptor = { featureKey: 'rms', analysisProfileId: DEFAULT_ANALYSIS_PROFILE_ID };
+        const at120 = sampleFeatureFrame('audioTrack', descriptor, 0.0625);
+
+        useTimelineStore.getState().setGlobalBpm(60);
+        const at60 = sampleFeatureFrame('audioTrack', descriptor, 0.125);
+
+        expect(at120?.values[0]).toBeCloseTo(1 / 6, 5);
+        expect(at60?.values[0]).toBeCloseTo(2 / 6, 5);
     });
 
     it('samples a range of frames for visualization', () => {

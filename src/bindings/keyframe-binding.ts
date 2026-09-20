@@ -15,7 +15,7 @@ import {
 } from './property-bindings';
 import { resolveKeyframeValue } from './resolve-binding-state';
 import { useTimelineStore } from '@state/timelineStore';
-import { getSharedTimingManager } from '@state/timelineStore';
+import { createTimingContext, secondsToTicks } from '@state/timelineTime';
 
 export class KeyframeBinding<T = any> extends PropertyBinding<T> {
     private channelId: string;
@@ -38,11 +38,9 @@ export class KeyframeBinding<T = any> extends PropertyBinding<T> {
     /** Preferred: evaluate at the render context's targetTime. */
     getValueWithContext(context: PropertyBindingContext): T {
         try {
-            const tm = getSharedTimingManager();
-            if (tm) {
-                const tick = tm.secondsToTicks(context.targetTime);
-                return resolveKeyframeValue(this.channelId, tick) as T;
-            }
+            const timeline = useTimelineStore.getState().timeline;
+            const tick = secondsToTicks(createTimingContext(timeline), context.targetTime);
+            return resolveKeyframeValue(this.channelId, tick) as T;
         } catch {
             // Timing manager not available — fall back
         }

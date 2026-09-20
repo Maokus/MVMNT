@@ -22,7 +22,6 @@ describe('timeline capability slice creators', () => {
         const actions = createTransportSlice({
             set,
             get: () => state,
-            markAllAudioFeatureStatuses: (status) => status,
         });
         state = { ...state, ...actions };
 

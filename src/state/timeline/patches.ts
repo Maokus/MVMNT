@@ -6,7 +6,7 @@ import type { NoteRaw, CCEventRaw, TempoMapEntry } from '../timelineTypes';
 import { autoAdjustSceneRangeIfNeeded } from './timelineShared';
 import { useSelectionStore } from '@state/selectionStore';
 import type { MidiClip } from './midiClips';
-import { getSharedTimingManager } from './timelineShared';
+import { syncSharedTimingManager } from './timelineShared';
 
 export type TimelineTrackLike = TimelineTrack | AudioTrack;
 
@@ -555,6 +555,13 @@ function applyUpdateAudioClips(context: TimelinePatchContext, payload: TimelineP
 
 function applySetTiming(context: TimelinePatchContext, payload: TimelinePatchSetTimingPayload): void {
     const timing = payload.timing;
+    // Zustand notifies subscribers synchronously. Publish the matching shared
+    // conversion state first so every subscriber observes one timing revision.
+    syncSharedTimingManager({
+        globalBpm: timing.globalBpm,
+        timeSignature: timing.timeSignature,
+        masterTempoMap: timing.masterTempoMap,
+    });
     context.setState((state) => ({
         timeline: {
             ...state.timeline,
@@ -569,17 +576,7 @@ function applySetTiming(context: TimelinePatchContext, payload: TimelinePatchSet
                   }
                 : undefined,
         },
-        audioFeatureCacheStatus: Object.fromEntries(
-            Object.entries(state.audioFeatureCacheStatus).map(([id, status]) => [
-                id,
-                { ...status, state: 'stale' as const, message: 'timeline timing updated', updatedAt: Date.now() },
-            ])
-        ),
     }));
-    const manager = getSharedTimingManager();
-    manager.setBPM(timing.globalBpm);
-    manager.setTempoMap(timing.masterTempoMap?.length ? timing.masterTempoMap : null, 'seconds');
-    manager.setTimeSignature(timing.timeSignature);
 }
 
 export function applyTimelinePatchActions(context: TimelinePatchContext, actions: TimelinePatchAction[]): void {

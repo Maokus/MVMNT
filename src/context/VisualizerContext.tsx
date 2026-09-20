@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { getSharedTimingManager } from '@state/timelineStore';
 import { useTimelineStore } from '@state/timelineStore';
+import { createTimingContext, secondsToTicks, ticksToSeconds } from '@state/timelineTime';
 import { useSceneStore } from '@state/sceneStore';
 import type { TimelineState } from '@state/timelineStore';
 import { selectTimeline } from '@selectors/timelineSelectors';
@@ -227,11 +227,9 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
             return;
         }
         const st = useTimelineStore.getState();
-        const tm = getSharedTimingManager();
-        tm.setBPM(st.timeline.globalBpm || 120);
-        if (st.timeline.masterTempoMap) tm.setTempoMap(st.timeline.masterTempoMap, 'seconds');
-        const startSec = tm.beatsToSeconds((playbackRange!.startTick as number) / tm.ticksPerQuarter);
-        const endSec = tm.beatsToSeconds((playbackRange!.endTick as number) / tm.ticksPerQuarter);
+        const timing = createTimingContext(st.timeline);
+        const startSec = ticksToSeconds(timing, playbackRange!.startTick as number);
+        const endSec = ticksToSeconds(timing, playbackRange!.endTick as number);
         visualizer.setPlayRange?.(startSec, endSec);
         if (visualizer.currentTime < startSec || visualizer.currentTime > endSec) {
             const clamped = Math.min(Math.max(visualizer.currentTime, startSec), endSec);
@@ -254,14 +252,13 @@ export function VisualizerProvider({ children }: { children: React.ReactNode }) 
         const duration = totalDuration;
         if (!isFinite(duration) || duration <= 0) return;
         const st2 = useTimelineStore.getState();
-        const tm2 = getSharedTimingManager();
-        tm2.setBPM(st2.timeline.globalBpm || 120);
-        const secStart = tm2.beatsToSeconds(tView.startTick / tm2.ticksPerQuarter);
-        const secEnd = tm2.beatsToSeconds(tView.endTick / tm2.ticksPerQuarter);
+        const timing = createTimingContext(st2.timeline);
+        const secStart = ticksToSeconds(timing, tView.startTick);
+        const secEnd = ticksToSeconds(timing, tView.endTick);
         const widthSec = secEnd - secStart;
         const isExactlyDefault = Math.abs(widthSec - 60) < 1e-6 || widthSec === 0;
         if (isExactlyDefault) {
-            const endTick = Math.max(1, (duration * tm2.ticksPerQuarter * (st2.timeline.globalBpm || 120)) / 60); // approximate ticks for duration
+            const endTick = Math.max(1, secondsToTicks(timing, duration));
             setTimelineViewTicks(0, endTick);
             if (!(typeof playbackRange?.startTick === 'number' && typeof playbackRange?.endTick === 'number')) {
                 setPlaybackRangeTicks(0, endTick);

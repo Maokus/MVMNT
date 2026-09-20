@@ -20,6 +20,8 @@ type TimelineTrackEntry = TimelineTrack | AudioTrack;
 type SamplingCache = Map<string, AudioFeatureFrameSample | null>;
 
 const featureSampleCache = new WeakMap<AudioFeatureTrack, Map<string, SamplingCache>>();
+const tempoMapIds = new WeakMap<object, number>();
+let nextTempoMapId = 1;
 const MAX_FEATURE_CACHE_ENTRIES = 128;
 
 export type ChannelSelector = number | string | { index?: number | null; alias?: string | null };
@@ -203,6 +205,7 @@ export function resolveFeatureContext(
 function buildSampleCacheKey(
     trackId: string,
     placementSignature: string,
+    timingSignature: string,
     tick: number,
     descriptor: AudioFeatureDescriptor,
     analysisProfileId: string | null
@@ -211,10 +214,21 @@ function buildSampleCacheKey(
     const band = descriptor.bandIndex != null ? `b${descriptor.bandIndex}` : 'b*';
     const profileComponent = sanitizeAnalysisProfileId(analysisProfileId) ?? 'default';
     const overridesHash = descriptor.profileOverridesHash ?? null;
-    const base = `track:${trackId}|placement:${placementSignature}|tick:${tick}|feature:${featureKey || 'unknown'}|${band}`;
+    const base = `track:${trackId}|placement:${placementSignature}|timing:${timingSignature}|tick:${tick}|feature:${featureKey || 'unknown'}|${band}`;
     const profilePart = `profile:${profileComponent}`;
     const overridesPart = overridesHash ? `|overrides:${overridesHash}` : '';
     return `${base}|${profilePart}${overridesPart}`;
+}
+
+function timingCacheSignature(state: TimelineState): string {
+    const map = state.timeline.masterTempoMap;
+    if (!map) return `bpm:${state.timeline.globalBpm || 120}|map:none`;
+    let id = tempoMapIds.get(map);
+    if (id == null) {
+        id = nextTempoMapId++;
+        tempoMapIds.set(map, id);
+    }
+    return `bpm:${state.timeline.globalBpm || 120}|map:${id}`;
 }
 
 function buildSamplingOptionsKey(options?: AudioSamplingOptions | null): string {
@@ -265,7 +279,14 @@ export function sampleFeatureFrame(
                 `${clip.id}:${clip.sourceId}:${clip.offsetTicks}:${clip.sourceStartSeconds ?? ''}:${clip.sourceEndSeconds ?? ''}:${clip.enabled !== false}`
         )
         .join(',');
-    const cacheKey = buildSampleCacheKey(trackId, placementSignature, tick, descriptor, analysisProfileId);
+    const cacheKey = buildSampleCacheKey(
+        trackId,
+        placementSignature,
+        timingCacheSignature(state),
+        tick,
+        descriptor,
+        analysisProfileId
+    );
     let trackCache = featureSampleCache.get(featureTrack);
     if (!trackCache) {
         trackCache = new Map();

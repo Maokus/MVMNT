@@ -51,6 +51,7 @@ import {
     createTimelineTimingContext,
     getSharedTimingManager,
     makeTimelineTrackId,
+    syncSharedTimingManager,
 } from './timeline/timelineShared';
 import { createTimelineCommandGateway } from './timeline/commandGateway';
 import type { AddTrackCommandResult } from './timeline/commands/addTrackCommand';
@@ -427,7 +428,7 @@ const TEMPO_KF_TICK_TOLERANCE = 1;
 
 const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     ...createInitialTimelineSlice(),
-    ...createTransportSlice({ set, get, markAllAudioFeatureStatuses }),
+    ...createTransportSlice({ set, get }),
     ...createViewSlice(set),
 
     setPlaybackRangeExplicitTicks(startTick?: number, endTick?: number) {
@@ -1312,15 +1313,8 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
             cancelActiveAudioFeatureJob(key);
         }
         const initial = createInitialTimelineSlice();
+        syncSharedTimingManager(initial.timeline);
         set(() => initial);
-        try {
-            const tm = getSharedTimingManager();
-            tm.setBPM(initial.timeline.globalBpm || 120);
-            tm.setTempoMap(undefined, 'seconds');
-            tm.setTimeSignature(initial.timeline.timeSignature);
-        } catch (error) {
-            console.error('[timelineStore] failed to reset shared timing manager', error);
-        }
     },
 
     setHybridCacheAdapterEnabled(enabled: boolean, reason?: string) {

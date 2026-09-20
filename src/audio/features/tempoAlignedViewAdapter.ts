@@ -16,6 +16,7 @@ import {
 } from '@state/timeline/audioClips';
 import { createTimingContext } from '@state/timelineTime';
 import type { AudioTrack } from '@audio/audioTypes';
+import type { TempoMapEntry } from '@state/timelineTypes';
 
 type NumericArray = Float32Array | Uint8Array | Int16Array;
 
@@ -241,7 +242,9 @@ export interface TempoAlignedRangeResult {
 }
 
 let cachedTempoMapper: TempoMapper | null = null;
-let cachedTempoKey = '';
+let cachedTempoMap: TempoMapEntry[] | undefined;
+let cachedTempoBpm = Number.NaN;
+let cachedTempoPpq = Number.NaN;
 
 function resolveTempoMapper(
     state: TimelineState,
@@ -249,8 +252,12 @@ function resolveTempoMapper(
 ): TempoMapper {
     const tempoMap = state.timeline.masterTempoMap ?? [];
     const bpm = state.timeline.globalBpm || 120;
-    const key = `${bpm}:${ticksPerQuarter}:${JSON.stringify(tempoMap)}`;
-    if (cachedTempoMapper && cachedTempoKey === key) {
+    if (
+        cachedTempoMapper &&
+        cachedTempoMap === state.timeline.masterTempoMap &&
+        cachedTempoBpm === bpm &&
+        cachedTempoPpq === ticksPerQuarter
+    ) {
         return cachedTempoMapper;
     }
     cachedTempoMapper = createTempoMapper({
@@ -258,7 +265,9 @@ function resolveTempoMapper(
         globalBpm: bpm,
         tempoMap,
     });
-    cachedTempoKey = key;
+    cachedTempoMap = state.timeline.masterTempoMap;
+    cachedTempoBpm = bpm;
+    cachedTempoPpq = ticksPerQuarter;
     return cachedTempoMapper;
 }
 

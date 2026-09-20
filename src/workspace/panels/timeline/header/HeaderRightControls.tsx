@@ -12,8 +12,7 @@ import {
     useRole,
 } from '@floating-ui/react';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
-import { useTimelineStore } from '@state/timelineStore';
-import { sharedTimingManager } from '@state/timelineStore';
+import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 import { FaMagnet, FaEllipsisV, FaExpand, FaObjectGroup, FaCrosshairs, FaArrowRight, FaMagic } from 'react-icons/fa';
 import {
     formatQuantizeLabel,
@@ -67,19 +66,19 @@ const HeaderRightControls: React.FC<{
     const setGlobalBpm = useTimelineStore((s) => s.setGlobalBpm);
     const setTimeSignature = useTimelineStore((s) => s.setTimeSignature);
     const tempoAutomationEnabled = useTimelineStore((s) => !!s.timeline.tempoAutomation?.enabled);
+    const masterTempoMap = useTimelineStore((s) => s.timeline.masterTempoMap);
     // When tempo automation is enabled, derive the instantaneous BPM at the playhead
     const currentTick = useTimelineStore((s) => s.timeline.currentTick);
     const displayBpm = useMemo(() => {
         if (!tempoAutomationEnabled) return globalBpm;
         try {
-            const tm = sharedTimingManager;
-            if (!tm) return globalBpm;
-            const sec = tm.ticksToSeconds(currentTick);
-            const spb = tm.getSecondsPerBeat(sec);
+            const timing = getSharedTimingManager();
+            const sec = timing.ticksToSeconds(currentTick);
+            const spb = timing.getSecondsPerBeat(sec);
             if (spb > 0) return Math.round((60 / spb) * 10) / 10;
         } catch {}
         return globalBpm;
-    }, [tempoAutomationEnabled, currentTick, globalBpm]);
+    }, [tempoAutomationEnabled, currentTick, globalBpm, masterTempoMap, timeSignature]);
     const [menuOpen, setMenuOpen] = useState(false);
     const {
         refs: menuRefs,

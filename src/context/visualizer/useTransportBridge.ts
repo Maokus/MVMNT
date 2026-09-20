@@ -1,7 +1,8 @@
 import { useCallback, useEffect, type Dispatch, type SetStateAction } from 'react';
-import { useTimelineStore, getSharedTimingManager } from '@state/timelineStore';
+import { useTimelineStore } from '@state/timelineStore';
 import { isTextEditingTarget, useGlobalShortcut } from '../shortcuts/shortcutRegistry';
 import { isCommandSurfaceActive } from '../commands/commandContext';
+import { createTimingContext, ticksToSeconds } from '@state/timelineTime';
 
 interface UseTransportBridgeArgs {
     visualizer: any | null;
@@ -58,9 +59,7 @@ export function useTransportBridge({ visualizer, setIsPlaying }: UseTransportBri
     }, [visualizer, tIsPlaying, setIsPlaying]);
 
     const tCurrent = useTimelineStore((s) => {
-        const tm = getSharedTimingManager();
-        const beats = s.timeline.currentTick / tm.ticksPerQuarter;
-        return tm.beatsToSeconds(beats);
+        return ticksToSeconds(createTimingContext(s.timeline), s.timeline.currentTick);
     });
     useEffect(() => {
         if (!visualizer) return;
@@ -93,10 +92,9 @@ export function useTransportBridge({ visualizer, setIsPlaying }: UseTransportBri
             if (!visualizer) return;
             const st = useTimelineStore.getState();
             const { startTick, endTick } = st.timelineView;
-            const tm = getSharedTimingManager();
-            tm.setBPM(st.timeline.globalBpm || 120);
-            const startSec = tm.beatsToSeconds(startTick / tm.ticksPerQuarter);
-            const endSec = tm.beatsToSeconds(endTick / tm.ticksPerQuarter);
+            const timing = createTimingContext(st.timeline);
+            const startSec = ticksToSeconds(timing, startTick);
+            const endSec = ticksToSeconds(timing, endTick);
             const range = Math.max(0.001, endSec - startSec);
             const target = startSec + Math.max(0, Math.min(1, percent)) * range;
             visualizer.seek?.(target);

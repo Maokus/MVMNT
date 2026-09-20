@@ -13,6 +13,7 @@ import { normalizeColorAlphaValue, applyOpacity } from '@utils/color';
 import { insertElementConfig, prop } from '@core/scene/runtime/schema-builders';
 import { propGroup, tab } from '@core/scene/built-ins/schema-groups';
 import { defineHostAdaptedBuiltIn, getEnginePrivateContext } from '@core/scene/built-ins/define-built-in';
+import { syncSceneElementTiming } from '@core/scene/built-ins/scene-element-timing';
 
 const DEFAULT_ROLL_WIDTH = 800;
 const DEFAULT_NOTE_COLOR = '#FF6B6B';
@@ -468,7 +469,8 @@ export class TimeUnitPianoRollElement extends BoundSceneElement {
         const beatLabelOffsetX = props.beatLabelOffsetX as number;
         const beatLabelOpacity = props.beatLabelOpacity as number;
         const attackDuration = props.attackDuration as number;
-        const timeline = getEnginePrivateContext(this).timeline;
+        const elementContext = getEnginePrivateContext(this);
+        const timeline = elementContext.timeline;
         const metadataResult = timeline?.getMetadata();
         const timelineMetadata = metadataResult?.ok ? metadataResult.value : null;
         if (noteLabelFontFamily) ensureFontLoaded(noteLabelFontFamily, noteLabelFontWeight);
@@ -499,13 +501,12 @@ export class TimeUnitPianoRollElement extends BoundSceneElement {
         const numNotes = Math.max(1, maxNote - minNote + 1);
         const noteHeight = rollHeight / numNotes;
 
-        // Update timing from global timeline snapshot
+        // Keep bar windows and grids on the same host-owned tempo mapping used
+        // by timeline note queries.
         try {
             const bpm = timelineMetadata?.tempoBpm || 120;
             const timeSignature = timelineMetadata?.timeSignature ?? { numerator: 4, denominator: 4 };
-            this.timingManager.setBPM(bpm);
-            this.timingManager.setTimeSignature(timeSignature);
-            this.timingManager.setTempoMap(null);
+            syncSceneElementTiming(this.timingManager, elementContext, bpm, timeSignature);
         } catch {}
 
         // Compute overall content extents (for layout bounds and optional backgrounds)
@@ -559,11 +560,10 @@ export class TimeUnitPianoRollElement extends BoundSceneElement {
                 // Derive previous window start without accessing private TimingManager internals.
                 const signature = this.timingManager.timeSignature;
                 const quarterNotesPerBar = (signature.numerator * 4) / signature.denominator;
-                const bpm = this.timingManager.bpm || 120;
-                const secondsPerBeat = 60 / bpm;
                 const windowBeats = timeUnitBars * quarterNotesPerBar;
-                const windowDurationApprox = windowBeats * secondsPerBeat; // acceptable for release span query
-                const prevStart = currentWin.start - windowDurationApprox;
+                const prevStart = this.timingManager.beatsToSeconds(
+                    this.timingManager.secondsToBeats(currentWin.start) - windowBeats
+                );
                 const queryStart = prevStart;
                 const queryEnd = currentWin.end + attackDuration;
                 const selected = timeline?.selectNotes({

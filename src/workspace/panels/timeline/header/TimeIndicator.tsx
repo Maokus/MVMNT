@@ -2,6 +2,7 @@ import React from 'react';
 import { useTimelineStore } from '@state/timelineStore';
 import { formatTickAsBBT } from '@core/timing/time-domain';
 import { sharedTimingManager } from '@state/timelineStore';
+import { createTimingContext, ticksToSeconds } from '@state/timelineTime';
 import { quarterNotesPerBar } from '@core/timing/meter';
 
 // Time indicator component (moved to the left header beside Add MIDI Track)
@@ -16,18 +17,15 @@ const TimeIndicator: React.FC = () => {
     // Derive beats/seconds from tick
     const beatsFloat = currentTick / ticksPerQuarter;
     const barsFloat = beatsFloat / quarterNotesPerBar(meter);
-    // seconds derivation using fallback tempo map util (simplified uniform tempo assumption if no map)
-    const spb = 60 / (bpm || 120);
-    let seconds = beatsFloat * spb;
-    // Use TimingManager for accurate beats->seconds with tempo map if available
-    try {
-        if (tempoMap && tempoMap.length) {
-            // Reuse shared timing manager (already has BPM/tempo map set via store actions)
-            seconds = sharedTimingManager.beatsToSeconds(beatsFloat);
-        }
-    } catch {
-        /* ignore */
-    }
+    const seconds = ticksToSeconds(
+        createTimingContext({
+            globalBpm: bpm,
+            beatsPerBar: meter.numerator,
+            timeSignature: meter,
+            masterTempoMap: tempoMap,
+        }),
+        currentTick
+    );
     const fmt = (s: number) => {
         const sign = s < 0 ? '-' : '';
         const abs = Math.abs(s);

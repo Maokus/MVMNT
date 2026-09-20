@@ -17,6 +17,15 @@ export function getSharedTimingManager(): TimingManager {
     return sharedTimingManager;
 }
 
+export function syncSharedTimingManager(
+    timeline: Pick<TimelineState['timeline'], 'globalBpm' | 'masterTempoMap' | 'timeSignature'>
+): TimingManager {
+    sharedTimingManager.setBPM(timeline.globalBpm || 120);
+    sharedTimingManager.setTempoMap(timeline.masterTempoMap?.length ? timeline.masterTempoMap : null, 'seconds');
+    sharedTimingManager.setTimeSignature(timeline.timeSignature);
+    return sharedTimingManager;
+}
+
 export const DEFAULT_TIMING_CONTEXT: TimelineTimingContext = createTimingContext(
     { globalBpm: 120, beatsPerBar: 4, timeSignature: { numerator: 4, denominator: 4 }, masterTempoMap: undefined },
     sharedTimingManager.ticksPerQuarter

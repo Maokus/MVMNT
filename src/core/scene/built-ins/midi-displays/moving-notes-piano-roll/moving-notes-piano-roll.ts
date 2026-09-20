@@ -9,6 +9,8 @@ import { TimingManager } from '@core/timing';
 import { insertElementConfig, prop } from '@core/scene/runtime/schema-builders';
 import { propGroup, tab } from '@core/scene/built-ins/schema-groups';
 import { defineHostAdaptedBuiltIn, getEnginePrivateContext } from '@core/scene/built-ins/define-built-in';
+import { syncSceneElementTiming } from '@core/scene/built-ins/scene-element-timing';
+import { quarterNotesPerBar } from '@core/timing/meter';
 
 const DEFAULT_NOTE_COLOR = '#FF6B6B';
 
@@ -273,7 +275,8 @@ export class MovingNotesPianoRollElement extends BoundSceneElement {
         const pianoRightBorderColor = props.pianoRightBorderColor as string;
         const pianoRightBorderWidth = props.pianoRightBorderWidth as number;
         const effectivePianoWidth = showPiano ? pianoWidth : 0;
-        const timeline = getEnginePrivateContext(this).timeline;
+        const elementContext = getEnginePrivateContext(this);
+        const timeline = elementContext.timeline;
         const metadataResult = timeline?.getMetadata();
         const timelineMetadata = metadataResult?.ok ? metadataResult.value : null;
 
@@ -302,13 +305,11 @@ export class MovingNotesPianoRollElement extends BoundSceneElement {
         const numNotes = Math.max(1, maxNote - minNote + 1);
         const noteHeight = rollHeight / numNotes;
 
-        // Update local timing manager from global timeline snapshot for view window duration calculations
+        // Keep the scrolling window on the host-owned project tempo mapping.
         try {
             const bpm = timelineMetadata?.tempoBpm || 120;
             const timeSignature = timelineMetadata?.timeSignature ?? { numerator: 4, denominator: 4 };
-            this.timingManager.setBPM(bpm);
-            this.timingManager.setTimeSignature(timeSignature);
-            this.timingManager.setTempoMap(null);
+            syncSceneElementTiming(this.timingManager, elementContext, bpm, timeSignature);
         } catch {}
 
         // Draw piano strip (left) so pianoWidth visually applies
@@ -336,9 +337,10 @@ export class MovingNotesPianoRollElement extends BoundSceneElement {
         }
 
         // Determine window around current time
-        const duration = this.timingManager.getTimeUnitDuration(timeUnitBars);
-        const windowStart = effectiveTime - duration * playheadPosition;
-        const windowEnd = windowStart + duration;
+        const windowBeats = timeUnitBars * quarterNotesPerBar(this.timingManager.timeSignature);
+        const currentBeat = this.timingManager.secondsToBeats(effectiveTime);
+        const windowStart = this.timingManager.beatsToSeconds(currentBeat - windowBeats * playheadPosition);
+        const windowEnd = this.timingManager.beatsToSeconds(currentBeat + windowBeats * (1 - playheadPosition));
 
         const selectedNotes =
             props.midiTrackId && timeline

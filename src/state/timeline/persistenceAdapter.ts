@@ -1,5 +1,5 @@
 import type { TimelineState } from './storeTypes';
-import { getSharedTimingManager } from './timelineShared';
+import { syncSharedTimingManager } from './timelineShared';
 
 export type TimelineStoreSnapshot = Pick<
     TimelineState,
@@ -49,11 +49,8 @@ export function restoreTimelineStoreSnapshot(
     setState: (snapshot: TimelineStoreSnapshot) => void,
     snapshot: TimelineStoreSnapshot
 ): void {
+    syncSharedTimingManager(snapshot.timeline);
     setState(snapshot);
-    const manager = getSharedTimingManager();
-    manager.setBPM(snapshot.timeline.globalBpm);
-    manager.setTempoMap(snapshot.timeline.masterTempoMap?.length ? snapshot.timeline.masterTempoMap : null, 'seconds');
-    manager.setTimeSignature(snapshot.timeline.timeSignature);
 }
 
 export function createClearedTimelinePersistenceState(

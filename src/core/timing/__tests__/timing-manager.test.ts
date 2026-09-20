@@ -34,4 +34,21 @@ describe('TimingManager additions', () => {
         expect(win1.start).toBeCloseTo(4, 6);
         expect(win1.end).toBeCloseTo(6, 6);
     });
+
+    it('uses host conversions for tempo-mapped bar windows and grids', () => {
+        const host = new TimingManager('host');
+        host.setTempoMap([
+            { time: 0, bpm: 120 },
+            { time: 2, bpm: 60 },
+        ]);
+        const element = new TimingManager('element');
+        element.setConversions({
+            secondsToBeats: (seconds) => host.secondsToBeats(seconds),
+            beatsToSeconds: (beats) => host.beatsToSeconds(beats),
+        });
+
+        expect(element.getTimeUnitWindow(3, 1)).toEqual({ start: 2, end: 6 });
+        expect(element.getBeatGridInWindow(2, 6).map((beat) => beat.time)).toEqual([2, 3, 4, 5, 6]);
+        expect(element.ticksToSeconds(8 * element.ticksPerQuarter)).toBe(6);
+    });
 });

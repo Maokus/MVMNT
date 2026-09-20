@@ -5,7 +5,8 @@ import type { RenderObject } from '@core/render/modular-renderer';
 import { serializeStable } from '@persistence/stable-stringify';
 import { automationEvaluator } from '@automation/automation-evaluator';
 import { resolveBindingStateValue } from '@bindings/resolve-binding-state';
-import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
+import { useTimelineStore } from '@state/timelineStore';
+import { createTimingContext, secondsToTicks } from '@state/timelineTime';
 // Side-effect import: registers the KeyframeBinding factory so
 // PropertyBinding.fromSerialized can construct keyframe bindings.
 import '@bindings/keyframe-binding';
@@ -507,10 +508,8 @@ export class SceneRuntimeAdapter {
                     userNodeTransform: { ...node.userNodeTransform },
                 } as typeof node;
                 for (const [path, binding] of Object.entries(bindings ?? {})) {
-                    const timing = getSharedTimingManager();
-                    const tick = timing
-                        ? timing.secondsToTicks(targetTime)
-                        : useTimelineStore.getState().timeline.currentTick;
+                    const timeline = useTimelineStore.getState().timeline;
+                    const tick = secondsToTicks(createTimingContext(timeline), targetTime);
                     const value = resolveBindingStateValue(binding, {
                         tick,
                         macroValue: (macroId) => state.macros.byId[macroId]?.value,

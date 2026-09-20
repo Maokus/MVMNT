@@ -22,9 +22,6 @@ export function useRenderLoop({
         let loopActive = true;
         let lastUIUpdate = 0;
         const UI_UPDATE_INTERVAL = 150;
-        let lastAppliedBpm: number | null = null;
-        // Sentinel forces one initial tempo-map sync so stale data cannot leak from prior sessions/projects.
-        let lastTempoMapVersion: string | null = '__unset__';
         let lastTickForPaused = useTimelineStore.getState().timeline.currentTick;
         let needsFrameWhileIdle = true;
 
@@ -51,29 +48,6 @@ export function useRenderLoop({
         const loop = () => {
             const state = useTimelineStore.getState();
             const isPaused = !state.transport.isPlaying;
-
-            try {
-                const tmCfg = getSharedTimingManager();
-                const bpm = state.timeline.globalBpm || 120;
-                tmCfg.setTimeSignature(state.timeline.timeSignature);
-                let tempoMapVersion: string | null = null;
-                const map = state.timeline.masterTempoMap;
-                if (map && map.length) {
-                    tempoMapVersion = map.map((e) => `${e.time}:${e.bpm}`).join(',');
-                }
-                let bpmChanged = false;
-                if (lastAppliedBpm !== bpm) {
-                    tmCfg.setBPM(bpm);
-                    lastAppliedBpm = bpm;
-                    bpmChanged = true;
-                }
-                if (tempoMapVersion !== lastTempoMapVersion || bpmChanged) {
-                    // setBPM wipes _tempoSegments; always re-apply tempo map in that case
-                    if (map && map.length) tmCfg.setTempoMap(map, 'seconds');
-                    else tmCfg.setTempoMap(undefined, 'seconds');
-                    lastTempoMapVersion = tempoMapVersion;
-                }
-            } catch {}
 
             const vNow = visualizer.currentTime || 0;
             try {

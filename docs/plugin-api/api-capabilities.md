@@ -123,6 +123,34 @@ The timing facet converts between seconds, beats, and ticks and exposes the time
 useful for beat-synced rotation, bar grids, countdowns, and visuals that remain musical across tempo
 changes.
 
+For a bar-sized window, convert the render time to beats, do the bar arithmetic in the musical
+domain, then convert both boundaries back to seconds. The host applies every tempo change crossed by
+the window:
+
+```ts
+const timing = context.timing;
+if (!timing) return [];
+
+const position = timing.secondsToBeats(time.seconds);
+const signature = timing.getTimeSignature();
+if (!position.ok || !signature.ok) return [];
+
+const quarterNotesPerBar = (signature.value.numerator * 4) / signature.value.denominator;
+const startBeat = Math.floor(position.value / quarterNotesPerBar) * quarterNotesPerBar;
+const start = timing.beatsToSeconds(startBeat);
+const end = timing.beatsToSeconds(startBeat + quarterNotesPerBar);
+if (!start.ok || !end.ok) return [];
+
+const notes = context.timeline?.selectNotes({
+    startSeconds: start.value,
+    endSeconds: end.value,
+});
+```
+
+Keep authored positions and windows in beats or ticks and use the timing facet at the seconds
+boundary. Do not cache a BPM-derived seconds-per-beat value: it cannot describe a window that
+crosses a tempo change.
+
 ## Sample animated properties
 
 `props` contains property values at the current render time. The property API can inspect the same

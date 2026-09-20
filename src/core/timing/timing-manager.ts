@@ -39,6 +39,11 @@ export interface TimingConfig {
     tempoMap?: TempoMapEntry[] | null;
 }
 
+export interface TimingConversions {
+    secondsToBeats(seconds: number): number;
+    beatsToSeconds(beats: number): number;
+}
+
 export class TimingManager {
     public elementId: string | null;
     public bpm: number;
@@ -58,6 +63,7 @@ export class TimingManager {
     /** Simple small LRU ring buffer for ticks->seconds conversions (hot playhead + grid) */
     private _tickToSecCache: { tick: number; seconds: number; hash: number }[];
     private _tickToSecCacheSize: number;
+    private _conversions: TimingConversions | null = null;
 
     constructor(elementId: string | null = null) {
         this.elementId = elementId;
@@ -214,7 +220,25 @@ export class TimingManager {
         this._bumpTempoVersion();
     }
 
+    /**
+     * Use a host-owned musical-time mapping while retaining this manager's
+     * bar/window/grid helpers. This is useful for scene elements, whose host
+     * timing facet is the authority for the current project tempo map.
+     */
+    setConversions(conversions: TimingConversions | null | undefined) {
+        const next = conversions ?? null;
+        if (this._conversions === next) return;
+        this._conversions = next;
+        this._invalidateCache();
+        this._bumpTempoVersion();
+    }
+
     getSecondsPerBeat(timeInSeconds?: number) {
+        if (this._conversions) {
+            const seconds = typeof timeInSeconds === 'number' ? timeInSeconds : 0;
+            const beat = this._conversions.secondsToBeats(seconds);
+            return Math.max(0, this._conversions.beatsToSeconds(beat + 1) - seconds);
+        }
         if (this._tempoSegments && this._tempoSegments.length > 0) {
             const t = typeof timeInSeconds === 'number' ? timeInSeconds : 0;
             const seg = this._findTempoSegmentAtTime(t);
@@ -228,7 +252,10 @@ export class TimingManager {
 
     getSecondsPerBar(timeInSeconds?: number) {
         const quarterBeatsPerBar = quarterNotesPerBar(this.timeSignature);
-        if (this._tempoSegments && this._tempoSegments.length > 0 && typeof timeInSeconds === 'number') {
+        if (
+            (this._conversions || (this._tempoSegments && this._tempoSegments.length > 0)) &&
+            typeof timeInSeconds === 'number'
+        ) {
             return this.getSecondsPerBeat(timeInSeconds) * quarterBeatsPerBar;
         }
         if (this._cache.secondsPerBar === undefined) {
@@ -238,7 +265,7 @@ export class TimingManager {
     }
 
     getTimeUnitDuration(bars = 1, referenceTimeInSeconds?: number) {
-        if (this._tempoSegments && this._tempoSegments.length > 0) {
+        if (this._conversions || (this._tempoSegments && this._tempoSegments.length > 0)) {
             if (typeof referenceTimeInSeconds !== 'number') referenceTimeInSeconds = 0;
             const window = this.getTimeUnitWindow(referenceTimeInSeconds, bars);
             return Math.max(0, window.end - window.start);
@@ -248,7 +275,7 @@ export class TimingManager {
 
     timeToBarBeatTick(timeInSeconds: number) {
         let totalBeats: number;
-        if (this._tempoSegments && this._tempoSegments.length > 0) {
+        if (this._conversions || (this._tempoSegments && this._tempoSegments.length > 0)) {
             totalBeats = this._secondsToBeats(timeInSeconds);
         } else {
             const secondsPerBeat = this.getSecondsPerBeat();
@@ -266,14 +293,14 @@ export class TimingManager {
         const beatUnitQuarters = 4 / this.timeSignature.denominator;
         const totalBeats =
             ((bar - 1) * this.timeSignature.numerator + (beat - 1)) * beatUnitQuarters + tick / this.ticksPerQuarter;
-        if (this._tempoSegments && this._tempoSegments.length > 0) {
+        if (this._conversions || (this._tempoSegments && this._tempoSegments.length > 0)) {
             return this._beatsToSeconds(totalBeats);
         }
         return totalBeats * this.getSecondsPerBeat();
     }
 
     ticksToSeconds(ticks: number) {
-        if (this._tempoSegments && this._tempoSegments.length > 0) {
+        if (this._conversions || (this._tempoSegments && this._tempoSegments.length > 0)) {
             const beats = ticks / this.ticksPerQuarter;
             return this._beatsToSeconds(beats);
         }
@@ -282,7 +309,7 @@ export class TimingManager {
     }
 
     secondsToTicks(seconds: number) {
-        if (this._tempoSegments && this._tempoSegments.length > 0) {
+        if (this._conversions || (this._tempoSegments && this._tempoSegments.length > 0)) {
             const beats = this._secondsToBeats(seconds);
             return beats * this.ticksPerQuarter;
         }
@@ -353,7 +380,7 @@ export class TimingManager {
         const barQuarters = quarterNotesPerBar(this.timeSignature);
         const beatsPerWindow = bars * barQuarters;
         let totalBeatsAtRef: number;
-        if (this._tempoSegments && this._tempoSegments.length > 0) {
+        if (this._conversions || (this._tempoSegments && this._tempoSegments.length > 0)) {
             totalBeatsAtRef = this._secondsToBeats(referenceTimeInSeconds);
         } else {
             totalBeatsAtRef = referenceTimeInSeconds / this.getSecondsPerBeat();
@@ -507,6 +534,7 @@ export class TimingManager {
     }
 
     private _secondsToBeats(t: number) {
+        if (this._conversions) return this._conversions.secondsToBeats(t);
         const segs = this._tempoSegments;
         if (!segs || segs.length === 0) {
             return t / this.getSecondsPerBeat();
@@ -519,6 +547,7 @@ export class TimingManager {
     }
 
     private _beatsToSeconds(beats: number) {
+        if (this._conversions) return this._conversions.beatsToSeconds(beats);
         const segs = this._tempoSegments;
         if (!segs || segs.length === 0) {
             return beats * this.getSecondsPerBeat();

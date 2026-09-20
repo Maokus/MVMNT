@@ -135,7 +135,7 @@ describe('audio feature cache integration', () => {
         expect(state.playbackRange?.endTick).toBeGreaterThan(cache.hopTicks ?? 0);
     });
 
-    it('marks caches stale when tempo changes', () => {
+    it('keeps source-time feature caches ready when tempo changes', () => {
         const sourceId = 'aud_stale';
         useTimelineStore.setState((state) => ({
             tracks: {
@@ -158,7 +158,7 @@ describe('audio feature cache integration', () => {
         useTimelineStore.getState().setGlobalBpm(90);
         const state = useTimelineStore.getState();
         const status = selectAudioFeatureStatus(state, sourceId);
-        expect(status?.state).toBe('stale');
+        expect(status?.state).toBe('ready');
     });
 
     it('invalidates caches when calculator versions advance', () => {

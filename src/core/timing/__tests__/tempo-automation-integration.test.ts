@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { useTimelineStore } from '@state/timelineStore';
+import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 
 describe('Tempo automation store actions', () => {
     beforeEach(() => {
@@ -46,6 +46,21 @@ describe('Tempo automation store actions', () => {
         for (let i = 1; i < map.length; i++) {
             expect(map[i].time).toBeGreaterThanOrEqual(map[i - 1].time);
         }
+    });
+
+    it('publishes store timing and shared conversions as one revision', () => {
+        const observations: number[] = [];
+        const unsubscribe = useTimelineStore.subscribe((state, previous) => {
+            if (state.timeline.globalBpm !== previous.timeline.globalBpm) {
+                observations.push(getSharedTimingManager().ticksToSeconds(960));
+            }
+        });
+
+        useTimelineStore.getState().setGlobalBpm(60);
+        unsubscribe();
+
+        expect(observations).toHaveLength(1);
+        expect(observations[0]).toBeCloseTo(1);
     });
 
     it('disableTempoAutomation clears the applied map but preserves keyframes for re-enabling', () => {

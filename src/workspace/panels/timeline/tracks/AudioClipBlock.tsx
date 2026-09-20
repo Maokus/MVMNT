@@ -15,6 +15,7 @@ import { getClipPreviewLayout, getPreviewViewport } from '@workspace/components/
 import { getAudioClipsInTimelineSelection, type TimelineClipRef } from '../clipboard/midiClipClipboard';
 import { useSnapTicks } from '../hooks/useSnapTicks';
 import { useTickScale } from '../hooks/useTickScale';
+import { formatClipStartLabel } from '../utils/clipLabelUtils';
 
 type Props = {
     trackId: string;
@@ -59,7 +60,7 @@ const AudioClipBlock: React.FC<Props> = ({
     const setCrossTrackDrag = useTimelineStore((s) => s._setCrossTrackDrag);
     const crossTrackDrag = useTimelineStore((s) => s._crossTrackDrag);
     const tracksOrder = useTimelineStore((s) => s.tracksOrder);
-    const bpb = useTimelineStore((s) => s.timeline.beatsPerBar);
+    const timeSignature = useTimelineStore((s) => s.timeline.timeSignature);
     const quantize = useTimelineStore((s) => s.transport.quantize);
     const selectClipTimeline = useSelectionStore((s) => s.selectClipTimeline);
     const clipTimelineSelection = useSelectionStore((s) => s.clipTimelineSelection);
@@ -128,10 +129,7 @@ const AudioClipBlock: React.FC<Props> = ({
     const preview = getPreviewViewport(leftX, rightX, laneWidth);
     const isAudioLoading = !audioCacheEntry?.audioBuffer && audioCacheEntry?.decodedState === 'decoding';
     const audioLoadFailed = !audioCacheEntry?.audioBuffer && audioCacheEntry?.decodedState === 'failed';
-    const offsetBeats = offsetTick / ppq;
-    const beatsPerBar = Math.max(1, bpb);
-    const wholeBeats = Math.floor(Math.abs(offsetBeats) + 1e-9);
-    const label = `${offsetBeats < 0 ? '-' : '+'}${Math.floor(wholeBeats / beatsPerBar)}|${(wholeBeats % beatsPerBar) + 1}`;
+    const label = formatClipStartLabel(absStartTick, ppq, timeSignature);
     const displayName = clip.name || useTimelineStore.getState().tracks[trackId]?.name || 'Audio clip';
 
     const isSelected = useMemo(() => {
@@ -156,7 +154,7 @@ const AudioClipBlock: React.FC<Props> = ({
             : audioLoadFailed
               ? '\nAudio could not be loaded yet'
               : '';
-        return `Clip: ${displayName}\n${snapInfo}\nOffset ${label}${audioStatus}`;
+        return `Clip: ${displayName}\n${snapInfo}\n${label}${audioStatus}`;
     }, [audioLoadFailed, displayName, isAudioLoading, label, quantize]);
 
     const selectForPointer = (e: React.PointerEvent): TimelineClipRef[] => {

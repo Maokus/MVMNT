@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
+import { useTimelineStore } from '@state/timelineStore';
+import { createTimingContext, secondsToTicks } from '@state/timelineTime';
 import { useSceneStore } from '@state/sceneStore';
 import { exportScene } from '@persistence/index';
 import { DocumentGateway } from '@persistence/document-gateway';
@@ -86,11 +87,7 @@ export function useExportLifecycle({
                 },
                 secondsToTicks(seconds: number) {
                     const timeline = useTimelineStore.getState();
-                    const timing = getSharedTimingManager();
-                    timing.setBPM(timeline.timeline.globalBpm || 120);
-                    if (timeline.timeline.masterTempoMap)
-                        timing.setTempoMap(timeline.timeline.masterTempoMap, 'seconds');
-                    return Math.round(timing.secondsToBeats(seconds) * timing.ticksPerQuarter);
+                    return Math.round(secondsToTicks(createTimingContext(timeline.timeline), seconds));
                 },
             };
         },

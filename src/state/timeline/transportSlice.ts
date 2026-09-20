@@ -1,4 +1,3 @@
-import type { AudioFeatureCacheStatus, AudioFeatureCacheStatusState } from '@audio/features/audioFeatureTypes';
 import type { TempoMapEntry } from '@state/timelineTypes';
 import { quantizeDivisionToTick, quantizeSettingToExactTicks, type QuantizeSetting } from './quantize';
 import { getSharedTimingManager } from './timelineShared';
@@ -28,30 +27,14 @@ type TimelineSet = (updater: (state: TimelineState) => Partial<TimelineState> | 
 interface TransportSliceDependencies {
     set: TimelineSet;
     get: () => TimelineState;
-    markAllAudioFeatureStatuses: (
-        status: TimelineState['audioFeatureCacheStatus'],
-        nextState: AudioFeatureCacheStatusState,
-        message: string
-    ) => Record<string, AudioFeatureCacheStatus>;
 }
 
 /** Creates transport/tempo actions without importing the timeline-store singleton. */
-export function createTransportSlice({
-    set,
-    get,
-    markAllAudioFeatureStatuses,
-}: TransportSliceDependencies): TransportSlice {
+export function createTransportSlice({ set, get }: TransportSliceDependencies): TransportSlice {
     return {
         setMasterTempoMap(map?: TempoMapEntry[]) {
             set((state) => {
                 const next: TimelineState = { ...state, timeline: { ...state.timeline, masterTempoMap: map } };
-                if (Object.keys(state.audioFeatureCacheStatus).length) {
-                    next.audioFeatureCacheStatus = markAllAudioFeatureStatuses(
-                        state.audioFeatureCacheStatus,
-                        'stale',
-                        'tempo map updated'
-                    );
-                }
                 try {
                     getSharedTimingManager().setTempoMap(map, 'seconds');
                 } catch {

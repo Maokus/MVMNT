@@ -9,7 +9,7 @@ import { getClipPreviewLayout, getPreviewViewport } from '@workspace/components/
 import { getMidiClipsInTimelineSelection, type TimelineClipRef } from '../clipboard/midiClipClipboard';
 import { useSnapTicks } from '../hooks/useSnapTicks';
 import { useTickScale } from '../hooks/useTickScale';
-import { formatTickAsBBT } from '@core/timing/time-domain';
+import { formatClipStartLabel } from '../utils/clipLabelUtils';
 
 type Props = {
     trackId: string;
@@ -90,9 +90,7 @@ const MidiClipBlock: React.FC<Props> = ({
     const { height: clipHeight, headerHeight } = getClipPreviewLayout(laneHeight);
     const preview = getPreviewViewport(leftX, rightX, laneWidth);
     const meter = timeSignature ?? { numerator: 4, denominator: 4 };
-    const formatStart = (tick: number) =>
-        tick < 0 ? `-${formatTickAsBBT(Math.abs(tick), ppq, meter)}` : formatTickAsBBT(tick, ppq, meter);
-    const label = `Start ${formatStart(absStartTick)}`;
+    const label = formatClipStartLabel(absStartTick, ppq, meter);
     const displayName = clip.name || useTimelineStore.getState().tracks[trackId]?.name || 'MIDI clip';
 
     const isSelected = useMemo(() => {
@@ -116,7 +114,7 @@ const MidiClipBlock: React.FC<Props> = ({
         const ticksToSec = (tick: number) => (tick / ppq) * secPerBeat;
         const fmt = (seconds: number) => `${seconds.toFixed(2)}s`;
         const fmtBar = (tick: number) => {
-            return formatStart(tick);
+            return formatClipStartLabel(tick, ppq, meter).slice('Start '.length);
         };
         const snapInfo = `Snap: ${formatQuantizeShortLabel(quantize)} (hold Alt to bypass)`;
         return `Clip: ${displayName}\n${snapInfo}\nStart ${fmt(ticksToSec(absStartTick))} (${fmtBar(absStartTick)})\nEnd ${fmt(ticksToSec(absEndTick))} (${fmtBar(absEndTick)})`;

@@ -1,4 +1,4 @@
-import { useTimelineStore, sharedTimingManager, type TimelineState } from '@state/timelineStore';
+import { useTimelineStore, type TimelineState } from '@state/timelineStore';
 import { resolveTempoKeyframes } from '@core/timing/tempo-automation-resolver';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { serializeStable } from './stable-stringify';
@@ -16,6 +16,7 @@ import {
     type PersistedAnalysisIntent,
 } from '@audio/features/analysisIntents';
 import { normalizeTimeSignature } from '@core/timing/meter';
+import { syncSharedTimingManager } from '@state/timeline/timelineShared';
 
 /** Fields stripped from sceneSettings when persisting (padding concepts removed). */
 const STRIP_SCENE_SETTINGS_KEYS = new Set(['prePadding', 'postPadding', 'tempo', 'beatsPerBar']);
@@ -229,9 +230,8 @@ export const DocumentGateway = {
         for (const [id, track] of Object.entries(doc.tracks || {})) {
             hydratedTracks[id] = hydrateRuntimeMidiPlacementFields(track);
         }
-        set((prev: any) => ({
-            ...prev,
-            timeline: {
+        set((prev: any) => {
+            const timeline = {
                 ...prev.timeline,
                 ...timelineCore,
                 beatsPerBar: timeSignature.numerator,
@@ -243,37 +243,24 @@ export const DocumentGateway = {
                       }
                     : prev.timeline.tempoAutomation,
                 currentTick: prev.timeline.currentTick, // preserve existing playhead
-            },
-            tracks: hydratedTracks,
-            tracksOrder: doc.tracksOrder || [],
-            // Test synth routing is a session-only preview preference, never scene data.
-            midiPreviewTrackIds: {},
-            playbackRange: doc.playbackRange,
-            playbackRangeUserDefined: !!doc.playbackRangeUserDefined,
-            rowHeight: typeof doc.rowHeight === 'number' ? doc.rowHeight : prev.rowHeight,
-            midiCache: doc.midiCache || {},
-            audioFeatureCaches: doc.audioFeatureCaches || {},
-            audioFeatureCacheStatus: doc.audioFeatureCacheStatus || {},
-            midiTimingImport: { pending: false, bpmTouched: true, meterTouched: true },
-        }));
-
-        // After timeline slice merge, propagate restored tempo state to shared timing manager.
-        try {
-            const tl = useTimelineStore.getState().timeline;
-            // Order matters: set BPM first (clears tempo map), then map, then meter.
-            if (typeof tl.globalBpm === 'number' && tl.globalBpm > 0) {
-                sharedTimingManager.setBPM(tl.globalBpm);
-            }
-            if (Array.isArray(tl.masterTempoMap) && tl.masterTempoMap.length > 0) {
-                sharedTimingManager.setTempoMap(tl.masterTempoMap, 'seconds');
-            } else {
-                // Ensure we clear tempo map if snapshot had none.
-                sharedTimingManager.setTempoMap(null);
-            }
-            sharedTimingManager.setTimeSignature(tl.timeSignature);
-        } catch {
-            /* non-fatal */
-        }
+            };
+            syncSharedTimingManager(timeline);
+            return {
+                ...prev,
+                timeline,
+                tracks: hydratedTracks,
+                tracksOrder: doc.tracksOrder || [],
+                // Test synth routing is a session-only preview preference, never scene data.
+                midiPreviewTrackIds: {},
+                playbackRange: doc.playbackRange,
+                playbackRangeUserDefined: !!doc.playbackRangeUserDefined,
+                rowHeight: typeof doc.rowHeight === 'number' ? doc.rowHeight : prev.rowHeight,
+                midiCache: doc.midiCache || {},
+                audioFeatureCaches: doc.audioFeatureCaches || {},
+                audioFeatureCacheStatus: doc.audioFeatureCacheStatus || {},
+                midiTimingImport: { pending: false, bpmTouched: true, meterTouched: true },
+            };
+        });
 
         // If tempo automation is enabled in the restored document, re-derive
         // masterTempoMap from keyframes (keyframes are the source of truth).
@@ -327,16 +314,16 @@ export const DocumentGateway = {
                         ? Math.max(1, Math.floor(beatsPerBar))
                         : tl.beatsPerBar;
                 if (fallbackBpm !== tl.globalBpm || fallbackMeter !== tl.beatsPerBar) {
-                    useTimelineStore.setState((state) => ({
-                        timeline: {
+                    useTimelineStore.setState((state) => {
+                        const timeline = {
                             ...state.timeline,
                             globalBpm: fallbackBpm,
                             beatsPerBar: fallbackMeter,
                             timeSignature: { numerator: fallbackMeter, denominator: 4 },
-                        },
-                    }));
-                    sharedTimingManager.setBPM(fallbackBpm);
-                    sharedTimingManager.setTimeSignature({ numerator: fallbackMeter, denominator: 4 });
+                        };
+                        syncSharedTimingManager(timeline);
+                        return { timeline };
+                    });
                 }
             } catch {
                 /* ignore */

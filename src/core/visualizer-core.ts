@@ -6,7 +6,8 @@ import { CANONICAL_PPQ } from './timing/ppq';
 import { loadDefaultScene } from './default-scene-loader';
 import { dispatchSceneCommand, SceneRuntimeAdapter } from '@state/scene';
 import { createSceneSnapshot, useSceneStore } from '@state/sceneStore';
-import { useTimelineStore, getSharedTimingManager } from '@state/timelineStore';
+import { useTimelineStore } from '@state/timelineStore';
+import { createTimingContext, ticksToSeconds } from '@state/timelineTime';
 import type { SnapGuide } from '@core/interaction/snapping';
 import { PerspectiveElementRoot } from '@core/render/render-objects';
 import { isFeatureEnabled } from '@utils/featureFlags';
@@ -267,10 +268,7 @@ export class MIDIVisualizerCore {
                 if (typeof dur === 'number' && dur > max) max = dur;
             }
             const state: any = useTimelineStore.getState();
-            const tm = getSharedTimingManager();
-            const bpm = state.timeline?.globalBpm || 120;
-            tm.setBPM(bpm);
-            if (state.timeline?.masterTempoMap) tm.setTempoMap(state.timeline.masterTempoMap, 'seconds');
+            const timing = createTimingContext(state.timeline);
             for (const id of state.tracksOrder || []) {
                 const track = state.tracks?.[id];
                 if (!track || track.type !== 'midi' || !track.enabled) continue;
@@ -286,8 +284,7 @@ export class MIDIVisualizerCore {
                 }
                 const trackEndTick = maxEndTick + (track.offsetTicks ?? 0);
                 if (trackEndTick <= 0) continue;
-                const endBeats = trackEndTick / tm.ticksPerQuarter;
-                const endSec = tm.beatsToSeconds(endBeats);
+                const endSec = ticksToSeconds(timing, trackEndTick);
                 if (endSec > max) max = endSec;
             }
             return max;

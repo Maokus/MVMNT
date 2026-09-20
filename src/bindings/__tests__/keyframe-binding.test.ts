@@ -8,13 +8,16 @@ import { automationEvaluator } from '@automation/automation-evaluator';
 vi.mock('@state/timelineStore', () => ({
     useTimelineStore: {
         getState: () => ({
-            timeline: { currentTick: 48 },
+            timeline: {
+                currentTick: 48,
+                globalBpm: 120,
+                beatsPerBar: 4,
+                timeSignature: { numerator: 4, denominator: 4 },
+                masterTempoMap: undefined,
+            },
         }),
         subscribe: vi.fn(() => () => {}),
     },
-    getSharedTimingManager: () => ({
-        secondsToTicks: (seconds: number) => seconds * 96,
-    }),
 }));
 
 describe('KeyframeBinding', () => {
@@ -68,8 +71,7 @@ describe('KeyframeBinding', () => {
 
         const result = binding.getValueWithContext(context);
         if (spy.mock.calls.length > 0) {
-            // getSharedTimingManager().secondsToTicks(2.0) = 192
-            expect(spy).toHaveBeenCalledWith(channelId, 192);
+            expect(spy).toHaveBeenCalledWith(channelId, 3840);
             expect(result).toBe(0.5);
         } else {
             // Falls back to getValue which may also fail gracefully
