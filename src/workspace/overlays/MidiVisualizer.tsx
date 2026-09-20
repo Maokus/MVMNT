@@ -22,7 +22,11 @@ import { VisualizerProvider, useVisualizer } from '@context/VisualizerContext';
 import { SceneProvider } from '@context/SceneContext';
 import { UndoProvider } from '@context/UndoContext';
 import { MacroProvider } from '@context/MacroContext';
-const OnboardingOverlay = React.lazy(() => import('./OnboardingOverlay'));
+const OnboardingOverlay = React.lazy(() =>
+    import('./OnboardingOverlay').then((module) => ({ default: module.OnboardingOverlay }))
+);
+import { useOnboarding } from '@workspace/onboarding/useOnboarding';
+import { GettingStarted } from '@workspace/onboarding/GettingStarted';
 const RenderModal = React.lazy(() => import('../modals/RenderModal'));
 import { importScene } from '@persistence/index';
 import { loadDefaultScene } from '@core/default-scene-loader';
@@ -161,11 +165,21 @@ const InsertKeyframeController: React.FC = () => {
 const MidiVisualizerInner: React.FC = () => {
     const { showProgressOverlay, progressData, closeProgress, exportKind, cancelExport, revealExport, removeExport } =
         useVisualizer() as any;
-    const [showOnboarding, setShowOnboarding] = useState(false);
     const [sidePanelsCollapsed, setSidePanelsCollapsed] = useState(false);
     const [timelineCollapsed, setTimelineCollapsed] = useState(false);
     const [isCompact, setIsCompact] = useState(() => typeof window !== 'undefined' && window.innerWidth < 1200);
     const [showSmallScreenWarning, setShowSmallScreenWarning] = useState(false);
+    const [screenChecked, setScreenChecked] = useState(false);
+    const { visualizer } = useVisualizer();
+    const location = useLocation();
+    const automatedRenderer = useRef(Boolean(location.state?.automationRender || location.state?.backgroundExport));
+    automatedRenderer.current ||= Boolean(location.state?.automationRender || location.state?.backgroundExport);
+    const initialized = useSceneEditorStore((state) => state.hasInitializedScene);
+    const templateLoading = useTemplateStatusStore((state) => state.isTemplateLoading);
+    const onboarding = useOnboarding({
+        ready: Boolean(visualizer) && initialized && !templateLoading && screenChecked && !showSmallScreenWarning,
+        suppressed: automatedRenderer.current,
+    });
     const [showRenderModal, setShowRenderModal] = useState(false);
     const [assetPanelCollapsed, setAssetPanelCollapsed] = useState(false);
     const [assetPanelWidth, setAssetPanelWidth] = useState(ASSET_PANEL_DEFAULT_WIDTH);
@@ -201,19 +215,6 @@ const MidiVisualizerInner: React.FC = () => {
         return { min: TIMELINE_MIN_HEIGHT, max: Math.max(TIMELINE_MIN_HEIGHT, max) };
     }, []);
 
-    // Detect first visit via localStorage; show onboarding once
-    useEffect(() => {
-        try {
-            const KEY = 'mvmnt_onboarded_v1';
-            if (!localStorage.getItem(KEY)) {
-                setShowOnboarding(true);
-                localStorage.setItem(KEY, '1'); // set immediately to avoid race on reload
-            }
-        } catch {
-            /* ignore */
-        }
-    }, []);
-
     // Small-screen warning modal logic
     useEffect(() => {
         const KEY = 'mvmnt_small_screen_override_v1';
@@ -225,6 +226,7 @@ const MidiVisualizerInner: React.FC = () => {
             } catch {
                 setShowSmallScreenWarning(window.innerWidth < 1200);
             }
+            setScreenChecked(true);
         };
         check();
         window.addEventListener('resize', check);
@@ -358,7 +360,7 @@ const MidiVisualizerInner: React.FC = () => {
     return (
         <div className="app-container">
             <TemplateLoadingOverlay />
-            <MenuBar onHelp={() => setShowOnboarding(true)} />
+            <MenuBar onHelp={onboarding.openWelcome} />
             <MissingFontsBanner />
             <SceneSelectionProvider>
                 <>
@@ -393,7 +395,18 @@ const MidiVisualizerInner: React.FC = () => {
                         <div
                             className={`flex-1 min-w-[320px] lg:min-w-[520px] flex flex-col overflow-hidden min-h-0${isCompact ? ' min-h-[200px]' : ''}`}
                         >
-                            <PreviewPanel />
+                            {onboarding.session && (
+                                <GettingStarted
+                                    {...onboarding.session}
+                                    onDismiss={onboarding.dismissGuide}
+                                    revealProperties={() => setSidePanelsCollapsed(false)}
+                                    revealTimeline={() => setTimelineCollapsed(false)}
+                                    onRender={() => setShowRenderModal(true)}
+                                />
+                            )}
+                            <div className="flex min-h-0 flex-1 flex-col">
+                                <PreviewPanel />
+                            </div>
                         </div>
                         {!isCompact && (
                             <div
@@ -461,9 +474,15 @@ const MidiVisualizerInner: React.FC = () => {
                     />
                 </Suspense>
             )}
-            {showOnboarding && (
+            {onboarding.showWelcome && (
                 <Suspense fallback={null}>
-                    <OnboardingOverlay onClose={() => setShowOnboarding(false)} />
+                    <OnboardingOverlay
+                        onClose={onboarding.closeWelcome}
+                        onStart={() => void onboarding.startDemo()}
+                        busy={onboarding.busy}
+                        error={onboarding.error}
+                        restarting={Boolean(onboarding.session)}
+                    />
                 </Suspense>
             )}
 

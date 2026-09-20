@@ -29,6 +29,7 @@ const TransportControls: React.FC = () => {
             <button
                 className="px-2 py-1 border border-neutral-700 rounded bg-neutral-900/50 hover:bg-neutral-800/60 flex items-center gap-1"
                 onClick={() => togglePlay()}
+                id="timeline-play"
                 aria-label={isPlaying ? 'Pause playback' : 'Play'}
                 title={isPlaying ? 'Pause' : 'Play'}
             >

@@ -1,65 +1,117 @@
-import React from 'react';
+import { FloatingFocusManager, FloatingOverlay, useFloating } from '@floating-ui/react';
 import { Link } from 'react-router-dom';
 import { useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
 
 interface OnboardingOverlayProps {
     onClose: () => void;
+    onStart: () => void;
+    busy: boolean;
+    error: string;
+    restarting: boolean;
 }
 
-// Simple first-time onboarding overlay. Appears only if localStorage key not set.
-const OnboardingOverlay: React.FC<OnboardingOverlayProps> = ({ onClose }) => {
+export function OnboardingOverlay({ onClose, onStart, busy, error, restarting }: OnboardingOverlayProps) {
+    const { refs, context } = useFloating({
+        open: true,
+        onOpenChange: (open) => {
+            if (!open && !busy) onClose();
+        },
+    });
     useGlobalShortcut({
-        id: 'modal.onboarding.escape',
+        id: 'modal.onboarding',
         domain: 'modal',
-        matches: (event) => event.key === 'Escape',
-        handle: () => {
-            onClose();
+        matches: () => true,
+        handle: (event) => {
+            // Claim registry keys while retaining native input, button, and
+            // focus-manager behavior inside the dialog.
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                if (!busy) onClose();
+            }
+            if ((event.ctrlKey || event.metaKey) && ['s', 'o', 'n', 'z', 'y'].includes(event.key.toLowerCase())) {
+                event.preventDefault();
+            }
             return true;
         },
     });
 
     return (
-        <div
-            className="fixed inset-0 bg-[radial-gradient(circle_at_center,rgba(30,30,30,.95),rgba(0,0,0,.95))] flex items-center justify-center z-[9000] animate-[fadeIn_.4s_ease]"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="onboarding-title"
-        >
-            <div className="border rounded-[10px] px-9 py-8 max-w-[640px] w-[92vw] shadow-2xl [background-color:var(--twc-menubar)] [border-color:var(--twc-border)]">
-                <h2 id="onboarding-title" className="m-0 mb-4 text-2xl font-semibold tracking-wide">
-                    Welcome to MVMNT
-                </h2>
-                <p style={{ opacity: 0.85, lineHeight: 1.4 }}>
-                    MVMNT is still in early development, so if you have any feedback or run into any issues, please let
-                    me know on the discord: https://maok.us/discord
-                </p>
-                <p style={{ opacity: 0.85, lineHeight: 1.4 }}> Some tips to get started: </p>
-                <ul className="list-disc pl-5 my-3 flex flex-col gap-1.5 text-sm">
-                    <li>Add a new midi track</li>
-                    <li>Using the default MIDI track macro, select the MIDI track you just added</li>
-                    <li>Press play!</li>
-                </ul>
-                <div className="flex gap-3 mt-2">
+        <FloatingOverlay lockScroll className="z-[9000] flex items-center justify-center bg-black/80 p-4">
+            <FloatingFocusManager context={context} outsideElementsInert returnFocus>
+                <section
+                    ref={refs.setFloating}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="onboarding-title"
+                    aria-describedby="onboarding-description"
+                    aria-busy={busy}
+                    className="max-h-[90dvh] w-full max-w-xl overflow-y-auto rounded-2xl border border-neutral-700 bg-neutral-900 p-6 text-neutral-100 shadow-2xl sm:p-9"
+                >
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-indigo-300">
+                        Welcome to MVMNT
+                    </p>
+                    <h2 id="onboarding-title" className="text-3xl font-semibold tracking-tight">
+                        Make music move
+                    </h2>
+                    <p id="onboarding-description" className="mt-4 leading-7 text-neutral-300">
+                        Explore a ready-made visualisation, make it yours, and save your first project.
+                    </p>
+                    <ol aria-label="Your first project" className="my-6 grid grid-cols-3 gap-3 text-sm">
+                        {['Play', 'Edit', 'Save'].map((step, index) => (
+                            <li key={step} className="rounded-lg border border-neutral-700 bg-neutral-800/60 p-3">
+                                <span className="mb-2 block text-xs text-indigo-300">0{index + 1}</span>
+                                {step}
+                            </li>
+                        ))}
+                    </ol>
                     <button
-                        className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center bg-[#0e639c] border-[#1177bb] text-white hover:bg-[#1177bb] hover:border-[#1890d4]"
-                        onClick={onClose}
+                        type="button"
+                        disabled={busy}
+                        onClick={onStart}
+                        className="w-full rounded-lg bg-indigo-600 px-4 py-3 text-sm font-semibold hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300 disabled:opacity-60"
                     >
-                        Got it
+                        {busy ? 'Loading demo…' : restarting ? 'Restart the demo' : 'Try the demo'}
                     </button>
-                    <Link
-                        to="/about"
+                    <p className="mt-2 text-center text-xs leading-5 text-neutral-400">
+                        Opens an editable example with music and MIDI already connected. Playback starts when you press
+                        Play.
+                    </p>
+                    {error && (
+                        <p role="alert" className="mt-3 text-sm text-red-300">
+                            {error}
+                        </p>
+                    )}
+                    <button
+                        type="button"
+                        disabled={busy}
                         onClick={onClose}
-                        className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center bg-neutral-600 border-neutral-500 text-neutral-100 hover:bg-neutral-500 hover:border-neutral-400"
+                        className="mt-4 w-full rounded-lg border border-neutral-600 px-4 py-2.5 text-sm hover:bg-neutral-800 disabled:opacity-60"
                     >
-                        More Info
-                    </Link>
-                </div>
-                <p className="text-[11px] opacity-60 mt-[18px]">
-                    (Tutorials and more detailed onboarding will be added in the future...)
-                </p>
-            </div>
-        </div>
+                        Continue with this project
+                    </button>
+                    <footer className="mt-6 flex justify-center gap-5 text-xs text-neutral-400">
+                        <Link
+                            to="/about"
+                            onClick={(event) => {
+                                if (busy) event.preventDefault();
+                                else onClose();
+                            }}
+                            aria-disabled={busy}
+                            className="underline hover:text-white"
+                        >
+                            About MVMNT
+                        </Link>
+                        <a
+                            href="https://maok.us/discord"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="underline hover:text-white"
+                        >
+                            Join the Discord
+                        </a>
+                    </footer>
+                </section>
+            </FloatingFocusManager>
+        </FloatingOverlay>
     );
-};
-
-export default OnboardingOverlay;
+}

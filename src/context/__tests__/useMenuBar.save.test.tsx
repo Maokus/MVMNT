@@ -15,6 +15,7 @@ vi.mock('@app/analytics', () => ({
 }));
 
 import { useMenuBar } from '../useMenuBar';
+import { useDocumentSaveStatusStore } from '@state/documentSaveStatusStore';
 
 function deferred<T>() {
     let resolve!: (value: T) => void;
@@ -38,6 +39,7 @@ function exported(byte = 1) {
 describe('useMenuBar document save queue', () => {
     beforeEach(() => {
         exportScene.mockReset();
+        useDocumentSaveStatusStore.setState({ successfulSave: null });
         Object.defineProperty(window, 'mvmntDesktop', {
             configurable: true,
             value: {
@@ -77,6 +79,7 @@ describe('useMenuBar document save queue', () => {
             firstSave = result.current.saveProject();
         });
         await waitFor(() => expect(exportScene).toHaveBeenCalledTimes(1));
+        expect(useDocumentSaveStatusStore.getState().successfulSave).toBeNull();
         revision = 1;
         act(() => {
             queuedSave = result.current.saveProject();
@@ -88,5 +91,26 @@ describe('useMenuBar document save queue', () => {
         expect(exportScene).toHaveBeenCalledTimes(2);
         expect(markSaveCleanIfRevision).toHaveBeenNthCalledWith(1, 0);
         expect(markSaveCleanIfRevision).toHaveBeenNthCalledWith(2, 1);
+        expect(useDocumentSaveStatusStore.getState().successfulSave).toEqual({ revision: 1 });
+    });
+
+    it.each(['canceled', 'error'])('does not publish successful saves when the native write is %s', async (status) => {
+        exportScene.mockResolvedValue(exported());
+        vi.mocked(window.mvmntDesktop!.documents.completeSave).mockResolvedValue({ status } as never);
+        const { result } = renderHook(() =>
+            useMenuBar({
+                visualizer: null,
+                sceneName: 'Scene',
+                onSceneNameChange: vi.fn(),
+                isDirty: true,
+                markSaveClean: vi.fn(),
+                captureSaveRevision: () => 1,
+                markSaveCleanIfRevision: vi.fn(),
+                markDirty: vi.fn(),
+                requestUnsavedChangesDecision: vi.fn(),
+            })
+        );
+        await expect(result.current.saveProject()).resolves.toBe(false);
+        expect(useDocumentSaveStatusStore.getState().successfulSave).toBeNull();
     });
 });

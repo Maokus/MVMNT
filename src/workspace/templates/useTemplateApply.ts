@@ -76,7 +76,11 @@ export function useTemplateApply() {
                 refreshSceneUI();
                 visualizer?.invalidateRender?.();
                 // Don't persist to IDB — this is a new unsaved remix, not a saved file.
-                localStorage.setItem('mvmnt.desktop.recovery-state', 'dirty');
+                try {
+                    localStorage.setItem('mvmnt.desktop.recovery-state', 'dirty');
+                } catch {
+                    // A storage preference failure must not discard a loaded template.
+                }
                 markDirty();
                 void analytics.capture('template_applied', { entry_point: 'workspace' });
                 return true;

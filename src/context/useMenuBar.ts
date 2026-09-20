@@ -212,6 +212,9 @@ export const useMenuBar = ({
                 try {
                     while (true) {
                         const result = await performSave(request.forceSaveAs);
+                        if (result.saved) {
+                            useDocumentSaveStatusStore.getState().recordSuccessfulSave(result.revision);
+                        }
                         await analytics
                             .capture(
                                 result.saved ? 'document_saved' : 'document_operation_failed',

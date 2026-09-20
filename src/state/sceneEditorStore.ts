@@ -19,6 +19,8 @@ export interface SceneEditorState {
     lastMutationSource?: string;
     hasInitializedScene: boolean;
     lastHydratedAt?: number;
+    /** Monotonic document-load identity, including loads within the same millisecond. */
+    hydrationRevision: number;
     setAutomationExpandedOwners(ids: string[]): void;
     setAutomationExpandedCurves(ids: string[]): void;
     setAutomationSearchQuery(query: string): void;
@@ -47,6 +49,7 @@ export const useSceneEditorStore = createWithEqualityFn<SceneEditorState>((set) 
     ...initialState(),
     runtimeRevision: 0,
     hasInitializedScene: false,
+    hydrationRevision: 0,
     setAutomationExpandedOwners: (automationExpandedOwners) => set({ automationExpandedOwners }),
     setAutomationExpandedCurves: (automationExpandedCurves) => set({ automationExpandedCurves }),
     setAutomationSearchQuery: (automationSearchQuery) => set({ automationSearchQuery }),
@@ -105,6 +108,7 @@ export const useSceneEditorStore = createWithEqualityFn<SceneEditorState>((set) 
             ...initialState(),
             hasInitializedScene: true,
             lastHydratedAt: Date.now(),
+            hydrationRevision: state.hydrationRevision + 1,
             runtimeRevision: state.runtimeRevision + 1,
         })),
     invalidateRuntime: () => set((state) => ({ runtimeRevision: state.runtimeRevision + 1 })),

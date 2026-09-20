@@ -8,6 +8,9 @@ interface DocumentSaveStatusState {
     message: string;
     details: string[];
     queued: boolean;
+    /** Explicit project saves only; recovery snapshots and hydration do not publish this. */
+    successfulSave: { revision: number } | null;
+    recordSuccessfulSave: (revision: number) => void;
     setSaving: (progress: number, message: string) => void;
     setQueued: (queued: boolean) => void;
     setResult: (phase: 'saved' | 'warning' | 'error', message: string, details?: string[]) => void;
@@ -24,6 +27,8 @@ const initialStatus = {
 
 export const useDocumentSaveStatusStore = createWithEqualityFn<DocumentSaveStatusState>((set) => ({
     ...initialStatus,
+    successfulSave: null,
+    recordSuccessfulSave: (revision) => set({ successfulSave: { revision } }),
     setSaving: (progress, message) =>
         set((state) => ({
             phase: 'saving',

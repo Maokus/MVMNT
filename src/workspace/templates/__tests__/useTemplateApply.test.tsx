@@ -95,4 +95,35 @@ describe('useTemplateApply', () => {
         expect(invalidateRender).toHaveBeenCalledOnce();
         expect(markDirty).toHaveBeenCalledOnce();
     });
+
+    it('preserves the current document when replacing dirty work is cancelled', async () => {
+        mocks.useScene.mockReturnValue({ isDirty: true, markDirty, refreshSceneUI });
+        vi.spyOn(window, 'confirm').mockReturnValue(false);
+        const loadArtifact = vi.fn();
+        const { result } = renderHook(() => useTemplateApply());
+        await act(async () => {
+            expect(await result.current({ id: 'default', name: 'Demo', description: '', loadArtifact })).toBe(false);
+        });
+        expect(loadArtifact).not.toHaveBeenCalled();
+        expect(clearActivePath).not.toHaveBeenCalled();
+        expect(mocks.importScene).not.toHaveBeenCalled();
+    });
+
+    it('keeps a loaded template usable when local storage is unavailable', async () => {
+        vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+            throw new Error('Storage unavailable');
+        });
+        const { result } = renderHook(() => useTemplateApply());
+        await act(async () => {
+            expect(
+                await result.current({
+                    id: 'default',
+                    name: 'Demo',
+                    description: '',
+                    loadArtifact: async () => ({ data: new Uint8Array([1]) }),
+                })
+            ).toBe(true);
+        });
+        expect(markDirty).toHaveBeenCalledOnce();
+    });
 });

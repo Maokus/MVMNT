@@ -624,6 +624,8 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                     }
                     return (
                         <input
+                            id={`macro-value-${macro.name}`}
+                            aria-label={macro.name}
                             type="text"
                             value={macro.value}
                             onChange={(e) => {
