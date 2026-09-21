@@ -406,7 +406,15 @@ function attemptHandleHit(vis: any, x: number, y: number): boolean {
 function performElementHitTest(vis: any, x: number, y: number, deps: InteractionDeps, toggle = false) {
     const { selectElement } = deps;
     const boundsList = vis.getElementBoundsAtTime(vis.getCurrentTime?.() ?? 0);
-    const hit = elementHitTest(boundsList, x, y);
+    const selectedElementIds = new Set(selectedSubtreeElementIds());
+    const selectedHit = toggle
+        ? null
+        : elementHitTest(
+              boundsList.filter((candidate: { id: string }) => selectedElementIds.has(candidate.id)),
+              x,
+              y
+          );
+    const hit = selectedHit ?? elementHitTest(boundsList, x, y);
     if (hit) {
         const scene = useSceneStore.getState();
         const ownerNodeId = hit.nodeId ?? scene.nodeIdByElementId[hit.id];

@@ -117,8 +117,18 @@ export const notesPlayingDisplay = defineBuiltInElement<Props, undefined>({
                                 visibleWhen: [{ key: 'displayMode', equals: 'grid' }],
                             },
                             {
-                                ...num('gridRowNoteOffset', 'Row Note Offset', 12),
+                                key: 'gridCustomOffset',
+                                label: 'Custom Offset',
+                                type: 'boolean',
+                                default: false,
                                 visibleWhen: [{ key: 'displayMode', equals: 'grid' }],
+                            },
+                            {
+                                ...num('gridRowNoteOffset', 'Row Note Offset', 12),
+                                visibleWhen: [
+                                    { key: 'displayMode', equals: 'grid' },
+                                    { key: 'gridCustomOffset', equals: true },
+                                ],
                             },
                             {
                                 ...num('gridStartNote', 'Start Note', -1),
@@ -346,6 +356,7 @@ export const notesPlayingDisplay = defineBuiltInElement<Props, undefined>({
         if (props.displayMode === 'grid') {
             const columns = Math.max(1, Math.floor(props.gridColumns));
             const rows = Math.max(1, Math.floor(props.gridRows));
+            const rowNoteOffset = props.gridCustomOffset ? props.gridRowNoteOffset : columns;
             width = columns * props.gridCellWidth + (columns - 1) * props.gridCellGap;
             height = rows * props.gridCellHeight + (rows - 1) * props.gridCellGap;
             layoutX = props.textAlign === 'center' ? -width / 2 : props.textAlign === 'right' ? -width : 0;
@@ -363,10 +374,10 @@ export const notesPlayingDisplay = defineBuiltInElement<Props, undefined>({
             }
             if (!notes.size && props.showAllAvailableTracks)
                 for (let row = 0; row < rows; row++)
-                    for (let col = 0; col < columns; col++) notes.add(start + col + row * props.gridRowNoteOffset);
+                    for (let col = 0; col < columns; col++) notes.add(start + col + row * rowNoteOffset);
             for (let row = 0; row < rows; row++)
                 for (let col = 0; col < columns; col++) {
-                    const note = start + col + row * props.gridRowNoteOffset;
+                    const note = start + col + row * rowNoteOffset;
                     if (!notes.has(note)) continue;
                     const x = layoutX + col * (props.gridCellWidth + props.gridCellGap);
                     const y = (rows - row - 1) * (props.gridCellHeight + props.gridCellGap);

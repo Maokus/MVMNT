@@ -10,6 +10,7 @@ const baseProps = {
     lettersSpacing: 32,
     gridColumns: 2,
     gridRows: 2,
+    gridCustomOffset: false,
     gridRowNoteOffset: 12,
     gridStartNote: 60,
     gridCellWidth: 20,
@@ -100,6 +101,19 @@ describe('notes playing display grid', () => {
         expect(label).toMatchObject({ x: 0, y: 0, text: 'C4', align: 'center', baseline: 'middle' });
     });
 
+    it('uses the column count as the row offset unless a custom offset is enabled', () => {
+        const automatic = getPad(renderAt(1.5, { notes: [{ note: 62, startSeconds: 1, endSeconds: 2 }] }));
+        const custom = getPad(
+            renderAt(1.5, {
+                notes: [{ note: 72, startSeconds: 1, endSeconds: 2 }],
+                props: { gridCustomOffset: true },
+            })
+        );
+
+        expect(automatic).toMatchObject({ x: 10, y: 10 });
+        expect(custom).toMatchObject({ x: 10, y: 10 });
+    });
+
     it.each([
         ['bump', 1.07, 1.08, 34, 1],
         ['scale', 1, 0.82, 34, 0],
@@ -147,12 +161,14 @@ describe('notes playing display grid', () => {
 
     it('defaults to Bump and exposes the polished grid modes', () => {
         const schema = notesPlayingDisplay.schema as any;
-        const animation = schema.tabs
-            .flatMap((tab: any) => tab.groups)
-            .flatMap((group: any) => group.properties)
-            .find((property: any) => property.key === 'animationType');
+        const properties = schema.tabs.flatMap((tab: any) => tab.groups).flatMap((group: any) => group.properties);
+        const animation = properties.find((property: any) => property.key === 'animationType');
+        const customOffset = properties.find((property: any) => property.key === 'gridCustomOffset');
+        const rowOffset = properties.find((property: any) => property.key === 'gridRowNoteOffset');
 
         expect(animation.default).toBe('bump');
+        expect(customOffset.default).toBe(false);
+        expect(rowOffset.visibleWhen).toContainEqual({ key: 'gridCustomOffset', equals: true });
         expect(animation.options.map((option: any) => option.value)).toEqual([
             'none',
             'bump',

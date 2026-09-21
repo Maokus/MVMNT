@@ -35,7 +35,7 @@ export function OnboardingOverlay({ onClose, onStart, busy, error, restarting }:
     });
 
     return (
-        <FloatingOverlay lockScroll className="z-[9000] flex items-center justify-center bg-black/80 p-4">
+        <FloatingOverlay lockScroll className="z-[9000] flex items-center justify-center bg-black/60 p-4">
             <FloatingFocusManager context={context} outsideElementsInert returnFocus>
                 <section
                     ref={refs.setFloating}
@@ -44,12 +44,12 @@ export function OnboardingOverlay({ onClose, onStart, busy, error, restarting }:
                     aria-labelledby="onboarding-title"
                     aria-describedby="onboarding-description"
                     aria-busy={busy}
-                    className="w-full max-w-md rounded-2xl border border-neutral-700 bg-neutral-900 p-6 text-neutral-100 shadow-2xl sm:p-8"
+                    className="w-[380px] max-w-[90vw] rounded-lg border border-neutral-700 bg-neutral-900/95 p-5 text-sm text-neutral-200 shadow-2xl"
                 >
-                    <h2 id="onboarding-title" className="text-2xl font-semibold tracking-tight">
+                    <h2 id="onboarding-title" className="m-0 text-lg font-semibold text-white">
                         Would you like to try the tutorial?
                     </h2>
-                    <p id="onboarding-description" className="mt-4 leading-7 text-neutral-300">
+                    <p id="onboarding-description" className="m-0 mt-3 text-[13px] leading-relaxed text-neutral-400">
                         It opens a simple project and guides you through making your own music visualisation.
                     </p>
                     {error && (
@@ -57,12 +57,12 @@ export function OnboardingOverlay({ onClose, onStart, busy, error, restarting }:
                             {error}
                         </p>
                     )}
-                    <div className="mt-6 flex flex-col gap-3 sm:flex-row-reverse">
+                    <div className="mt-5 flex flex-row-reverse justify-start gap-2">
                         <button
                             type="button"
                             disabled={busy}
                             onClick={onStart}
-                            className="flex-1 rounded-lg bg-indigo-600 px-4 py-3 text-sm font-semibold hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300 disabled:opacity-60"
+                            className="rounded bg-blue-500 px-3 py-1.5 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1 disabled:opacity-60"
                         >
                             {busy ? 'Loading tutorial…' : restarting ? 'Restart tutorial' : 'Try tutorial'}
                         </button>
@@ -70,7 +70,7 @@ export function OnboardingOverlay({ onClose, onStart, busy, error, restarting }:
                             type="button"
                             disabled={busy}
                             onClick={onClose}
-                            className="flex-1 rounded-lg border border-neutral-600 px-4 py-2.5 text-sm hover:bg-neutral-800 disabled:opacity-60"
+                            className="rounded border border-transparent px-3 py-1.5 text-[13px] font-medium text-neutral-300 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-60"
                         >
                             Not now
                         </button>

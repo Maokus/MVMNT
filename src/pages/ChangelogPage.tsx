@@ -40,6 +40,10 @@ const ChangelogPage: React.FC = () => {
                                 'Track-clip seperation for both midi and audio (more than one clip per track!)',
                                 'Clip selection and manipulation (standard copy, paste, whatnot)',
                                 'Clip resolver for same track selection semantics',
+                                'Improved midi and audio display',
+                                'Clips retain leading silence visually',
+                                'First MIDI import sets bpm + time signature',
+                                'Replaced cryptic +0|1 labels with readable Start bar|beat|tick'
                             ],
                             'Scene Element Improvements',
                             [
@@ -72,6 +76,8 @@ const ChangelogPage: React.FC = () => {
                                 'Change duplicate element name behaviour (no more _copy chains, ivlayz req)',
                                 'Analytics',
                                 'Automatic update checking',
+                                'Custom color picker with system level eyedropper',
+                                'Improved metadata creation logic',
                             ],
                             'Audio optimisation',
                             [

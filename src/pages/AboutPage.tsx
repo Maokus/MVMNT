@@ -68,7 +68,7 @@ const AboutPage: React.FC = () => {
                     </section>
                     <div className="acknowledgements-boxes">
                         <section>
-                            <h3>Inspirations</h3>
+                            <h3>Acknowledgements</h3>
                             <ul>
                                 <li>
                                     <a href="https://x.com/Kashiwade_music/status/1931349155101982945" target="_blank">
@@ -81,6 +81,12 @@ const AboutPage: React.FC = () => {
                                         Vanilagy
                                     </a>{' '}
                                     made Mediabunny which powers the rendering system!!!!
+                                </li>
+                                <li>
+                                    <a href="https://x.com/vanilagy" target="_blank">
+                                        Weivblank
+                                    </a>{' '}
+                                    made some icons for the elements panel :)
                                 </li>
                             </ul>
                         </section>

@@ -35,6 +35,15 @@ describe('TimingManager additions', () => {
         expect(win1.end).toBeCloseTo(6, 6);
     });
 
+    it('supports half-bar time windows', () => {
+        const tm = new TimingManager('test');
+        tm.setBPM(120);
+
+        expect(tm.getTimeUnitWindow(0.5, 0.5)).toEqual({ start: 0, end: 1 });
+        expect(tm.getTimeUnitWindow(1.5, 0.5)).toEqual({ start: 1, end: 2 });
+        expect(tm.getTimeUnitWindow(2.5, 0.5)).toEqual({ start: 2, end: 3 });
+    });
+
     it('uses host conversions for tempo-mapped bar windows and grids', () => {
         const host = new TimingManager('host');
         host.setTempoMap([

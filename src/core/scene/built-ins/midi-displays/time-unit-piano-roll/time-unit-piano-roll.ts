@@ -90,7 +90,7 @@ export class TimeUnitPianoRollElement extends BoundSceneElement {
                                 step: 10,
                                 description: 'Total height of the piano roll.',
                             }),
-                            prop.number('timeUnitBars', 'Time Unit (bars)', 1, { min: 1, max: 8, step: 1 }),
+                            prop.number('timeUnitBars', 'Time Unit (bars)', 1, { min: 0.5, max: 8, step: 0.5 }),
                             prop.boolean('autoRange', 'Auto Range', false, {
                                 description: 'Automatically detect min/max note from the track.',
                             }),
@@ -953,7 +953,7 @@ export class TimeUnitPianoRollElement extends BoundSceneElement {
     }
 
     getTimeUnitBars(): number {
-        return Math.max(1, Math.round((this.getSchemaProps().timeUnitBars as number | undefined) ?? 1));
+        return Math.max(0.5, (this.getSchemaProps().timeUnitBars as number | undefined) ?? 1);
     }
 
     setTimeUnitBars(bars: number): this {

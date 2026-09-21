@@ -327,7 +327,7 @@ describe('scene command gateway', () => {
         expect(events[0].durationMs).toBeGreaterThanOrEqual(0);
     });
 
-    it('does not auto-assign audio tracks when adding audio elements', () => {
+    it('auto-assigns the only compatible track when adding an element', () => {
         useTimelineStore.setState((state) => ({
             ...state,
             tracks: {
@@ -353,7 +353,35 @@ describe('scene command gateway', () => {
 
         expect(result.success).toBe(true);
         const binding = useSceneStore.getState().bindings.byElement['spectrum-1'].audioTrackId;
-        expect(binding).toEqual({ type: 'constant', value: null });
+        expect(binding).toEqual({ type: 'constant', value: 'audioTrackA' });
+    });
+
+    it('leaves track selection empty when multiple compatible tracks exist and respects explicit selection', () => {
+        useTimelineStore.setState((state) => ({
+            ...state,
+            tracks: {
+                midiA: { id: 'midiA', name: 'MIDI A', type: 'midi', enabled: true, mute: false, solo: false },
+                midiB: { id: 'midiB', name: 'MIDI B', type: 'midi', enabled: true, mute: false, solo: false },
+            },
+            tracksOrder: ['midiA', 'midiB'],
+        }));
+
+        dispatchSceneCommand({ type: 'addElement', elementType: 'notesPlayingDisplay', elementId: 'unassigned' });
+        dispatchSceneCommand({
+            type: 'addElement',
+            elementType: 'notesPlayingDisplay',
+            elementId: 'assigned',
+            config: { midiTrackId: 'midiB' },
+        });
+
+        expect(useSceneStore.getState().bindings.byElement.unassigned.midiTrackId).toEqual({
+            type: 'constant',
+            value: null,
+        });
+        expect(useSceneStore.getState().bindings.byElement.assigned.midiTrackId).toEqual({
+            type: 'constant',
+            value: 'midiB',
+        });
     });
 
     it('routes macro commands through the gateway and keeps store/macros in sync', () => {

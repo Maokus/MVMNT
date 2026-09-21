@@ -241,6 +241,36 @@ describe('preview aggregate move gestures', () => {
         expect(useSceneStore.getState().graph.nodesById['group:selected'].userNodeTransform).toEqual(groupBefore);
     });
 
+    it('drags the selected element through an overlapping element above it', () => {
+        dispatchSceneCommand({ type: 'addElement', elementType: 'textOverlay', elementId: 'selected' });
+        dispatchSceneCommand({ type: 'addElement', elementType: 'textOverlay', elementId: 'above' });
+        const scene = useSceneStore.getState();
+        const selectedNodeId = scene.nodeIdByElementId.selected;
+        const aboveNodeId = scene.nodeIdByElementId.above;
+        const selectedBefore = { ...scene.graph.nodesById[selectedNodeId].userNodeTransform };
+        const aboveBefore = { ...scene.graph.nodesById[aboveNodeId].userNodeTransform };
+        useSelectionStore.getState().selectSceneNodes([selectedNodeId], selectedNodeId);
+        const harness = createInteractionHarness(
+            [
+                { id: 'selected', nodeId: selectedNodeId, bounds: { x: 10, y: 10, width: 40, height: 40 } },
+                { id: 'above', nodeId: aboveNodeId, bounds: { x: 20, y: 20, width: 40, height: 40 } },
+            ],
+            { x: 10, y: 10, width: 40, height: 40 }
+        );
+
+        onCanvasMouseDown(canvasMouseEvent(30, 30), harness.deps);
+        expect(harness.selectElement).not.toHaveBeenCalled();
+        expect(harness.visualizer._dragMeta.dragElementId).toBe('selected');
+        onCanvasMouseMove(canvasMouseEvent(40, 35, { ctrlKey: true }), harness.deps);
+        onCanvasMouseUp(canvasMouseEvent(40, 35), harness.deps);
+
+        expect(useSceneStore.getState().graph.nodesById[selectedNodeId].userNodeTransform).toMatchObject({
+            translationX: selectedBefore.translationX + 10,
+            translationY: selectedBefore.translationY + 5,
+        });
+        expect(useSceneStore.getState().graph.nodesById[aboveNodeId].userNodeTransform).toEqual(aboveBefore);
+    });
+
     it('retains ordinary replacement, Shift-toggle, and empty-canvas marquee behavior', () => {
         for (const id of ['first', 'second', 'third'])
             dispatchSceneCommand({ type: 'addElement', elementType: 'textOverlay', elementId: id });

@@ -385,9 +385,8 @@ export class TimingManager {
         } else {
             totalBeatsAtRef = referenceTimeInSeconds / this.getSecondsPerBeat();
         }
-        const barIndex = Math.floor(totalBeatsAtRef / barQuarters);
-        const windowStartBarIndex = Math.floor(barIndex / bars) * bars;
-        const startBeats = windowStartBarIndex * barQuarters;
+        const windowIndex = Math.floor(totalBeatsAtRef / beatsPerWindow);
+        const startBeats = windowIndex * beatsPerWindow;
         const endBeats = startBeats + beatsPerWindow;
         const start = this._beatsToSeconds(startBeats);
         const end = this._beatsToSeconds(endBeats);
