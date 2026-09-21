@@ -43,7 +43,7 @@ const ChangelogPage: React.FC = () => {
                                 'Improved midi and audio display',
                                 'Clips retain leading silence visually',
                                 'First MIDI import sets bpm + time signature',
-                                'Replaced cryptic +0|1 labels with readable Start bar|beat|tick'
+                                'Replaced cryptic +0|1 labels with readable Start bar|beat|tick',
                             ],
                             'Scene Element Improvements',
                             [
