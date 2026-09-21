@@ -294,6 +294,33 @@
 
     /* Progress and onboarding overlays migrated to inline utilities */
 
+    [data-tutorial-step='play'] [data-tutorial-target='play'],
+    [data-tutorial-step='edit-title'] [data-tutorial-target='edit-title'],
+    [data-tutorial-step='import-midi'] [data-tutorial-target='import-midi'],
+    [data-tutorial-step='connect-midi'] [data-tutorial-target='connect-midi'],
+    [data-tutorial-step='import-audio'] [data-tutorial-target='import-audio'],
+    [data-tutorial-step='save'] [data-tutorial-target='save'],
+    [data-tutorial-step='render'] [data-tutorial-target='render'] {
+        position: relative;
+        z-index: 10;
+        outline: 3px solid rgb(129 140 248);
+        outline-offset: 3px;
+        box-shadow: 0 0 0 7px rgb(99 102 241 / 0.25);
+        animation: tutorial-target-pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes tutorial-target-pulse {
+        50% {
+            box-shadow: 0 0 0 11px rgb(99 102 241 / 0.08);
+        }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        [data-tutorial-step] [data-tutorial-target] {
+            animation: none;
+        }
+    }
+
     /* .download-btn removed; migrated to inline classes */
 
     .scene-editor {

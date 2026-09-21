@@ -179,6 +179,7 @@ const MidiVisualizerInner: React.FC = () => {
     const onboarding = useOnboarding({
         ready: Boolean(visualizer) && initialized && !templateLoading && screenChecked && !showSmallScreenWarning,
         suppressed: automatedRenderer.current,
+        renderingVideo: showProgressOverlay && exportKind === 'video',
     });
     const [showRenderModal, setShowRenderModal] = useState(false);
     const [assetPanelCollapsed, setAssetPanelCollapsed] = useState(false);
@@ -358,7 +359,7 @@ const MidiVisualizerInner: React.FC = () => {
     }, []);
 
     return (
-        <div className="app-container">
+        <div className="app-container" data-tutorial-step={onboarding.step ?? undefined}>
             <TemplateLoadingOverlay />
             <MenuBar onHelp={onboarding.openWelcome} />
             <MissingFontsBanner />
@@ -399,9 +400,9 @@ const MidiVisualizerInner: React.FC = () => {
                                 <GettingStarted
                                     {...onboarding.session}
                                     onDismiss={onboarding.dismissGuide}
+                                    step={onboarding.step ?? 'complete'}
                                     revealProperties={() => setSidePanelsCollapsed(false)}
                                     revealTimeline={() => setTimelineCollapsed(false)}
-                                    onRender={() => setShowRenderModal(true)}
                                 />
                             )}
                             <div className="flex min-h-0 flex-1 flex-col">
@@ -478,7 +479,7 @@ const MidiVisualizerInner: React.FC = () => {
                 <Suspense fallback={null}>
                     <OnboardingOverlay
                         onClose={onboarding.closeWelcome}
-                        onStart={() => void onboarding.startDemo()}
+                        onStart={() => void onboarding.startTutorial()}
                         busy={onboarding.busy}
                         error={onboarding.error}
                         restarting={Boolean(onboarding.session)}

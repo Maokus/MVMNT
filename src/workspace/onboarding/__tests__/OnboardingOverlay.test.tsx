@@ -12,22 +12,20 @@ afterEach(() => {
 });
 
 describe('welcome dialog', () => {
-    it('offers a demo explicitly without starting it on mount', async () => {
+    it('simply offers the tutorial without starting it on mount', async () => {
         const callbacks = props();
         render(
             <MemoryRouter>
                 <OnboardingOverlay {...callbacks} />
             </MemoryRouter>
         );
-        expect(screen.getByRole('dialog', { name: 'Make music move' })).toBeVisible();
+        expect(screen.getByRole('dialog', { name: 'Would you like to try the tutorial?' })).toBeVisible();
         expect(callbacks.onStart).not.toHaveBeenCalled();
-        await waitFor(() => expect(screen.getByRole('button', { name: 'Try the demo' })).toHaveFocus());
-        userEvent.click(screen.getByRole('button', { name: 'Try the demo' }));
+        expect(screen.queryByRole('link')).not.toBeInTheDocument();
+        expect(screen.queryByRole('list')).not.toBeInTheDocument();
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Try tutorial' })).toHaveFocus());
+        userEvent.click(screen.getByRole('button', { name: 'Try tutorial' }));
         expect(callbacks.onStart).toHaveBeenCalledOnce();
-        expect(screen.getByRole('link', { name: 'Join the Discord' })).toHaveAttribute(
-            'href',
-            'https://maok.us/discord'
-        );
     });
 
     it('contains focus and claims editor shortcuts while preserving button keys', async () => {
@@ -47,11 +45,11 @@ describe('welcome dialog', () => {
                 <OnboardingOverlay {...callbacks} />
             </MemoryRouter>
         );
-        await waitFor(() => expect(screen.getByRole('button', { name: 'Try the demo' })).toHaveFocus());
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Try tutorial' })).toHaveFocus());
         userEvent.tab({ shift: true });
-        await waitFor(() => expect(screen.getByRole('link', { name: 'Join the Discord' })).toHaveFocus());
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Not now' })).toHaveFocus());
         userEvent.tab();
-        await waitFor(() => expect(screen.getByRole('button', { name: 'Try the demo' })).toHaveFocus());
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Try tutorial' })).toHaveFocus());
         fireEvent.keyDown(document.activeElement!, { key: 's', ctrlKey: true });
         fireEvent.keyDown(document.activeElement!, { key: ' ' });
         expect(workspaceCommand).not.toHaveBeenCalled();
@@ -69,17 +67,17 @@ describe('welcome dialog', () => {
                 <OnboardingOverlay {...callbacks} busy />
             </MemoryRouter>
         );
-        expect(screen.getByRole('button', { name: 'Loading demo…' })).toBeDisabled();
-        expect(screen.getByRole('button', { name: 'Continue with this project' })).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Loading tutorial…' })).toBeDisabled();
+        expect(screen.getByRole('button', { name: 'Not now' })).toBeDisabled();
         fireEvent.keyDown(window, { key: 'Escape' });
         expect(callbacks.onClose).not.toHaveBeenCalled();
         rerender(
             <MemoryRouter>
-                <OnboardingOverlay {...callbacks} error="Could not load demo" />
+                <OnboardingOverlay {...callbacks} error="Could not load tutorial" />
             </MemoryRouter>
         );
-        expect(screen.getByRole('alert')).toHaveTextContent('Could not load demo');
-        userEvent.click(screen.getByRole('button', { name: 'Continue with this project' }));
+        expect(screen.getByRole('alert')).toHaveTextContent('Could not load tutorial');
+        userEvent.click(screen.getByRole('button', { name: 'Not now' }));
         expect(callbacks.onClose).toHaveBeenCalledOnce();
     });
 });

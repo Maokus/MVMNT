@@ -12,12 +12,25 @@ import { useOnboarding } from '../useOnboarding';
 
 const { apply } = vi.hoisted(() => ({ apply: vi.fn() }));
 vi.mock('@workspace/templates/useTemplateApply', () => ({ useTemplateApply: () => apply }));
-vi.mock('@workspace/templates/easyModeTemplates', () => ({ easyModeTemplates: [{ id: 'default', name: 'Demo' }] }));
+vi.mock('@workspace/templates/easyModeTemplates', () => ({
+    easyModeTemplates: [{ id: 'kashiwadelike', name: 'Kashiwade-like' }],
+}));
 
-const ready = { ready: true, suppressed: false };
+const ready = { ready: true, suppressed: false, renderingVideo: false };
 function editTitle(value: string) {
     act(() => {
-        dispatchSceneCommand({ type: 'updateMacroValue', macroId: 'TITLE', value });
+        dispatchSceneCommand({ type: 'updateMacroValue', macroId: 'songTitle', value });
+    });
+}
+function addTrack(id: string, type: 'midi' | 'audio') {
+    act(() => {
+        useTimelineStore.setState((state) => ({
+            tracks: {
+                ...state.tracks,
+                [id]: { id, type, name: id, enabled: true, mute: false, solo: false, clips: [] } as any,
+            },
+            tracksOrder: [...state.tracksOrder, id],
+        }));
     });
 }
 function play() {
@@ -33,8 +46,36 @@ beforeEach(() => {
     dispatchSceneCommand({ type: 'clearScene', clearMacros: true });
     dispatchSceneCommand({
         type: 'createMacro',
-        macroId: 'TITLE',
-        definition: { type: 'string', value: 'ELECTONE' },
+        macroId: 'songTitle',
+        definition: { type: 'string', value: 'Song Title' },
+    });
+    dispatchSceneCommand({
+        type: 'createMacro',
+        macroId: 'MIDITrack',
+        definition: { type: 'timelineTrackRef', value: 'tutorial-midi' },
+    });
+    useTimelineStore.setState({
+        tracks: {
+            'tutorial-midi': {
+                id: 'tutorial-midi',
+                type: 'midi',
+                name: 'Tutorial MIDI',
+                enabled: true,
+                mute: false,
+                solo: false,
+                clips: [],
+            } as any,
+            'tutorial-audio': {
+                id: 'tutorial-audio',
+                type: 'audio',
+                name: 'Tutorial audio',
+                enabled: true,
+                mute: false,
+                solo: false,
+                clips: [],
+            } as any,
+        },
+        tracksOrder: ['tutorial-midi', 'tutorial-audio'],
     });
     useTimelineStore.getState().pause();
     useTimelineStore.getState().setCurrentTick(0);
@@ -69,7 +110,7 @@ describe('welcome lifecycle', () => {
         expect(localStorage.getItem('mvmnt_onboarding_v2')).toBe('dismissed');
     });
 
-    it('keeps cancellation and failure retryable and prevents concurrent demo loads', async () => {
+    it('keeps cancellation and failure retryable and prevents concurrent tutorial loads', async () => {
         let resolve!: (value: boolean) => void;
         apply.mockReturnValueOnce(
             new Promise<boolean>((done) => {
@@ -79,10 +120,10 @@ describe('welcome lifecycle', () => {
         const { result } = renderHook(() => useOnboarding(ready));
         let pending!: Promise<void>;
         act(() => {
-            pending = result.current.startDemo();
+            pending = result.current.startTutorial();
         });
         await act(async () => {
-            await result.current.startDemo();
+            await result.current.startTutorial();
         });
         expect(apply).toHaveBeenCalledTimes(1);
         expect(result.current.busy).toBe(true);
@@ -94,14 +135,14 @@ describe('welcome lifecycle', () => {
         });
         expect(result.current.session).toBeNull();
         expect(localStorage.getItem('mvmnt_onboarding_v2')).toBeNull();
-        apply.mockRejectedValueOnce(new Error('Could not load demo'));
+        apply.mockRejectedValueOnce(new Error('Could not load tutorial'));
         await act(async () => {
-            await result.current.startDemo();
+            await result.current.startTutorial();
         });
-        expect(result.current.error).toBe('Could not load demo');
+        expect(result.current.error).toBe('Could not load tutorial');
         expect(result.current.showWelcome).toBe(true);
         await act(async () => {
-            await result.current.startDemo();
+            await result.current.startTutorial();
         });
         expect(result.current.session).not.toBeNull();
         expect(result.current.showWelcome).toBe(false);
@@ -116,11 +157,11 @@ describe('welcome lifecycle', () => {
     });
 });
 
-describe('demo progress', () => {
-    it('requires playback advancement, a title change, and an explicit successful save of the latest revision', async () => {
-        const { result } = renderHook(() => useOnboarding(ready));
+describe('tutorial progress', () => {
+    it('requires playback, personalization, user media, a current save, and a real video render', async () => {
+        const { result, rerender } = renderHook((props) => useOnboarding(props), { initialProps: ready });
         await act(async () => {
-            await result.current.startDemo();
+            await result.current.startTutorial();
         });
         expect(useTimelineStore.getState().transport.isPlaying).toBe(false);
         act(() => useTimelineStore.getState().setCurrentTick(50));
@@ -131,6 +172,15 @@ describe('demo progress', () => {
         expect(result.current.session?.edited).toBe(false);
         editTitle('My first visualisation');
         expect(result.current.session?.edited).toBe(true);
+        expect(result.current.step).toBe('import-midi');
+        addTrack('my-midi', 'midi');
+        expect(result.current.session?.midiImported).toBe(true);
+        expect(result.current.step).toBe('connect-midi');
+        act(() => dispatchSceneCommand({ type: 'updateMacroValue', macroId: 'MIDITrack', value: 'my-midi' }));
+        expect(result.current.session?.midiConnected).toBe(true);
+        addTrack('my-audio', 'audio');
+        expect(result.current.session?.audioImported).toBe(true);
+        expect(result.current.step).toBe('save');
         act(() => {
             useDocumentRevisionStore.getState().markClean();
             useDocumentSaveStatusStore.getState().setResult('saved', 'Recovery saved');
@@ -143,6 +193,9 @@ describe('demo progress', () => {
         act(() =>
             useDocumentSaveStatusStore.getState().recordSuccessfulSave(useDocumentRevisionStore.getState().revision)
         );
+        expect(result.current.complete).toBe(false);
+        expect(result.current.step).toBe('render');
+        rerender({ ...ready, renderingVideo: true });
         expect(result.current.complete).toBe(true);
         expect(localStorage.getItem('mvmnt_onboarding_v2')).toBe('completed');
     });
@@ -150,12 +203,12 @@ describe('demo progress', () => {
     it('does not count unrelated edits or a reverted title', async () => {
         const { result } = renderHook(() => useOnboarding(ready));
         await act(async () => {
-            await result.current.startDemo();
+            await result.current.startTutorial();
         });
         act(() => useSceneMetadataStore.getState().setName('Renamed document'));
         expect(result.current.session?.edited).toBe(false);
         editTitle('New title');
-        editTitle('ELECTONE');
+        editTitle('Song Title');
         expect(result.current.session?.edited).toBe(false);
     });
 
@@ -164,7 +217,7 @@ describe('demo progress', () => {
         async (operation) => {
             const { result } = renderHook(() => useOnboarding(ready));
             await act(async () => {
-                await result.current.startDemo();
+                await result.current.startTutorial();
             });
             act(() => {
                 if (operation === 'load') useTemplateStatusStore.getState().startLoading();
@@ -179,12 +232,12 @@ describe('demo progress', () => {
     it('cleans up subscriptions on unmount', async () => {
         const { result, unmount } = renderHook(() => useOnboarding(ready));
         await act(async () => {
-            await result.current.startDemo();
+            await result.current.startTutorial();
         });
         unmount();
         play();
         editTitle('After unmount');
-        expect(useSceneStore.getState().macros.byId.TITLE.value).toBe('After unmount');
+        expect(useSceneStore.getState().macros.byId.songTitle.value).toBe('After unmount');
         expect(localStorage.getItem('mvmnt_onboarding_v2')).toBe('started');
     });
 });

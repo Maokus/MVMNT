@@ -241,6 +241,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                                 className="bg-transparent border-0 text-neutral-300 cursor-pointer p-1.5 rounded text-sm font-bold transition-colors flex items-center justify-center w-6 h-6 hover:bg-white/10 hover:text-white"
                                 onClick={() => setShowSceneMenu(!showSceneMenu)}
                                 title="Scene options"
+                                data-tutorial-target="save"
                                 aria-haspopup="true"
                                 aria-expanded={showSceneMenu}
                             >
@@ -293,6 +294,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                         <button
                             type="button"
                             onClick={() => window.dispatchEvent(new CustomEvent('open-render-modal'))}
+                            data-tutorial-target="render"
                             className="px-3 py-1 rounded cursor-pointer text-[12px] font-semibold shadow-sm inline-flex items-center justify-center bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-pink-400"
                             title="Render / Export Video"
                         >

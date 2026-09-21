@@ -24,7 +24,7 @@ export const ANALYTICS_DIALOGUE_TREE: Record<AnalyticsDialogueNodeId, AnalyticsD
     },
     last_ask: {
         title: 'coookieeeeeeeeee',
-        body: "pleaseeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\ni don't even use cookies lol",
+        body: 'pleaseeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\n',
         transitions: { enabled: 'enabled', dismissed: 'dismissed', ignored: 'last_ask' },
     },
     dismissed: {

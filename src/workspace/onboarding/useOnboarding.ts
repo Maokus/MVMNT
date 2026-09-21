@@ -10,17 +10,46 @@ import { useTemplateApply } from '@workspace/templates/useTemplateApply';
 import { easyModeTemplates } from '@workspace/templates/easyModeTemplates';
 import { rememberOnboarding, shouldShowWelcome } from './preferences';
 
-interface DemoSession {
+interface TutorialSession {
     id: number;
     initialTitle: string;
+    initialTrackIds: string[];
     played: boolean;
     edited: boolean;
+    midiImported: boolean;
+    midiConnected: boolean;
+    importedMidiTrackIds: string[];
+    audioImported: boolean;
     saved: boolean;
+    rendered: boolean;
 }
 
-export function useOnboarding({ ready, suppressed }: { ready: boolean; suppressed: boolean }) {
+export type TutorialStep =
+    'play' | 'edit-title' | 'import-midi' | 'connect-midi' | 'import-audio' | 'save' | 'render' | 'complete';
+
+function getTutorialStep(session: TutorialSession | null): TutorialStep | null {
+    if (!session) return null;
+    if (!session.played) return 'play';
+    if (!session.edited) return 'edit-title';
+    if (!session.midiImported) return 'import-midi';
+    if (!session.midiConnected) return 'connect-midi';
+    if (!session.audioImported) return 'import-audio';
+    if (!session.saved) return 'save';
+    if (!session.rendered) return 'render';
+    return 'complete';
+}
+
+export function useOnboarding({
+    ready,
+    suppressed,
+    renderingVideo,
+}: {
+    ready: boolean;
+    suppressed: boolean;
+    renderingVideo: boolean;
+}) {
     const [welcomeRequested, setWelcomeRequested] = useState(shouldShowWelcome);
-    const [session, setSession] = useState<DemoSession | null>(null);
+    const [session, setSession] = useState<TutorialSession | null>(null);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const loading = useRef(false);
@@ -35,7 +64,7 @@ export function useOnboarding({ ready, suppressed }: { ready: boolean; suppresse
         };
     }, []);
 
-    // Subscribe only for the active demo. Loading, opening, or creating another
+    // Subscribe only for the active tutorial. Loading, opening, or creating another
     // document ends the guide rather than carrying progress into unrelated work.
     useEffect(() => {
         if (!session) return;
@@ -60,60 +89,116 @@ export function useOnboarding({ ready, suppressed }: { ready: boolean; suppresse
                 ) {
                     setSession((current) => (current && !current.played ? { ...current, played: true } : current));
                 }
+                setSession((current) => {
+                    if (!current) return current;
+                    const importedTrackIds = state.tracksOrder.filter(
+                        (trackId) => !current.initialTrackIds.includes(trackId)
+                    );
+                    const importedMidiTrackIds = importedTrackIds.filter(
+                        (trackId) => state.tracks[trackId]?.type === 'midi'
+                    );
+                    const audioImported = importedTrackIds.some((trackId) => state.tracks[trackId]?.type === 'audio');
+                    if (
+                        importedMidiTrackIds.join() === current.importedMidiTrackIds.join() &&
+                        audioImported === current.audioImported
+                    ) {
+                        return current;
+                    }
+                    return {
+                        ...current,
+                        importedMidiTrackIds,
+                        midiImported: importedMidiTrackIds.length > 0,
+                        midiConnected: importedMidiTrackIds.includes(
+                            String(useSceneStore.getState().macros.byId.MIDITrack?.value)
+                        ),
+                        audioImported,
+                        saved: false,
+                        rendered: false,
+                    };
+                });
             }),
             useSceneStore.subscribe((state, previous) => {
-                const title = state.macros.byId.TITLE?.value;
-                if (title === previous.macros.byId.TITLE?.value) return;
+                const title = state.macros.byId.songTitle?.value;
+                const midiTrackId = state.macros.byId.MIDITrack?.value;
+                if (
+                    title === previous.macros.byId.songTitle?.value &&
+                    midiTrackId === previous.macros.byId.MIDITrack?.value
+                )
+                    return;
                 if (typeof title !== 'string') {
                     stop();
                     return;
                 }
-                setSession((current) =>
-                    current && !(current.played && current.edited && current.saved)
-                        ? { ...current, edited: Boolean(title.trim()) && title !== initialTitle, saved: false }
-                        : current
-                );
+                setSession((current) => {
+                    if (!current) return current;
+                    const edited = Boolean(title.trim()) && title !== initialTitle;
+                    const midiConnected = current.importedMidiTrackIds.includes(String(midiTrackId));
+                    return { ...current, edited, midiConnected, saved: false, rendered: false };
+                });
             }),
             useDocumentSaveStatusStore.subscribe((state, previous) => {
                 if (state.successfulSave === previous.successfulSave || !state.successfulSave) return;
                 if (state.successfulSave.revision !== useDocumentRevisionStore.getState().revision) return;
-                setSession((current) => (current?.edited ? { ...current, saved: true } : current));
+                setSession((current) =>
+                    current?.edited && current.midiConnected && current.audioImported
+                        ? { ...current, saved: true }
+                        : current
+                );
             }),
         ];
         return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
         // Step changes must not replace the subscriptions or their document baseline.
     }, [session?.id]);
 
-    const complete = Boolean(session?.played && session.edited && session.saved);
+    useEffect(() => {
+        if (!renderingVideo) return;
+        setSession((current) => (current?.saved ? { ...current, rendered: true } : current));
+    }, [renderingVideo]);
+
+    const complete = Boolean(
+        session?.played &&
+        session.edited &&
+        session.midiConnected &&
+        session.audioImported &&
+        session.saved &&
+        session.rendered
+    );
     useEffect(() => {
         if (complete) rememberOnboarding('completed');
     }, [complete]);
 
-    const startDemo = async () => {
+    const startTutorial = async () => {
         if (loading.current || suppressed || !ready) return;
         loading.current = true;
         setBusy(true);
         setError('');
         try {
-            const template = easyModeTemplates.find((candidate) => candidate.id === 'default');
-            if (!template) throw new Error('The demo is unavailable. You can continue with your project.');
+            const template = easyModeTemplates.find((candidate) => candidate.id === 'kashiwadelike');
+            if (!template) throw new Error('The tutorial is unavailable. You can continue with your project.');
             if (!(await applyTemplate(template))) return;
             if (!mounted.current) return;
             useTimelineStore.getState().pause();
-            const title = useSceneStore.getState().macros.byId.TITLE?.value;
-            if (typeof title !== 'string') throw new Error('The demo title control is unavailable. Please try again.');
+            const title = useSceneStore.getState().macros.byId.songTitle?.value;
+            if (typeof title !== 'string')
+                throw new Error('The tutorial title control is unavailable. Please try again.');
             setSession({
                 id: ++nextSessionId.current,
                 initialTitle: title,
+                initialTrackIds: [...useTimelineStore.getState().tracksOrder],
                 played: false,
                 edited: false,
+                midiImported: false,
+                midiConnected: false,
+                importedMidiTrackIds: [],
+                audioImported: false,
                 saved: false,
+                rendered: false,
             });
             rememberOnboarding('started');
             setWelcomeRequested(false);
         } catch (cause) {
             if (mounted.current)
-                setError(cause instanceof Error ? cause.message : 'Could not load the demo. Please try again.');
+                setError(cause instanceof Error ? cause.message : 'Could not load the tutorial. Please try again.');
         } finally {
             loading.current = false;
             if (mounted.current) setBusy(false);
@@ -126,7 +211,8 @@ export function useOnboarding({ ready, suppressed }: { ready: boolean; suppresse
         busy,
         error,
         complete,
-        startDemo,
+        step: getTutorialStep(session),
+        startTutorial,
         openWelcome: () => {
             setError('');
             setWelcomeRequested(true);

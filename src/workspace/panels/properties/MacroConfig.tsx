@@ -625,6 +625,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                     return (
                         <input
                             id={`macro-value-${macro.name}`}
+                            data-tutorial-target={macro.name === 'songTitle' ? 'edit-title' : undefined}
                             aria-label={macro.name}
                             type="text"
                             value={macro.value}
@@ -651,7 +652,12 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
         const isEditingName = editingMacroId === macro.name;
 
         return (
-            <div key={macro.name} className="macro-item" data-macro={macro.name}>
+            <div
+                key={macro.name}
+                className="macro-item"
+                data-macro={macro.name}
+                data-tutorial-target={macro.name === 'MIDITrack' ? 'connect-midi' : undefined}
+            >
                 <div className="macro-control">
                     <div
                         className="flex-shrink-0 text-neutral-500 hover:text-neutral-300 cursor-grab active:cursor-grabbing px-0.5 self-center"
