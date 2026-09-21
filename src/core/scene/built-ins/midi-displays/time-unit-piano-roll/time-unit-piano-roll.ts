@@ -14,6 +14,7 @@ import { insertElementConfig, prop } from '@core/scene/runtime/schema-builders';
 import { propGroup, tab } from '@core/scene/built-ins/schema-groups';
 import { defineHostAdaptedBuiltIn, getEnginePrivateContext } from '@core/scene/built-ins/define-built-in';
 import { syncSceneElementTiming } from '@core/scene/built-ins/scene-element-timing';
+import { resolveTemporalWindow } from '@core/timing/temporal-window';
 
 const DEFAULT_ROLL_WIDTH = 800;
 const DEFAULT_NOTE_COLOR = '#FF6B6B';
@@ -509,6 +510,12 @@ export class TimeUnitPianoRollElement extends BoundSceneElement {
             syncSceneElementTiming(this.timingManager, elementContext, bpm, timeSignature);
         } catch {}
 
+        const temporalFrame = resolveTemporalWindow(this.timingManager, effectiveTime, {
+            cadence: 'transport-relative',
+            bars: timeUnitBars,
+            lookAheadSeconds: attackDuration,
+        });
+
         // Compute overall content extents (for layout bounds and optional backgrounds)
         const totalHeight = rollHeight;
         const totalWidth = pianoWidth + effectiveRollWidth;
@@ -555,21 +562,10 @@ export class TimeUnitPianoRollElement extends BoundSceneElement {
             const trackId = props.midiTrackId;
             const effectiveTrackIds = trackId ? [trackId as string] : [];
             if (effectiveTrackIds.length > 0) {
-                // Query two-window span (prev + current) so release animation frames still have note segments
-                const currentWin = this.timingManager.getTimeUnitWindow(effectiveTime, timeUnitBars);
-                // Derive previous window start without accessing private TimingManager internals.
-                const signature = this.timingManager.timeSignature;
-                const quarterNotesPerBar = (signature.numerator * 4) / signature.denominator;
-                const windowBeats = timeUnitBars * quarterNotesPerBar;
-                const prevStart = this.timingManager.beatsToSeconds(
-                    this.timingManager.secondsToBeats(currentWin.start) - windowBeats
-                );
-                const queryStart = prevStart;
-                const queryEnd = currentWin.end + attackDuration;
                 const selected = timeline?.selectNotes({
                     trackIds: effectiveTrackIds,
-                    startSeconds: queryStart,
-                    endSeconds: queryEnd,
+                    startSeconds: temporalFrame.materialization.start,
+                    endSeconds: temporalFrame.materialization.end,
                 });
                 const events = selected?.ok ? selected.value : [];
                 sourceNotes = events.map((e: any) => ({
@@ -588,8 +584,7 @@ export class TimeUnitPianoRollElement extends BoundSceneElement {
         const windowedNoteBlocks: NoteBlock[] = NoteBlock.buildWindowedSegments(
             sourceNotes,
             this.timingManager,
-            effectiveTime,
-            timeUnitBars
+            temporalFrame
         );
 
         // Create render objects for the piano roll
@@ -601,7 +596,7 @@ export class TimeUnitPianoRollElement extends BoundSceneElement {
         if (showNotes && windowedNoteBlocks.length > 0) {
             const noteBlocks = windowedNoteBlocks; // already NoteBlock instances with window metadata
             const animatedRenderObjects = this.animationController.buildNoteRenderObjects(
-                { noteHeight, minNote, maxNote, pianoWidth, rollWidth: effectiveRollWidth },
+                { noteHeight, minNote, maxNote, pianoWidth, rollWidth: effectiveRollWidth, temporalFrame },
                 noteBlocks,
                 effectiveTime
             );
@@ -648,10 +643,7 @@ export class TimeUnitPianoRollElement extends BoundSceneElement {
 
         // Add beat grid (tempo-aware)
         if (showBeatGrid) {
-            const { start: windowStart, end: windowEnd } = this.timingManager.getTimeUnitWindow(
-                effectiveTime,
-                timeUnitBars
-            );
+            const { start: windowStart, end: windowEnd } = temporalFrame.viewport;
             const beatsPerBarForGrid = this.timingManager.beatsPerBar || 4;
             const beatLines = this._createBeatGridLines(
                 windowStart,
@@ -696,10 +688,7 @@ export class TimeUnitPianoRollElement extends BoundSceneElement {
 
         // Add beat labels (tempo-aware)
         if (showBeatLabels) {
-            const { start: windowStart, end: windowEnd } = this.timingManager.getTimeUnitWindow(
-                effectiveTime,
-                timeUnitBars
-            );
+            const { start: windowStart, end: windowEnd } = temporalFrame.viewport;
             const beatsPerBarForGrid = this.timingManager.beatsPerBar || 4;
             // Only include pianoWidth if showPiano is true
             const effectivePianoWidth = showPiano ? pianoWidth : 0;
@@ -730,7 +719,8 @@ export class TimeUnitPianoRollElement extends BoundSceneElement {
                 effectiveRollWidth,
                 (maxNote - minNote + 1) * noteHeight,
                 playheadLineWidth,
-                playheadColor as string
+                playheadColor as string,
+                temporalFrame.viewport
             );
             (ph as any[]).forEach((l) => {
                 l.setLayoutParticipation('exclude');
@@ -893,15 +883,13 @@ export class TimeUnitPianoRollElement extends BoundSceneElement {
         rollWidth: number,
         totalHeight: number,
         lineWidth: number,
-        playheadColor: string
+        playheadColor: string,
+        window: { start: number; end: number }
     ): RenderObject[] {
         const playheadObjects: RenderObject[] = [];
 
         // Calculate playhead position
-        const { start: windowStart, end: windowEnd } = this.timingManager.getTimeUnitWindow(
-            targetTime,
-            this.getTimeUnitBars()
-        );
+        const { start: windowStart, end: windowEnd } = window;
         const timeUnitInSeconds = Math.max(1e-9, windowEnd - windowStart);
         const playheadPosition = ((targetTime - windowStart) / timeUnitInSeconds) * rollWidth;
         const playheadX = pianoWidth + playheadPosition;

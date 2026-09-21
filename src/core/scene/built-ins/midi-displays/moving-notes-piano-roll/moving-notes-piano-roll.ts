@@ -5,12 +5,11 @@ import { Line, EmptyRenderObject, RenderObject, Rectangle, GlowLayer } from '@co
 import { getAnimationSelectOptions } from '@core/scene/built-ins/midi-displays/note-animations';
 import { normalizeColorAlphaValue, ensureEightDigitHex, applyOpacity } from '@utils/color';
 import { MovingNotesAnimationController } from './animation-controller';
-import { TimingManager } from '@core/timing';
+import { resolveTemporalWindow, TimingManager } from '@core/timing';
 import { insertElementConfig, prop } from '@core/scene/runtime/schema-builders';
 import { propGroup, tab } from '@core/scene/built-ins/schema-groups';
 import { defineHostAdaptedBuiltIn, getEnginePrivateContext } from '@core/scene/built-ins/define-built-in';
 import { syncSceneElementTiming } from '@core/scene/built-ins/scene-element-timing';
-import { quarterNotesPerBar } from '@core/timing/meter';
 
 const DEFAULT_NOTE_COLOR = '#FF6B6B';
 
@@ -336,18 +335,18 @@ export class MovingNotesPianoRollElement extends BoundSceneElement {
             }
         }
 
-        // Determine window around current time
-        const windowBeats = timeUnitBars * quarterNotesPerBar(this.timingManager.timeSignature);
-        const currentBeat = this.timingManager.secondsToBeats(effectiveTime);
-        const windowStart = this.timingManager.beatsToSeconds(currentBeat - windowBeats * playheadPosition);
-        const windowEnd = this.timingManager.beatsToSeconds(currentBeat + windowBeats * (1 - playheadPosition));
+        const temporalFrame = resolveTemporalWindow(this.timingManager, effectiveTime, {
+            cadence: 'continuous',
+            bars: timeUnitBars,
+            anchorPosition: playheadPosition,
+        });
 
         const selectedNotes =
             props.midiTrackId && timeline
                 ? timeline.selectNotes({
                       trackIds: [props.midiTrackId as string],
-                      startSeconds: windowStart,
-                      endSeconds: windowEnd,
+                      startSeconds: temporalFrame.materialization.start,
+                      endSeconds: temporalFrame.materialization.end,
                   })
                 : null;
         const rawNotes = (selectedNotes?.ok ? selectedNotes.value : []).map((note) => ({
@@ -367,11 +366,8 @@ export class MovingNotesPianoRollElement extends BoundSceneElement {
                     maxNote,
                     pianoWidth: effectivePianoWidth,
                     rollWidth: rollWidth,
-                    playheadPosition,
                     playheadOffset: playheadOffset as number,
-                    windowStart,
-                    windowEnd,
-                    currentTime: effectiveTime,
+                    temporalFrame,
                 },
                 rawNotes as any
             );

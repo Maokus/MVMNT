@@ -5,6 +5,12 @@ import { debugLog } from '@utils/debug-log';
 import type { TimeUnitPianoRollElement } from './time-unit-piano-roll';
 import type { NoteBlock as TNoteBlock } from './note-block';
 import { RenderObject } from '@core/render/render-objects';
+import {
+    clipTemporalInterval,
+    mapTimeToTemporalPosition,
+    type SteppedTemporalWindowFrame,
+    type TemporalWindow,
+} from '@core/timing/temporal-window';
 
 export type AnimationType = string; // Open registry id ('none' handled specially)
 
@@ -14,6 +20,7 @@ export interface BuildConfig {
     maxNote: number;
     pianoWidth: number;
     rollWidth: number;
+    temporalFrame: SteppedTemporalWindowFrame;
 }
 
 export interface VisualState {
@@ -41,17 +48,12 @@ export class AnimationController {
         const animationEnabled = animationType !== 'none';
 
         // Extract config values
-        const { noteHeight, minNote, maxNote, pianoWidth, rollWidth } = config;
+        const { noteHeight, minNote, maxNote, pianoWidth, rollWidth, temporalFrame } = config;
         const noteRange = { min: minNote, max: maxNote };
         const totalNotes = maxNote - minNote + 1;
 
         // Calculate time window using the element's time unit settings
-        const win = this.timeUnitPianoRoll.timingManager.getTimeUnitWindow(
-            targetTime,
-            this.timeUnitPianoRoll.getTimeUnitBars()
-        );
-        const windowStart = win.start;
-        const windowEnd = win.end;
+        const { start: windowStart, end: windowEnd } = temporalFrame.viewport;
         const timeUnitInSeconds = Math.max(1e-9, windowEnd - windowStart);
         const renderObjects: RenderObject[] = [];
 
@@ -61,7 +63,7 @@ export class AnimationController {
 
         for (const block of noteBlocks) {
             // Derive visual lifecycle state statelessly
-            const visState = this._deriveVisualState(block, targetTime, { attack, decay, release });
+            const visState = this._deriveVisualState(block, targetTime, temporalFrame, { attack, decay, release });
             if (!visState) continue;
 
             const noteIndex = block.note - noteRange.min;
@@ -75,12 +77,7 @@ export class AnimationController {
 
             // Calculate timing and geometry
             // Default: clamp to CURRENT window
-            let drawStart = Math.max(block.startTime, windowStart);
-            let drawEnd = Math.min(block.endTime, windowEnd);
-
-            let relWindowStart = windowStart;
-            let relWindowEnd = windowEnd;
-            let relWindowDuration = timeUnitInSeconds;
+            let geometryWindow: TemporalWindow = temporalFrame.viewport;
 
             // If we're in RELEASE phase immediately after a rollover, preserve the previous window's geometry
             const EPS = 1e-9;
@@ -90,27 +87,21 @@ export class AnimationController {
                 Math.abs(block.windowEnd - windowStart) < EPS
             ) {
                 // Use the block's own window as the reference frame (the previous window)
-                relWindowStart = block.windowStart ?? windowStart;
-                relWindowEnd = block.windowEnd ?? windowEnd;
-                relWindowDuration = Math.max(1e-9, relWindowEnd - relWindowStart);
-
-                drawStart = Math.max(block.startTime, relWindowStart);
-                drawEnd = Math.min(block.endTime, relWindowEnd);
+                const relWindowStart = block.windowStart ?? windowStart;
+                const relWindowEnd = block.windowEnd ?? windowEnd;
+                geometryWindow = { start: relWindowStart, end: relWindowEnd };
             } else if (visState.type === 'attack' && block.windowStart != null) {
                 // For attack of a note in the NEXT window, use the note's own window
-                relWindowStart = block.windowStart;
-                relWindowEnd = block.windowEnd ?? block.windowStart + timeUnitInSeconds;
-                relWindowDuration = Math.max(1e-9, relWindowEnd - relWindowStart);
-
-                drawStart = Math.max(block.startTime, relWindowStart);
-                drawEnd = Math.min(block.endTime, relWindowEnd);
+                const relWindowStart = block.windowStart;
+                const relWindowEnd = block.windowEnd ?? block.windowStart + timeUnitInSeconds;
+                geometryWindow = { start: relWindowStart, end: relWindowEnd };
             }
 
-            const startTimeInWindow = drawStart - relWindowStart;
-            const endTimeInWindow = drawEnd - relWindowStart;
-            // Clamp to [0, 1] to prevent floating-point drift from rendering notes outside the roll boundary.
-            const startRatio = Math.max(0, Math.min(1, startTimeInWindow / relWindowDuration));
-            const endRatio = Math.max(0, Math.min(1, endTimeInWindow / relWindowDuration));
+            const clipped = clipTemporalInterval({ start: block.startTime, end: block.endTime }, geometryWindow);
+            const drawStart = clipped?.start ?? Math.max(block.startTime, geometryWindow.start);
+            const drawEnd = clipped?.end ?? Math.min(block.endTime, geometryWindow.end);
+            const startRatio = mapTimeToTemporalPosition(drawStart, temporalFrame, geometryWindow);
+            const endRatio = mapTimeToTemporalPosition(drawEnd, temporalFrame, geometryWindow);
             const x = pianoWidth + startRatio * rollWidth;
             const width = Math.max(2, (endRatio - startRatio) * rollWidth);
 
@@ -217,13 +208,11 @@ export class AnimationController {
     private _deriveVisualState(
         block: TNoteBlock,
         currentTime: number,
+        temporalFrame: SteppedTemporalWindowFrame,
         phases: { attack: number; decay: number; release: number }
     ): VisualState | null {
         // Robust lifecycle based on time-unit window, with ADSR phases and overlap guards
-        const win = this.timeUnitPianoRoll.timingManager.getTimeUnitWindow(
-            currentTime,
-            this.timeUnitPianoRoll.getTimeUnitBars()
-        );
+        const win = temporalFrame.viewport;
         const winStart = block.windowStart ?? win.start;
         const winEnd = block.windowEnd ?? win.end;
         const winLength = win.end - win.start;

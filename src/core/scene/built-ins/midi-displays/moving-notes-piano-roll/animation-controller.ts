@@ -10,6 +10,7 @@ type MidiLikeNote = {
     endBeat?: number;
 };
 import { Rectangle, RenderObject } from '@core/render/render-objects';
+import { clipTemporalInterval, mapTimeToTemporalPosition, type ContinuousTemporalWindowFrame } from '@core/timing';
 
 export interface BuildConfig {
     noteHeight: number;
@@ -17,11 +18,8 @@ export interface BuildConfig {
     maxNote: number;
     pianoWidth: number;
     rollWidth: number;
-    playheadPosition: number; // 0..1 relative position inside roll area
     playheadOffset: number; // pixels, applied to playhead x before clamping
-    windowStart: number;
-    windowEnd: number;
-    currentTime: number;
+    temporalFrame: ContinuousTemporalWindowFrame;
 }
 
 export interface VisualState {
@@ -46,24 +44,14 @@ export class MovingNotesAnimationController {
         const release = this.owner.getReleaseDuration();
         const animationEnabled = animationType !== 'none';
 
-        const {
-            noteHeight,
-            minNote,
-            maxNote,
-            pianoWidth,
-            rollWidth,
-            playheadPosition,
-            playheadOffset,
-            windowStart,
-            windowEnd,
-            currentTime,
-        } = config;
+        const { noteHeight, minNote, maxNote, pianoWidth, rollWidth, playheadOffset, temporalFrame } = config;
+        const { anchorTime: currentTime, viewport } = temporalFrame;
         const totalNotes = maxNote - minNote + 1;
-        const timeUnitInSeconds = Math.max(1e-9, windowEnd - windowStart);
 
         const xFromTime = (t: number) => {
-            // position relative to playhead; then clamp to viewport
-            const norm = (t - currentTime) / timeUnitInSeconds + playheadPosition;
+            // Preserve the historical offset behaviour by applying the pixel offset
+            // before the final viewport clamp.
+            const norm = mapTimeToTemporalPosition(t, temporalFrame, temporalFrame.viewport, false);
             const unclamped = pianoWidth + norm * rollWidth + playheadOffset;
             const minX = pianoWidth;
             const maxX = pianoWidth + rollWidth;
@@ -85,12 +73,11 @@ export class MovingNotesAnimationController {
             if (!vis) continue;
 
             // Clamp to visible window for geometry
-            const drawStart = Math.max(start, windowStart);
-            const drawEnd = Math.min(end, windowEnd);
-            if (!(drawEnd > windowStart && drawStart < windowEnd)) {
-                // not visible in current window
-                // still allow release/attack animations that may render without width if desired
-            }
+            const clipped = clipTemporalInterval({ start, end }, viewport);
+            // Timeline selection already returns intervals intersecting the viewport. Keep the
+            // historical edge fallback for animation-only frames if a host supplies otherwise.
+            const drawStart = clipped?.start ?? Math.max(start, viewport.start);
+            const drawEnd = clipped?.end ?? Math.min(end, viewport.end);
 
             const y = (totalNotes - (noteIndex + 1)) * noteHeight;
             const x1 = xFromTime(drawStart);

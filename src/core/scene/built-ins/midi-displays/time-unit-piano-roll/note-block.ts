@@ -19,6 +19,7 @@
 //  lifecycleTimestamps: { attackStart; decayStart; releaseStart; ... } // precomputed ADSR boundaries
 // Only introduce when needed to avoid bloat.
 import { NoteEvent } from '@core/midi/note-event';
+import { clipTemporalIntervalAcrossWindows, type SteppedTemporalWindowFrame } from '@core/timing/temporal-window';
 
 // Scene elements accept tick-domain note data.
 // NoteBlock now optionally carries canonical tick timing alongside its seconds timing.
@@ -104,8 +105,7 @@ export class NoteBlock extends NoteEvent {
         return start <= currentTime && end > currentTime;
     }
 
-    // Build clamped segments for previous, current, and next time-unit windows
-    // timingManager must implement getTimeUnitWindow(currentTime, timeUnitBars), _secondsToBeats, _beatsToSeconds, and beatsPerBar
+    // Build clamped segments for previous, current, and next time-unit windows.
     static buildWindowedSegments(
         notes: Array<{
             note: number;
@@ -121,23 +121,11 @@ export class NoteBlock extends NoteEvent {
             endBeat?: number;
         }>,
         timingManager: any,
-        targetTime: number,
-        timeUnitBars: number
+        temporalFrame: SteppedTemporalWindowFrame
     ): NoteBlock[] {
-        const current = timingManager.getTimeUnitWindow(targetTime, timeUnitBars);
-        // Use getTimeUnitWindow directly to avoid the _secondsToBeats/_beatsToSeconds round-trip.
-        // The round-trip accumulates floating-point error from cumulativeBeats when a tempo map is
-        // active, causing prev/next boundaries to drift slightly from true bar positions.
-        // A 1ms seek offset is safely within any bar at any tempo (slowest: ~12s/bar at 20 BPM).
-        const SEEK_EPS = 1e-3;
-        const prevWindow = timingManager.getTimeUnitWindow(current.start - SEEK_EPS, timeUnitBars);
-        const prevStart = prevWindow.start;
-        const prev = { start: prevStart, end: current.start };
-        const nextWindow = timingManager.getTimeUnitWindow(current.end + SEEK_EPS, timeUnitBars);
-        const nextEnd = nextWindow.end;
-        const next = { start: current.end, end: nextEnd };
+        const { previous, current, next } = temporalFrame.windows;
 
-        const minTime = prev.start;
+        const minTime = previous.start;
         const maxTime = next.end;
 
         const candidateNotes = notes.filter((n) => {
@@ -163,7 +151,7 @@ export class NoteBlock extends NoteEvent {
 
         const segments: NoteBlock[] = [];
 
-        const addClipped = (note: any, win: { start: number; end: number }) => {
+        const resolveTimes = (note: any) => {
             // Resolve canonical seconds timing first
             let startTime: number;
             let endTime: number;
@@ -179,9 +167,19 @@ export class NoteBlock extends NoteEvent {
                 startTime = note.startTime;
                 endTime = note.endTime;
             }
-            if (startTime < win.end && endTime > win.start) {
-                const segStart = Math.max(startTime, win.start);
-                const segEnd = Math.min(endTime, win.end);
+            return { startTime, endTime };
+        };
+
+        for (const note of candidateNotes) {
+            const { startTime, endTime } = resolveTimes(note);
+            const clippedSegments = clipTemporalIntervalAcrossWindows({ start: startTime, end: endTime }, [
+                previous,
+                current,
+                next,
+            ]);
+            for (const { interval, window } of clippedSegments) {
+                const segStart = interval.start;
+                const segEnd = interval.end;
                 const block = new NoteBlock(note.note, note.channel || 0, segStart, segEnd, note.velocity, {
                     startTick: note.startTick,
                     endTick: note.endTick,
@@ -192,8 +190,8 @@ export class NoteBlock extends NoteEvent {
                     block.originalStartTime = startTime;
                     block.originalEndTime = endTime;
                 }
-                block.windowStart = win.start;
-                block.windowEnd = win.end;
+                block.windowStart = window.start;
+                block.windowEnd = window.end;
                 // Compute stable base id (original full note span) – segment-specific id already set in ctor
                 block.baseNoteId = NoteBlock.fastHashToHex(
                     note.note,
@@ -204,12 +202,6 @@ export class NoteBlock extends NoteEvent {
                 );
                 segments.push(block);
             }
-        };
-
-        for (const n of candidateNotes) {
-            addClipped(n, prev);
-            addClipped(n, current);
-            addClipped(n, next);
         }
 
         return segments;
