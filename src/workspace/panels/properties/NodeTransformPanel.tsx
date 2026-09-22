@@ -43,7 +43,7 @@ import {
     updateTargetBindingCommand,
 } from './nodeTransformCommands';
 import { NodeStateRows } from './NodeStateRows';
-import { TransformSection } from './TransformSection';
+import { TransformSection, TransformSectionScope } from './TransformSection';
 import { propertySearchMatches, propertyVisibleForSearch, sectionVisibleForSearch } from './propertySearch';
 import { BLEND_MODE_CHOICES, normalizeElementOutputBlendMode } from '@utils/blend-modes';
 
@@ -309,6 +309,14 @@ function NodeMacroControl({
 }
 
 export function NodeTransformPanel({ searchTerm = '' }: { searchTerm?: string } = {}) {
+    return (
+        <TransformSectionScope>
+            <NodeTransformPanelContent searchTerm={searchTerm} />
+        </TransformSectionScope>
+    );
+}
+
+function NodeTransformPanelContent({ searchTerm = '' }: { searchTerm?: string }) {
     const nodeIds = useSelectionStore((state) => state.selectedNodeIds);
     const selectionPivot = useSelectionStore((state) => state.selectionPivot);
     const setSelectionPivot = useSelectionStore((state) => state.setSelectionPivot);

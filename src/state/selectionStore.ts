@@ -72,6 +72,7 @@ interface SelectionActions {
     selectSceneNodeRange(siblingIds: string[], targetNodeId: string): void;
     setEditingContainerId(nodeId: string | null): void;
     toggleNodeExpanded(nodeId: string): void;
+    setNodesExpanded(nodeIds: string[], expanded: boolean): void;
     setSelectionPivot(pivot: { x: number; y: number } | null): void;
     reconcileSceneNodes(graph: SceneGraphState, previousGraph?: SceneGraphState): void;
     /** Set tracks as active selection domain. */
@@ -270,6 +271,15 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
             set((state) => ({
                 expandedNodeIds: { ...state.expandedNodeIds, [nodeId]: state.expandedNodeIds[nodeId] === false },
             }));
+        },
+        setNodesExpanded(nodeIds, expanded) {
+            set((state) => {
+                const expandedNodeIds = { ...state.expandedNodeIds };
+                nodeIds.forEach((id) => {
+                    expandedNodeIds[id] = expanded;
+                });
+                return { expandedNodeIds };
+            });
         },
         setSelectionPivot(selectionPivot) {
             set({ selectionPivot });

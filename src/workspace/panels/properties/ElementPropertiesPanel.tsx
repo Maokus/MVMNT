@@ -62,6 +62,11 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     const [macroListenerKey, setMacroListenerKey] = useState(0);
     const [searchActive, setSearchActive] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const [recursiveCollapse, setRecursiveCollapse] = useState<{
+        collapsed: boolean;
+        revision: number;
+        tabId: string;
+    }>();
 
     // Reset property state synchronously when the element changes, so the panel never briefly
     // shows the previous element's values before the useEffect has a chance to load new ones.
@@ -89,6 +94,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
         setMacroAssignments({});
         setSearchActive(false);
         setSearchTerm('');
+        setRecursiveCollapse(undefined);
     }
     const panelRef = useRef<HTMLDivElement>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
@@ -305,11 +311,22 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
     }, [enhancedSchema, activeTabId, propertyPassesVisibility, searchActive, searchTerm]);
 
     const handleCollapseToggle = useCallback(
-        (groupId: string) => {
+        (groupId: string, recursive = false) => {
             const current = useSceneEditorStore.getState().expandedPropertyGroups[elementId] ?? {};
-            setPropertyGroupCollapseState(elementId, groupId, !current[groupId]);
+            const group = filteredGroups.find(({ group }) => group.id === groupId)?.group;
+            const collapsed = !(current[groupId] ?? group?.collapsed ?? false);
+            if (recursive) {
+                filteredGroups.forEach(({ group }) => setPropertyGroupCollapseState(elementId, group.id, collapsed));
+                setRecursiveCollapse((previous) => ({
+                    collapsed,
+                    revision: (previous?.revision ?? 0) + 1,
+                    tabId: activeTabId,
+                }));
+            } else {
+                setPropertyGroupCollapseState(elementId, groupId, collapsed);
+            }
         },
-        [elementId, setPropertyGroupCollapseState]
+        [elementId, filteredGroups, setPropertyGroupCollapseState, activeTabId]
     );
 
     const handleValuesChange = useCallback(
@@ -530,6 +547,7 @@ const ElementPropertiesPanel: React.FC<ElementPropertiesPanelProps> = ({
                         onValuesChange={handleValuesChange}
                         onMacroAssignment={handleMacroAssignment}
                         onCollapseToggle={handleCollapseToggle}
+                        recursiveCollapse={recursiveCollapse?.tabId === activeTabId ? recursiveCollapse : undefined}
                         useLayout={!searchActive}
                     />
                 ))}

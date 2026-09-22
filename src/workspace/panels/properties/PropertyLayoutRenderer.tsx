@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import type {
     ElementPropertyDefinition as PropertyDefinition,
     ElementPropertyLayoutNode as PropertyLayoutNode,
@@ -13,7 +13,10 @@ interface Props {
     renderProperty: (property: PropertyDefinition, nested?: boolean) => React.ReactNode;
     isDisabled: (propertyKey: string) => boolean;
     onPatch: (patch: Record<string, unknown>, gesture?: { id: string; finalize: boolean }) => void;
+    recursiveCollapse?: { collapsed: boolean; revision: number };
 }
+
+const RecursiveCollapseContext = createContext<{ collapsed: boolean; revision: number } | undefined>(undefined);
 
 const passes = (rules: readonly PropertyVisibilityCondition[] | undefined, values: Record<string, unknown>) =>
     !rules?.length ||
@@ -31,14 +34,27 @@ const Section: React.FC<{ node: Extract<PropertyLayoutNode, { kind: 'section' }>
     node,
     children,
 }) => {
-    const [collapsed, setCollapsed] = useState(Boolean(node.collapsed));
+    const inheritedCollapse = useContext(RecursiveCollapseContext);
+    const [collapsed, setCollapsed] = useState(inheritedCollapse?.collapsed ?? Boolean(node.collapsed));
+    const [childCollapse, setChildCollapse] = useState<{ collapsed: boolean; revision: number }>();
+    useEffect(() => {
+        if (inheritedCollapse) {
+            setCollapsed(inheritedCollapse.collapsed);
+            setChildCollapse(undefined);
+        }
+    }, [inheritedCollapse?.revision]);
+    const toggle = (recursive: boolean) => {
+        const next = !collapsed;
+        setCollapsed(next);
+        if (recursive) setChildCollapse((previous) => ({ collapsed: next, revision: (previous?.revision ?? 0) + 1 }));
+    };
     return (
         <section className={`ae-property-layout-section${collapsed ? ' is-collapsed' : ' is-expanded'}`}>
             {node.label && (
                 <button
                     type="button"
                     className="ae-property-layout-section-title"
-                    onClick={() => setCollapsed((value) => !value)}
+                    onClick={(event) => toggle(event.metaKey)}
                     aria-expanded={!collapsed}
                     aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${node.label} section`}
                 >
@@ -48,7 +64,11 @@ const Section: React.FC<{ node: Extract<PropertyLayoutNode, { kind: 'section' }>
                     <span>{node.label}</span>
                 </button>
             )}
-            {!collapsed && children}
+            {!collapsed && (
+                <RecursiveCollapseContext.Provider value={childCollapse ?? inheritedCollapse}>
+                    {children}
+                </RecursiveCollapseContext.Provider>
+            )}
         </section>
     );
 };
@@ -60,6 +80,7 @@ export const PropertyLayoutRenderer: React.FC<Props> = ({
     renderProperty,
     isDisabled,
     onPatch,
+    recursiveCollapse,
 }) => {
     const propertyMap = new Map(properties.map((property) => [property.key, property]));
     const laidOut = new Set<string>();
@@ -133,5 +154,5 @@ export const PropertyLayoutRenderer: React.FC<Props> = ({
     for (const property of properties) {
         if (!laidOut.has(property.key) && passes(property.visibleWhen, values)) rendered.push(renderProperty(property));
     }
-    return <>{rendered}</>;
+    return <RecursiveCollapseContext.Provider value={recursiveCollapse}>{rendered}</RecursiveCollapseContext.Provider>;
 };

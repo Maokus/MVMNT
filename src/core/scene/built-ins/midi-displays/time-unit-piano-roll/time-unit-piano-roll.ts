@@ -78,6 +78,32 @@ export class TimeUnitPianoRollElement extends BoundSceneElement {
                 name: 'Time Unit Piano Roll',
                 description: 'Piano roll visualization split into time-aligned windows.',
                 category: 'MIDI Displays',
+                presets: [
+                    {
+                        id: 'all-annotations-on',
+                        label: 'Enable All Annotations',
+                        values: {
+                            showPiano: true,
+                            showNoteGrid: true,
+                            showBeatGrid: true,
+                            showNoteLabels: true,
+                            showBeatLabels: true,
+                            showRollLabel: true,
+                        },
+                    },
+                    {
+                        id: 'all-annotations-off',
+                        label: 'Disable All Annotations',
+                        values: {
+                            showPiano: false,
+                            showNoteGrid: false,
+                            showBeatGrid: false,
+                            showNoteLabels: false,
+                            showBeatLabels: false,
+                            showRollLabel: false,
+                        },
+                    },
+                ],
             },
             [
                 tab.content([
@@ -92,14 +118,14 @@ export class TimeUnitPianoRollElement extends BoundSceneElement {
                                 step: 50,
                                 description: 'Width of the scrolling window in pixels.',
                             }),
-                            prop.number('rollHeight', 'Roll Height (px)', 400, {
+                            prop.number('rollHeight', 'Roll Height (px)', 800, {
                                 min: 20,
                                 max: 4000,
                                 step: 10,
                                 description: 'Total height of the piano roll.',
                             }),
                             prop.number('timeUnitBars', 'Time Unit (bars)', 1, { min: 0.5, max: 8, step: 0.5 }),
-                            prop.boolean('autoRange', 'Auto Range', false, {
+                            prop.boolean('autoRange', 'Auto Range', true, {
                                 description: 'Automatically detect min/max note from the track.',
                             }),
                             prop.number('minNote', 'Minimum MIDI Note', 0, {

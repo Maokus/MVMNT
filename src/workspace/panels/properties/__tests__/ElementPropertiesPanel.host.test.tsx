@@ -21,14 +21,30 @@ vi.mock('../NodeTransformPanel', () => ({
 }));
 
 vi.mock('../PropertyGroupPanel', () => ({
-    default: ({ properties }: { properties: Array<{ key: string; label: string }> }) => (
-        <div>{properties.map((property) => property.label).join(', ')}</div>
+    default: ({
+        properties,
+        group,
+        onCollapseToggle,
+    }: {
+        properties: Array<{ key: string; label: string }>;
+        group: { id: string; label: string; collapsed: boolean };
+        onCollapseToggle: (id: string, recursive?: boolean) => void;
+    }) => (
+        <div>
+            <button
+                aria-label={`${group.collapsed ? 'Expand' : 'Collapse'} ${group.label} group`}
+                onClick={(event) => onCollapseToggle(group.id, event.metaKey)}
+            >
+                {group.label}
+            </button>
+            {properties.map((property) => property.label).join(', ')}
+        </div>
     ),
 }));
 
 describe('ElementPropertiesPanel host tab', () => {
     beforeEach(() => {
-        useSceneEditorStore.setState({ activePropertyTab: {}, propertyClipboard: null });
+        useSceneEditorStore.setState({ activePropertyTab: {}, expandedPropertyGroups: {}, propertyClipboard: null });
     });
 
     afterEach(cleanup);
@@ -118,5 +134,51 @@ describe('ElementPropertiesPanel host tab', () => {
         fireEvent.click(screen.getByTitle('Close search'));
         expect(screen.getByRole('button', { name: 'Host' })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Appearance' })).toBeInTheDocument();
+    });
+
+    it('Meta-click sets every group in the active tab to the clicked group’s next state', () => {
+        render(
+            <ElementPropertiesPanel
+                elementId="element:one"
+                elementType="test"
+                bindings={{}}
+                onConfigChange={vi.fn()}
+                schema={{
+                    name: 'Test',
+                    description: '',
+                    tabs: [
+                        {
+                            id: 'appearance',
+                            label: 'Appearance',
+                            groups: [
+                                {
+                                    id: 'one',
+                                    label: 'One',
+                                    collapsed: false,
+                                    properties: [{ key: 'a', type: 'number', label: 'A', default: 1 }],
+                                },
+                                {
+                                    id: 'two',
+                                    label: 'Two',
+                                    collapsed: true,
+                                    properties: [{ key: 'b', type: 'number', label: 'B', default: 2 }],
+                                },
+                            ],
+                        },
+                    ],
+                }}
+            />
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'Collapse One group' }), { metaKey: true });
+        expect(useSceneEditorStore.getState().expandedPropertyGroups['element:one']).toMatchObject({
+            one: true,
+            two: true,
+        });
+        fireEvent.click(screen.getByRole('button', { name: 'Expand Two group' }), { metaKey: true });
+        expect(useSceneEditorStore.getState().expandedPropertyGroups['element:one']).toMatchObject({
+            one: false,
+            two: false,
+        });
     });
 });

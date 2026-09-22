@@ -60,7 +60,9 @@ describe('PropertyGroupPanel', () => {
         const header = screen.getByRole('button', { name: 'Collapse Appearance group' });
         expect(header).toHaveAttribute('aria-expanded', 'true');
         fireEvent.click(header);
-        expect(onCollapseToggle).toHaveBeenCalledWith('appearance');
+        expect(onCollapseToggle).toHaveBeenCalledWith('appearance', false);
+        fireEvent.click(header, { metaKey: true });
+        expect(onCollapseToggle).toHaveBeenCalledWith('appearance', true);
     });
 
     it('surfaces an error message when encountering an unsupported property type', () => {
@@ -397,5 +399,48 @@ describe('PropertyGroupPanel', () => {
             'false'
         );
         expect(screen.queryByText('X')).not.toBeInTheDocument();
+    });
+
+    it('recursively expands nested layout sections with Meta-click', () => {
+        const properties = [{ key: 'x', label: 'X', type: 'number', default: 0 }] as PropertyDefinition[];
+        const group: PropertyGroup = {
+            id: 'layout',
+            label: 'Layout',
+            collapsed: false,
+            properties,
+            layout: [
+                {
+                    kind: 'section',
+                    id: 'outer',
+                    label: 'Outer',
+                    collapsed: true,
+                    children: [
+                        {
+                            kind: 'section',
+                            id: 'inner',
+                            label: 'Inner',
+                            collapsed: true,
+                            children: [{ kind: 'property', propertyKey: 'x' }],
+                        },
+                    ],
+                },
+            ],
+        };
+        render(
+            <PropertyGroupPanel
+                group={group}
+                properties={properties}
+                values={{ x: 2 }}
+                macroAssignments={{}}
+                elementId="test-element"
+                onValueChange={vi.fn()}
+                onValuesChange={vi.fn()}
+                onMacroAssignment={vi.fn()}
+                onCollapseToggle={vi.fn()}
+            />
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'Expand Outer section' }), { metaKey: true });
+        expect(screen.getByRole('button', { name: 'Collapse Inner section' })).toHaveAttribute('aria-expanded', 'true');
     });
 });

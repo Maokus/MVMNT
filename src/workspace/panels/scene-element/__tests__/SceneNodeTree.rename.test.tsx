@@ -2,7 +2,7 @@ import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createFlatSceneGraph } from '@state/scene-graph';
+import { createFlatSceneGraph, groupSceneNodes } from '@state/scene-graph';
 import { useSelectionStore } from '@state/selectionStore';
 import { NodeRow } from '../SceneNodeTree';
 
@@ -89,5 +89,29 @@ describe('SceneNodeTree element ID editing', () => {
 
         expect(event.defaultPrevented).toBe(false);
         expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    });
+
+    it('Meta-clicks a group disclosure to change that group and all nested groups', () => {
+        let graph = groupSceneNodes(createFlatSceneGraph(['a', 'b']), ['element:a'], 'group:inner', 'Inner');
+        graph = groupSceneNodes(graph, ['group:inner'], 'group:outer', 'Outer');
+        const root = graph.nodesById[graph.rootId];
+        if (root.kind !== 'root') throw new Error('invalid fixture');
+        render(<NodeRow graph={graph} node={graph.nodesById['group:outer']} siblingIds={root.children} depth={0} />);
+
+        const outerDisclosure = () => screen.getByText('Outer').closest('[role="treeitem"]')!.querySelector('button')!;
+        fireEvent.click(outerDisclosure(), { metaKey: true });
+        expect(useSelectionStore.getState().expandedNodeIds).toMatchObject({
+            'group:outer': false,
+            'group:inner': false,
+        });
+        expect(screen.queryByText('Inner')).not.toBeInTheDocument();
+        expect(sceneActions.selectNode).not.toHaveBeenCalled();
+
+        fireEvent.click(outerDisclosure(), { metaKey: true });
+        expect(useSelectionStore.getState().expandedNodeIds).toMatchObject({
+            'group:outer': true,
+            'group:inner': true,
+        });
+        expect(screen.getByText('Inner')).toBeInTheDocument();
     });
 });

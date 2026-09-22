@@ -67,6 +67,18 @@ function hasSelectedDescendant(graph: SceneGraphState, nodeId: string, selected:
     return selected.some((id) => isNodeAncestor(graph, nodeId, id));
 }
 
+function groupAndDescendantIds(graph: SceneGraphState, groupId: string): string[] {
+    const ids: string[] = [];
+    const stack = [groupId];
+    while (stack.length) {
+        const node = graph.nodesById[stack.pop()!];
+        if (node?.kind !== 'group') continue;
+        ids.push(node.id);
+        stack.push(...node.children);
+    }
+    return ids;
+}
+
 interface NodeRowProps {
     graph: SceneGraphState;
     node: SceneNode;
@@ -82,6 +94,7 @@ export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
     const activeNodeId = useSelectionStore((state) => state.activeNodeId);
     const expandedNodeIds = useSelectionStore((state) => state.expandedNodeIds);
     const toggleNodeExpanded = useSelectionStore((state) => state.toggleNodeExpanded);
+    const setNodesExpanded = useSelectionStore((state) => state.setNodesExpanded);
     const [dropPosition, setDropPosition] = useState<DropPosition | null>(null);
     const [renameValue, setRenameValue] = useState<string | null>(null);
     const renameRef = useRef<HTMLInputElement>(null);
@@ -225,7 +238,8 @@ export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
                         aria-label={expanded ? 'Collapse group' : 'Expand group'}
                         onClick={(event) => {
                             event.stopPropagation();
-                            toggleNodeExpanded(node.id);
+                            if (event.metaKey) setNodesExpanded(groupAndDescendantIds(graph, node.id), !expanded);
+                            else toggleNodeExpanded(node.id);
                         }}
                     >
                         {expanded ? <FaChevronDown /> : <FaChevronRight />}

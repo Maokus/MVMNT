@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFlatSceneGraph } from '@state/scene-graph';
 import { useSceneStore } from '@state/sceneStore';
 import { useSelectionStore } from '@state/selectionStore';
+import { useSceneEditorStore } from '@state/sceneEditorStore';
 import { NodeTransformPanel } from '../NodeTransformPanel';
 
 const selectionContext = vi.hoisted(() => ({
@@ -30,6 +31,7 @@ describe('NodeTransformPanel multi-selection property search', () => {
             selectedNodeIds: ['element:one', 'element:two'],
             selectionPivot: null,
         });
+        useSceneEditorStore.setState({ expandedPropertyGroups: {} });
     });
 
     afterEach(cleanup);
@@ -73,5 +75,25 @@ describe('NodeTransformPanel multi-selection property search', () => {
         expect(screen.queryByText('Visible')).not.toBeInTheDocument();
         expect(screen.queryByText('Position')).not.toBeInTheDocument();
         expect(screen.queryByText('Effects')).not.toBeInTheDocument();
+    });
+
+    it('Meta-clicks a Host group to contract and expand every Host group', () => {
+        useSelectionStore.setState({ selectedNodeIds: ['element:one'], selectionPivot: null });
+        render(<NodeTransformPanel />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Collapse Position group' }), { metaKey: true });
+        expect(screen.getByRole('button', { name: 'Expand Position group' })).toHaveAttribute('aria-expanded', 'false');
+        expect(screen.getByRole('button', { name: 'Expand Node State group' })).toHaveAttribute(
+            'aria-expanded',
+            'false'
+        );
+        expect(screen.queryByText('Opacity')).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Expand Node State group' }), { metaKey: true });
+        expect(screen.getByRole('button', { name: 'Collapse Position group' })).toHaveAttribute(
+            'aria-expanded',
+            'true'
+        );
+        expect(screen.getByText('Opacity')).toBeInTheDocument();
     });
 });

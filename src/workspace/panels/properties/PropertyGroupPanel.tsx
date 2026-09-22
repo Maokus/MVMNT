@@ -75,7 +75,8 @@ interface PropertyGroupPanelProps {
     onValueChange: (key: string, value: any, meta?: FormInputChange['meta']) => void;
     onValuesChange?: (patch: Record<string, any>, meta?: FormInputChange['meta']) => void;
     onMacroAssignment: (propertyKey: string, macroName: string) => void;
-    onCollapseToggle: (groupId: string) => void;
+    onCollapseToggle: (groupId: string, recursive?: boolean) => void;
+    recursiveCollapse?: { collapsed: boolean; revision: number };
     useLayout?: boolean;
 }
 
@@ -90,6 +91,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
     onValuesChange,
     onMacroAssignment,
     onCollapseToggle,
+    recursiveCollapse,
     useLayout = true,
 }) => {
     const { macros: macroList, create: createMacro } = useMacros();
@@ -526,6 +528,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
                     return Boolean(assigned && macroLookup.has(assigned));
                 }}
                 onPatch={(patch, gesture) => onValuesChange(patch, gesture ? { mergeSession: gesture } : undefined)}
+                recursiveCollapse={recursiveCollapse}
             />
         ) : (
             properties
@@ -538,7 +541,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
             <button
                 type="button"
                 className="ae-group-header"
-                onClick={() => onCollapseToggle(group.id)}
+                onClick={(event) => onCollapseToggle(group.id, event.metaKey)}
                 aria-expanded={!group.collapsed}
                 aria-label={`${group.collapsed ? 'Expand' : 'Collapse'} ${group.label} group`}
             >
