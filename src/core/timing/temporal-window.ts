@@ -1,151 +1,250 @@
-import { quarterNotesPerBar } from './meter';
+export type TemporalCoordinateDomain = 'seconds' | 'beats' | 'ticks';
 
-export interface TemporalWindow {
+export interface TemporalPoint<D extends TemporalCoordinateDomain = TemporalCoordinateDomain> {
+    domain: D;
+    value: number;
+}
+
+export interface TemporalDuration<D extends TemporalCoordinateDomain = TemporalCoordinateDomain> {
+    domain: D;
+    value: number;
+}
+
+export interface TemporalWindow<D extends TemporalCoordinateDomain = TemporalCoordinateDomain> {
+    domain: D;
     start: number;
     end: number;
 }
 
-export interface TemporalInterval {
+export interface TemporalInterval<D extends TemporalCoordinateDomain = TemporalCoordinateDomain> {
+    domain: D;
     start: number;
     end: number;
 }
 
-interface TemporalWindowTiming {
-    timeSignature: {
-        numerator: number;
-        denominator: number;
-    };
+export interface TemporalCoordinateConversions {
     secondsToBeats(seconds: number): number;
     beatsToSeconds(beats: number): number;
-    getTimeUnitWindow(referenceTimeInSeconds: number, bars?: number): TemporalWindow;
+    secondsToTicks(seconds: number): number;
+    ticksToSeconds(ticks: number): number;
+    beatsToTicks(beats: number): number;
+    ticksToBeats(ticks: number): number;
 }
 
-interface TemporalWindowFrameBase {
-    anchorTime: number;
-    viewport: TemporalWindow;
-    materialization: TemporalWindow;
+export type TemporalCadence = 'continuous' | 'transport-relative';
+export type TemporalReconstruction = 'hold' | 'interpolate';
+
+export interface ViewportTemporalMapping {
+    mode: 'viewport';
+    window: TemporalWindow;
 }
 
-export interface ContinuousTemporalWindowFrame extends TemporalWindowFrameBase {
-    cadence: 'continuous';
-    reconstruction: 'interpolate';
+export interface AnchorRelativeTemporalMapping {
+    mode: 'anchor-relative';
+    anchor: TemporalPoint;
+    span: TemporalDuration;
     anchorPosition: number;
 }
 
-export interface SteppedTemporalWindowFrame extends TemporalWindowFrameBase {
-    cadence: 'transport-relative';
-    reconstruction: 'hold';
-    windows: {
-        previous: TemporalWindow;
-        current: TemporalWindow;
-        next: TemporalWindow;
-    };
+export type TemporalMapping = ViewportTemporalMapping | AnchorRelativeTemporalMapping;
+
+export interface TemporalFrame<D extends TemporalCoordinateDomain = TemporalCoordinateDomain> {
+    anchor: TemporalPoint;
+    viewport: TemporalWindow<D>;
+    materialization: TemporalWindow;
+    cadence: TemporalCadence;
+    reconstruction: TemporalReconstruction;
+    mapping: TemporalMapping;
 }
 
-export type TemporalWindowFrame = ContinuousTemporalWindowFrame | SteppedTemporalWindowFrame;
+export interface TemporalMaterializationPadding {
+    before?: TemporalDuration;
+    after?: TemporalDuration;
+    outputDomain?: TemporalCoordinateDomain;
+}
 
-export type TemporalWindowConfiguration =
-    | {
-          cadence: 'continuous';
-          bars: number;
-          anchorPosition: number;
-      }
-    | {
-          cadence: 'transport-relative';
-          bars: number;
-          lookAheadSeconds?: number;
-      };
+export interface TemporalPositionOptions {
+    clamp?: boolean;
+}
 
-const ADJACENT_WINDOW_SEEK_SECONDS = 1e-3;
+const MUSICAL_BOUNDARY_TOLERANCE = 1e-9;
 
-/**
- * Resolve the temporal model shared by time-based visual elements.
- *
- * Continuous windows follow the anchor on every frame. Stepped windows hold a
- * bar-aligned viewport and expose its neighbours for boundary reconstruction.
- */
-export function resolveTemporalWindow(
-    timing: TemporalWindowTiming,
-    anchorTime: number,
-    configuration: Extract<TemporalWindowConfiguration, { cadence: 'continuous' }>
-): ContinuousTemporalWindowFrame;
-export function resolveTemporalWindow(
-    timing: TemporalWindowTiming,
-    anchorTime: number,
-    configuration: Extract<TemporalWindowConfiguration, { cadence: 'transport-relative' }>
-): SteppedTemporalWindowFrame;
-export function resolveTemporalWindow(
-    timing: TemporalWindowTiming,
-    anchorTime: number,
-    configuration: TemporalWindowConfiguration
-): TemporalWindowFrame {
-    if (configuration.cadence === 'continuous') {
-        const windowBeats = configuration.bars * quarterNotesPerBar(timing.timeSignature);
-        const anchorBeat = timing.secondsToBeats(anchorTime);
-        const viewport = {
-            start: timing.beatsToSeconds(anchorBeat - windowBeats * configuration.anchorPosition),
-            end: timing.beatsToSeconds(anchorBeat + windowBeats * (1 - configuration.anchorPosition)),
-        };
-        return {
-            cadence: 'continuous',
-            reconstruction: 'interpolate',
-            anchorTime,
-            anchorPosition: configuration.anchorPosition,
-            viewport,
-            materialization: viewport,
-        };
-    }
+export function convertTemporalValue(
+    value: number,
+    from: TemporalCoordinateDomain,
+    to: TemporalCoordinateDomain,
+    conversions: TemporalCoordinateConversions
+): number {
+    if (from === to) return value;
+    if (from === 'seconds' && to === 'beats') return conversions.secondsToBeats(value);
+    if (from === 'beats' && to === 'seconds') return conversions.beatsToSeconds(value);
+    if (from === 'seconds' && to === 'ticks') return conversions.secondsToTicks(value);
+    if (from === 'ticks' && to === 'seconds') return conversions.ticksToSeconds(value);
+    if (from === 'beats' && to === 'ticks') return conversions.beatsToTicks(value);
+    return conversions.ticksToBeats(value);
+}
 
-    const current = timing.getTimeUnitWindow(anchorTime, configuration.bars);
-    // Seeking just inside each neighbour preserves TimingManager's exact-boundary
-    // policy while avoiding conversion round-trip drift under tempo automation.
-    const previousResolved = timing.getTimeUnitWindow(current.start - ADJACENT_WINDOW_SEEK_SECONDS, configuration.bars);
-    const nextResolved = timing.getTimeUnitWindow(current.end + ADJACENT_WINDOW_SEEK_SECONDS, configuration.bars);
-    const previous = { start: previousResolved.start, end: current.start };
-    const next = { start: current.end, end: nextResolved.end };
-
+export function convertTemporalPoint<D extends TemporalCoordinateDomain>(
+    point: TemporalPoint,
+    domain: D,
+    conversions: TemporalCoordinateConversions
+): TemporalPoint<D> {
     return {
-        cadence: 'transport-relative',
-        reconstruction: 'hold',
-        anchorTime,
-        viewport: current,
-        materialization: {
-            start: previous.start,
-            end: current.end + Math.max(0, configuration.lookAheadSeconds ?? 0),
-        },
-        windows: { previous, current, next },
+        domain,
+        value: convertTemporalValue(point.value, point.domain, domain, conversions),
     };
 }
 
-export function clipTemporalInterval(interval: TemporalInterval, window: TemporalWindow): TemporalInterval | null {
+export function convertTemporalWindow<D extends TemporalCoordinateDomain>(
+    window: TemporalWindow,
+    domain: D,
+    conversions: TemporalCoordinateConversions
+): TemporalWindow<D> {
+    return {
+        domain,
+        start: convertTemporalValue(window.start, window.domain, domain, conversions),
+        end: convertTemporalValue(window.end, window.domain, domain, conversions),
+    };
+}
+
+/** Resolve a fixed-span window around an anchor in the span's coordinate domain. */
+export function resolveAnchoredWindow<D extends TemporalCoordinateDomain>(
+    anchor: TemporalPoint,
+    span: TemporalDuration<D>,
+    anchorPosition: number,
+    conversions: TemporalCoordinateConversions
+): TemporalWindow<D> {
+    const anchorValue = convertTemporalValue(anchor.value, anchor.domain, span.domain, conversions);
+    return {
+        domain: span.domain,
+        start: anchorValue - span.value * anchorPosition,
+        end: anchorValue + span.value * (1 - anchorPosition),
+    };
+}
+
+/** Resolve the equal-sized window containing an anchor, with an explicit exact-boundary policy. */
+export function resolveAlignedWindow<D extends TemporalCoordinateDomain>(
+    anchor: TemporalPoint,
+    span: TemporalDuration<D>,
+    conversions: TemporalCoordinateConversions,
+    boundary: 'next' | 'previous' = 'next'
+): TemporalWindow<D> {
+    const anchorValue = convertTemporalValue(anchor.value, anchor.domain, span.domain, conversions);
+    const quotient = anchorValue / span.value;
+    const nearestBoundary = Math.round(quotient);
+    const isPositiveBoundary = anchorValue > 0 && Math.abs(quotient - nearestBoundary) < MUSICAL_BOUNDARY_TOLERANCE;
+    const windowIndex = boundary === 'previous' && isPositiveBoundary ? nearestBoundary - 1 : Math.floor(quotient);
+    const start = windowIndex * span.value;
+    return { domain: span.domain, start, end: start + span.value };
+}
+
+/** Derive equal-sized neighbours directly in the window's coordinate domain. */
+export function resolveAdjacentWindows<D extends TemporalCoordinateDomain>(
+    window: TemporalWindow<D>,
+    retention: { before: number; after: number }
+): Array<{ offset: number; window: TemporalWindow<D> }> {
+    const duration = window.end - window.start;
+    const windows: Array<{ offset: number; window: TemporalWindow<D> }> = [];
+    for (
+        let offset = -Math.max(0, Math.floor(retention.before));
+        offset <= Math.max(0, Math.floor(retention.after));
+        offset++
+    ) {
+        windows.push({
+            offset,
+            window: {
+                domain: window.domain,
+                start: window.start + offset * duration,
+                end: window.end + offset * duration,
+            },
+        });
+    }
+    return windows;
+}
+
+/** Expand a viewport independently on either side, allowing padding in another time domain. */
+export function resolveMaterializationWindow(
+    viewport: TemporalWindow,
+    padding: TemporalMaterializationPadding,
+    conversions: TemporalCoordinateConversions
+): TemporalWindow {
+    const outputDomain = padding.outputDomain ?? viewport.domain;
+    const before = padding.before;
+    const after = padding.after;
+
+    const paddedStart = before
+        ? convertTemporalValue(
+              convertTemporalValue(viewport.start, viewport.domain, before.domain, conversions) -
+                  Math.max(0, before.value),
+              before.domain,
+              outputDomain,
+              conversions
+          )
+        : convertTemporalValue(viewport.start, viewport.domain, outputDomain, conversions);
+    const paddedEnd = after
+        ? convertTemporalValue(
+              convertTemporalValue(viewport.end, viewport.domain, after.domain, conversions) + Math.max(0, after.value),
+              after.domain,
+              outputDomain,
+              conversions
+          )
+        : convertTemporalValue(viewport.end, viewport.domain, outputDomain, conversions);
+
+    return { domain: outputDomain, start: paddedStart, end: paddedEnd };
+}
+
+export function createTemporalFrame<D extends TemporalCoordinateDomain>(frame: TemporalFrame<D>): TemporalFrame<D> {
+    return frame;
+}
+
+export function clipTemporalInterval<D extends TemporalCoordinateDomain>(
+    interval: TemporalInterval<D>,
+    window: TemporalWindow<D>
+): TemporalInterval<D> | null {
+    assertMatchingDomains(interval.domain, window.domain);
     if (!(interval.start < window.end && interval.end > window.start)) return null;
     return {
+        domain: interval.domain,
         start: Math.max(interval.start, window.start),
         end: Math.min(interval.end, window.end),
     };
 }
 
-export function clipTemporalIntervalAcrossWindows(
-    interval: TemporalInterval,
-    windows: readonly TemporalWindow[]
-): Array<{ interval: TemporalInterval; window: TemporalWindow }> {
+export function clipTemporalIntervalAcrossWindows<D extends TemporalCoordinateDomain>(
+    interval: TemporalInterval<D>,
+    windows: readonly TemporalWindow<D>[]
+): Array<{ interval: TemporalInterval<D>; window: TemporalWindow<D> }> {
     return windows.flatMap((window) => {
         const clipped = clipTemporalInterval(interval, window);
         return clipped ? [{ interval: clipped, window }] : [];
     });
 }
 
-/** Map a time to a viewport coordinate while preserving the frame's reconstruction semantics. */
-export function mapTimeToTemporalPosition(
-    time: number,
-    frame: TemporalWindowFrame,
-    window: TemporalWindow = frame.viewport,
-    clamp = true
+/** Map a temporal value using an explicit viewport or anchor-relative mapping. */
+export function mapTemporalPosition(
+    point: TemporalPoint,
+    mapping: TemporalMapping,
+    conversions: TemporalCoordinateConversions,
+    options: TemporalPositionOptions = {}
 ): number {
-    const duration = Math.max(1e-9, window.end - window.start);
-    const position =
-        frame.cadence === 'continuous' && window === frame.viewport
-            ? (time - frame.anchorTime) / duration + frame.anchorPosition
-            : (time - window.start) / duration;
-    return clamp ? Math.max(0, Math.min(1, position)) : position;
+    let position: number;
+    if (mapping.mode === 'viewport') {
+        const value = convertTemporalValue(point.value, point.domain, mapping.window.domain, conversions);
+        const duration = Math.max(1e-9, mapping.window.end - mapping.window.start);
+        position = (value - mapping.window.start) / duration;
+    } else {
+        const value = convertTemporalValue(point.value, point.domain, mapping.span.domain, conversions);
+        const anchor = convertTemporalValue(
+            mapping.anchor.value,
+            mapping.anchor.domain,
+            mapping.span.domain,
+            conversions
+        );
+        position = (value - anchor) / Math.max(1e-9, mapping.span.value) + mapping.anchorPosition;
+    }
+    return options.clamp === false ? position : Math.max(0, Math.min(1, position));
+}
+
+function assertMatchingDomains(left: TemporalCoordinateDomain, right: TemporalCoordinateDomain): void {
+    if (left !== right) throw new Error(`Temporal coordinate domains do not match: ${left} and ${right}`);
 }

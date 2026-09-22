@@ -8,6 +8,7 @@ import {
 } from './tempo-utils';
 import { CANONICAL_PPQ } from './ppq';
 import { quarterNotesPerBar, ticksPerMeterBeat } from './meter';
+import { convertTemporalWindow, resolveAlignedWindow } from './temporal-window';
 
 export interface TimeSignature {
     numerator: number;
@@ -351,46 +352,14 @@ export class TimingManager {
     }
 
     getTimeUnitWindow(referenceTimeInSeconds: number, bars = 1) {
-        // Guard against floating point boundary artifacts: when referenceTime lands exactly
-        // on a bar boundary (e.g. 2.0000000000) due to discrete frame stepping, downstream
-        // consumers (animation controller) can briefly treat early-phase notes as starting
-        // in the "next" window, snapping geometry (x=0 flicker). Nudge exact boundaries
-        // slightly left so export frame sampling (deterministic 1/fps) remains visually
-        // continuous with real-time playback (which often samples mid-frame deltas).
-        // EPS chosen relative to typical sub-frame (1/48000) audio resolution while
-        // remaining far below any tempo / animation duration precision.
-        const EPS = 1e-9;
-        if (
-            referenceTimeInSeconds > 0 &&
-            Math.abs(Math.round(referenceTimeInSeconds * 1e9) / 1e9 - referenceTimeInSeconds) < EPS
-        ) {
-            // Already precise decimal; additional check: if close to an exact bar boundary in beats
-            try {
-                const spb = this.getSecondsPerBeat();
-                const totalBeats = this._secondsToBeats(referenceTimeInSeconds);
-                const barQuarters = quarterNotesPerBar(this.timeSignature);
-                const nearIntegerBar = Math.abs(totalBeats / barQuarters - Math.round(totalBeats / barQuarters)) < 1e-9;
-                if (nearIntegerBar) {
-                    referenceTimeInSeconds -= EPS; // shift into previous window
-                }
-            } catch {
-                /* conservative fallback */
-            }
-        }
-        const barQuarters = quarterNotesPerBar(this.timeSignature);
-        const beatsPerWindow = bars * barQuarters;
-        let totalBeatsAtRef: number;
-        if (this._conversions || (this._tempoSegments && this._tempoSegments.length > 0)) {
-            totalBeatsAtRef = this._secondsToBeats(referenceTimeInSeconds);
-        } else {
-            totalBeatsAtRef = referenceTimeInSeconds / this.getSecondsPerBeat();
-        }
-        const windowIndex = Math.floor(totalBeatsAtRef / beatsPerWindow);
-        const startBeats = windowIndex * beatsPerWindow;
-        const endBeats = startBeats + beatsPerWindow;
-        const start = this._beatsToSeconds(startBeats);
-        const end = this._beatsToSeconds(endBeats);
-        return { start, end };
+        const beatWindow = resolveAlignedWindow(
+            { domain: 'seconds', value: referenceTimeInSeconds },
+            { domain: 'beats', value: bars * quarterNotesPerBar(this.timeSignature) },
+            this,
+            'previous'
+        );
+        const secondsWindow = convertTemporalWindow(beatWindow, 'seconds', this);
+        return { start: secondsWindow.start, end: secondsWindow.end };
     }
 
     /**

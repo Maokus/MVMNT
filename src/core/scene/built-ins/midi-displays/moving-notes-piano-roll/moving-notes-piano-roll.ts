@@ -5,11 +5,18 @@ import { Line, EmptyRenderObject, RenderObject, Rectangle, GlowLayer } from '@co
 import { getAnimationSelectOptions } from '@core/scene/built-ins/midi-displays/note-animations';
 import { normalizeColorAlphaValue, ensureEightDigitHex, applyOpacity } from '@utils/color';
 import { MovingNotesAnimationController } from './animation-controller';
-import { resolveTemporalWindow, TimingManager } from '@core/timing';
+import {
+    convertTemporalWindow,
+    createTemporalFrame,
+    resolveAnchoredWindow,
+    resolveMaterializationWindow,
+    TimingManager,
+} from '@core/timing';
 import { insertElementConfig, prop } from '@core/scene/runtime/schema-builders';
 import { propGroup, tab } from '@core/scene/built-ins/schema-groups';
 import { defineHostAdaptedBuiltIn, getEnginePrivateContext } from '@core/scene/built-ins/define-built-in';
 import { syncSceneElementTiming } from '@core/scene/built-ins/scene-element-timing';
+import { quarterNotesPerBar } from '@core/timing/meter';
 
 const DEFAULT_NOTE_COLOR = '#FF6B6B';
 
@@ -335,10 +342,35 @@ export class MovingNotesPianoRollElement extends BoundSceneElement {
             }
         }
 
-        const temporalFrame = resolveTemporalWindow(this.timingManager, effectiveTime, {
+        const anchor = { domain: 'seconds' as const, value: effectiveTime };
+        const viewportBeats = resolveAnchoredWindow(
+            anchor,
+            {
+                domain: 'beats',
+                value: timeUnitBars * quarterNotesPerBar(this.timingManager.timeSignature),
+            },
+            playheadPosition,
+            this.timingManager
+        );
+        const viewport = convertTemporalWindow(viewportBeats, 'seconds', this.timingManager);
+        const temporalFrame = createTemporalFrame({
+            anchor,
+            viewport,
+            materialization: resolveMaterializationWindow(
+                viewportBeats,
+                { outputDomain: 'seconds' },
+                this.timingManager
+            ),
             cadence: 'continuous',
-            bars: timeUnitBars,
-            anchorPosition: playheadPosition,
+            reconstruction: 'interpolate',
+            // Compatibility mapping: the viewport is beat-sized, but historical Moving Notes
+            // geometry reconstructs positions from the converted seconds span around the playhead.
+            mapping: {
+                mode: 'anchor-relative',
+                anchor,
+                span: { domain: 'seconds', value: viewport.end - viewport.start },
+                anchorPosition: playheadPosition,
+            },
         });
 
         const selectedNotes =
@@ -368,6 +400,7 @@ export class MovingNotesPianoRollElement extends BoundSceneElement {
                     rollWidth: rollWidth,
                     playheadOffset: playheadOffset as number,
                     temporalFrame,
+                    conversions: this.timingManager,
                 },
                 rawNotes as any
             );

@@ -1,71 +1,157 @@
 import { describe, expect, it } from 'vitest';
 import {
     clipTemporalIntervalAcrossWindows,
-    mapTimeToTemporalPosition,
-    resolveTemporalWindow,
+    convertTemporalWindow,
+    createTemporalFrame,
+    mapTemporalPosition,
+    resolveAdjacentWindows,
+    resolveAlignedWindow,
+    resolveAnchoredWindow,
+    resolveMaterializationWindow,
     TimingManager,
 } from '@core/timing';
 
+const tempoMappedTiming = () => {
+    const timing = new TimingManager('temporal-window');
+    timing.setTempoMap([
+        { time: 0, bpm: 120 },
+        { time: 2, bpm: 60 },
+    ]);
+    return timing;
+};
+
 describe('temporal windows', () => {
-    it('models the Moving Notes viewport as a continuously anchored beat window', () => {
-        const timing = new TimingManager('moving-notes');
-        timing.setTempoMap([
-            { time: 0, bpm: 120 },
-            { time: 2, bpm: 60 },
-        ]);
+    it('resolves and converts explicit beat and tick coordinate domains across tempo changes', () => {
+        const timing = tempoMappedTiming();
+        const anchor = { domain: 'seconds' as const, value: 3 };
+        const beatWindow = resolveAnchoredWindow(anchor, { domain: 'beats', value: 4 }, 0.5, timing);
+        const tickWindow = resolveAnchoredWindow(
+            anchor,
+            { domain: 'ticks', value: 4 * timing.ticksPerQuarter },
+            0.5,
+            timing
+        );
 
-        const frame = resolveTemporalWindow(timing, 3, {
-            cadence: 'continuous',
-            bars: 1,
+        expect(beatWindow).toEqual({ domain: 'beats', start: 3, end: 7 });
+        expect(tickWindow).toEqual({
+            domain: 'ticks',
+            start: 3 * timing.ticksPerQuarter,
+            end: 7 * timing.ticksPerQuarter,
+        });
+        expect(convertTemporalWindow(beatWindow, 'seconds', timing)).toEqual({
+            domain: 'seconds',
+            start: 1.5,
+            end: 5,
+        });
+        expect(mapTemporalPosition(anchor, { mode: 'viewport', window: beatWindow }, timing)).toBe(0.5);
+    });
+
+    it('maps numerically equivalent window objects identically', () => {
+        const timing = tempoMappedTiming();
+        const first = { domain: 'seconds' as const, start: 1.5, end: 5 };
+        const second = { ...first };
+        const point = { domain: 'seconds' as const, value: 3 };
+
+        expect(mapTemporalPosition(point, { mode: 'viewport', window: first }, timing)).toBe(
+            mapTemporalPosition(point, { mode: 'viewport', window: second }, timing)
+        );
+    });
+
+    it('represents Moving Notes compatibility mapping explicitly in seconds', () => {
+        const timing = tempoMappedTiming();
+        const anchor = { domain: 'seconds' as const, value: 3 };
+        const viewport = { domain: 'seconds' as const, start: 1.5, end: 5 };
+        const mapping = {
+            mode: 'anchor-relative' as const,
+            anchor,
+            span: { domain: 'seconds' as const, value: viewport.end - viewport.start },
             anchorPosition: 0.5,
-        });
+        };
 
-        expect(frame.viewport).toEqual({ start: 1.5, end: 5 });
-        expect(frame.reconstruction).toBe('interpolate');
-        expect(frame.materialization).toBe(frame.viewport);
-        expect(mapTimeToTemporalPosition(3, frame)).toBe(0.5);
-        // Preserve the existing seconds-domain reconstruction around a fixed playhead,
-        // including its asymmetric edge geometry across a tempo change.
-        expect(mapTimeToTemporalPosition(frame.viewport.start, frame)).toBeCloseTo(1 / 14);
-        expect(mapTimeToTemporalPosition(frame.viewport.end, frame)).toBe(1);
-        expect(mapTimeToTemporalPosition(frame.viewport.end, frame, frame.viewport, false)).toBeCloseTo(15 / 14);
+        expect(mapTemporalPosition(anchor, mapping, timing)).toBe(0.5);
+        expect(mapTemporalPosition({ domain: 'seconds', value: viewport.start }, mapping, timing)).toBeCloseTo(1 / 14);
+        expect(
+            mapTemporalPosition({ domain: 'seconds', value: viewport.end }, mapping, timing, { clamp: false })
+        ).toBeCloseTo(15 / 14);
     });
 
-    it('models Time Unit as held previous/current/next bar windows at an exact boundary', () => {
-        const timing = new TimingManager('time-unit');
-        timing.setBPM(120);
+    it('keeps cadence and reconstruction independent', () => {
+        const window = { domain: 'seconds' as const, start: 0, end: 2 };
+        const common = {
+            anchor: { domain: 'seconds' as const, value: 1 },
+            viewport: window,
+            materialization: window,
+            mapping: { mode: 'viewport' as const, window },
+        };
 
-        const frame = resolveTemporalWindow(timing, 2, {
+        const heldContinuous = createTemporalFrame({
+            ...common,
+            cadence: 'continuous',
+            reconstruction: 'hold',
+        });
+        const interpolatedTransport = createTemporalFrame({
+            ...common,
             cadence: 'transport-relative',
-            bars: 1,
-            lookAheadSeconds: 0.3,
+            reconstruction: 'interpolate',
         });
 
-        expect(frame.windows).toEqual({
-            previous: { start: -2, end: 0 },
-            current: { start: 0, end: 2 },
-            next: { start: 2, end: 4 },
+        expect(heldContinuous).toMatchObject({ cadence: 'continuous', reconstruction: 'hold' });
+        expect(interpolatedTransport).toMatchObject({
+            cadence: 'transport-relative',
+            reconstruction: 'interpolate',
         });
-        expect(frame.viewport).toBe(frame.windows.current);
-        expect(frame.reconstruction).toBe('hold');
-        expect(frame.materialization).toEqual({ start: -2, end: 2.3 });
-        expect(mapTimeToTemporalPosition(1, frame)).toBe(0.5);
     });
 
-    it('clips interval events at shared half-open window boundaries', () => {
+    it('resolves materialization independently from the viewport and cadence', () => {
+        const timing = tempoMappedTiming();
+        const viewport = { domain: 'beats' as const, start: 4, end: 8 };
+
+        expect(
+            resolveMaterializationWindow(
+                viewport,
+                {
+                    before: { domain: 'beats', value: 4 },
+                    after: { domain: 'seconds', value: 0.3 },
+                    outputDomain: 'seconds',
+                },
+                timing
+            )
+        ).toEqual({ domain: 'seconds', start: 0, end: 6.3 });
+        expect(viewport).toEqual({ domain: 'beats', start: 4, end: 8 });
+    });
+
+    it('applies exact boundary policy and derives adjacent musical windows without seeking', () => {
+        const timing = new TimingManager('boundaries');
+        timing.setBPM(120);
+        const anchor = { domain: 'seconds' as const, value: 2 };
+        const span = { domain: 'beats' as const, value: 4 };
+
+        const previousBoundary = resolveAlignedWindow(anchor, span, timing, 'previous');
+        const nextBoundary = resolveAlignedWindow(anchor, span, timing, 'next');
+
+        expect(previousBoundary).toEqual({ domain: 'beats', start: 0, end: 4 });
+        expect(nextBoundary).toEqual({ domain: 'beats', start: 4, end: 8 });
+        expect(resolveAdjacentWindows(previousBoundary, { before: 1, after: 1 })).toEqual([
+            { offset: -1, window: { domain: 'beats', start: -4, end: 0 } },
+            { offset: 0, window: { domain: 'beats', start: 0, end: 4 } },
+            { offset: 1, window: { domain: 'beats', start: 4, end: 8 } },
+        ]);
+    });
+
+    it('clips half-open interval events across domain-tagged windows', () => {
         const windows = [
-            { start: 0, end: 2 },
-            { start: 2, end: 4 },
-            { start: 4, end: 6 },
+            { domain: 'seconds' as const, start: 0, end: 2 },
+            { domain: 'seconds' as const, start: 2, end: 4 },
+            { domain: 'seconds' as const, start: 4, end: 6 },
         ];
 
-        expect(clipTemporalIntervalAcrossWindows({ start: 1.5, end: 4.5 }, windows)).toEqual([
-            { interval: { start: 1.5, end: 2 }, window: windows[0] },
-            { interval: { start: 2, end: 4 }, window: windows[1] },
-            { interval: { start: 4, end: 4.5 }, window: windows[2] },
+        expect(clipTemporalIntervalAcrossWindows({ domain: 'seconds', start: 1.5, end: 4.5 }, windows)).toEqual([
+            { interval: { domain: 'seconds', start: 1.5, end: 2 }, window: windows[0] },
+            { interval: { domain: 'seconds', start: 2, end: 4 }, window: windows[1] },
+            { interval: { domain: 'seconds', start: 4, end: 4.5 }, window: windows[2] },
         ]);
-        expect(clipTemporalIntervalAcrossWindows({ start: 2, end: 4 }, windows)).toEqual([
-            { interval: { start: 2, end: 4 }, window: windows[1] },
+        expect(clipTemporalIntervalAcrossWindows({ domain: 'seconds', start: 2, end: 4 }, windows)).toEqual([
+            { interval: { domain: 'seconds', start: 2, end: 4 }, window: windows[1] },
         ]);
     });
 });

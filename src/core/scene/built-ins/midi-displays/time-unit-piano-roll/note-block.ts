@@ -19,7 +19,7 @@
 //  lifecycleTimestamps: { attackStart; decayStart; releaseStart; ... } // precomputed ADSR boundaries
 // Only introduce when needed to avoid bloat.
 import { NoteEvent } from '@core/midi/note-event';
-import { clipTemporalIntervalAcrossWindows, type SteppedTemporalWindowFrame } from '@core/timing/temporal-window';
+import { clipTemporalIntervalAcrossWindows, type TemporalWindow } from '@core/timing/temporal-window';
 
 // Scene elements accept tick-domain note data.
 // NoteBlock now optionally carries canonical tick timing alongside its seconds timing.
@@ -32,9 +32,8 @@ export class NoteBlock extends NoteEvent {
     public originalStartTime: number | null = null;
     public originalEndTime: number | null = null;
 
-    // Time-unit window bounds for this segment
-    public windowStart: number | null = null;
-    public windowEnd: number | null = null;
+    // Seconds-domain window used to position this segment.
+    public window: TemporalWindow<'seconds'> | null = null;
 
     // Deterministic identifiers
     public noteId: string; // unique to this concrete block (segment-specific)
@@ -121,12 +120,10 @@ export class NoteBlock extends NoteEvent {
             endBeat?: number;
         }>,
         timingManager: any,
-        temporalFrame: SteppedTemporalWindowFrame
+        windows: readonly TemporalWindow<'seconds'>[]
     ): NoteBlock[] {
-        const { previous, current, next } = temporalFrame.windows;
-
-        const minTime = previous.start;
-        const maxTime = next.end;
+        const minTime = windows[0]?.start ?? 0;
+        const maxTime = windows[windows.length - 1]?.end ?? 0;
 
         const candidateNotes = notes.filter((n) => {
             // Derive seconds from beats or ticks if explicit seconds not given
@@ -172,11 +169,10 @@ export class NoteBlock extends NoteEvent {
 
         for (const note of candidateNotes) {
             const { startTime, endTime } = resolveTimes(note);
-            const clippedSegments = clipTemporalIntervalAcrossWindows({ start: startTime, end: endTime }, [
-                previous,
-                current,
-                next,
-            ]);
+            const clippedSegments = clipTemporalIntervalAcrossWindows(
+                { domain: 'seconds', start: startTime, end: endTime },
+                windows
+            );
             for (const { interval, window } of clippedSegments) {
                 const segStart = interval.start;
                 const segEnd = interval.end;
@@ -190,8 +186,7 @@ export class NoteBlock extends NoteEvent {
                     block.originalStartTime = startTime;
                     block.originalEndTime = endTime;
                 }
-                block.windowStart = window.start;
-                block.windowEnd = window.end;
+                block.window = window;
                 // Compute stable base id (original full note span) – segment-specific id already set in ctor
                 block.baseNoteId = NoteBlock.fastHashToHex(
                     note.note,

@@ -7,8 +7,9 @@ import type { NoteBlock as TNoteBlock } from './note-block';
 import { RenderObject } from '@core/render/render-objects';
 import {
     clipTemporalInterval,
-    mapTimeToTemporalPosition,
-    type SteppedTemporalWindowFrame,
+    mapTemporalPosition,
+    type TemporalCoordinateConversions,
+    type TemporalFrame,
     type TemporalWindow,
 } from '@core/timing/temporal-window';
 
@@ -20,7 +21,8 @@ export interface BuildConfig {
     maxNote: number;
     pianoWidth: number;
     rollWidth: number;
-    temporalFrame: SteppedTemporalWindowFrame;
+    temporalFrame: TemporalFrame<'seconds'>;
+    conversions: TemporalCoordinateConversions;
 }
 
 export interface VisualState {
@@ -48,13 +50,12 @@ export class AnimationController {
         const animationEnabled = animationType !== 'none';
 
         // Extract config values
-        const { noteHeight, minNote, maxNote, pianoWidth, rollWidth, temporalFrame } = config;
+        const { noteHeight, minNote, maxNote, pianoWidth, rollWidth, temporalFrame, conversions } = config;
         const noteRange = { min: minNote, max: maxNote };
         const totalNotes = maxNote - minNote + 1;
 
         // Calculate time window using the element's time unit settings
-        const { start: windowStart, end: windowEnd } = temporalFrame.viewport;
-        const timeUnitInSeconds = Math.max(1e-9, windowEnd - windowStart);
+        const { start: windowStart } = temporalFrame.viewport;
         const renderObjects: RenderObject[] = [];
 
         if (!noteBlocks || noteBlocks.length === 0) {
@@ -81,27 +82,27 @@ export class AnimationController {
 
             // If we're in RELEASE phase immediately after a rollover, preserve the previous window's geometry
             const EPS = 1e-9;
-            if (
-                visState.type === 'release' &&
-                block.windowEnd != null &&
-                Math.abs(block.windowEnd - windowStart) < EPS
-            ) {
+            if (visState.type === 'release' && block.window != null && Math.abs(block.window.end - windowStart) < EPS) {
                 // Use the block's own window as the reference frame (the previous window)
-                const relWindowStart = block.windowStart ?? windowStart;
-                const relWindowEnd = block.windowEnd ?? windowEnd;
-                geometryWindow = { start: relWindowStart, end: relWindowEnd };
-            } else if (visState.type === 'attack' && block.windowStart != null) {
+                geometryWindow = block.window;
+            } else if (visState.type === 'attack' && block.window != null) {
                 // For attack of a note in the NEXT window, use the note's own window
-                const relWindowStart = block.windowStart;
-                const relWindowEnd = block.windowEnd ?? block.windowStart + timeUnitInSeconds;
-                geometryWindow = { start: relWindowStart, end: relWindowEnd };
+                geometryWindow = block.window;
             }
 
-            const clipped = clipTemporalInterval({ start: block.startTime, end: block.endTime }, geometryWindow);
+            const clipped = clipTemporalInterval(
+                { domain: 'seconds', start: block.startTime, end: block.endTime },
+                geometryWindow
+            );
             const drawStart = clipped?.start ?? Math.max(block.startTime, geometryWindow.start);
             const drawEnd = clipped?.end ?? Math.min(block.endTime, geometryWindow.end);
-            const startRatio = mapTimeToTemporalPosition(drawStart, temporalFrame, geometryWindow);
-            const endRatio = mapTimeToTemporalPosition(drawEnd, temporalFrame, geometryWindow);
+            const geometryMapping = { mode: 'viewport' as const, window: geometryWindow };
+            const startRatio = mapTemporalPosition(
+                { domain: 'seconds', value: drawStart },
+                geometryMapping,
+                conversions
+            );
+            const endRatio = mapTemporalPosition({ domain: 'seconds', value: drawEnd }, geometryMapping, conversions);
             const x = pianoWidth + startRatio * rollWidth;
             const width = Math.max(2, (endRatio - startRatio) * rollWidth);
 
@@ -208,13 +209,13 @@ export class AnimationController {
     private _deriveVisualState(
         block: TNoteBlock,
         currentTime: number,
-        temporalFrame: SteppedTemporalWindowFrame,
+        temporalFrame: TemporalFrame<'seconds'>,
         phases: { attack: number; decay: number; release: number }
     ): VisualState | null {
         // Robust lifecycle based on time-unit window, with ADSR phases and overlap guards
         const win = temporalFrame.viewport;
-        const winStart = block.windowStart ?? win.start;
-        const winEnd = block.windowEnd ?? win.end;
+        const winStart = block.window?.start ?? win.start;
+        const winEnd = block.window?.end ?? win.end;
         const winLength = win.end - win.start;
         const EPS = (1.0 * 10.0) ** -6.0;
 

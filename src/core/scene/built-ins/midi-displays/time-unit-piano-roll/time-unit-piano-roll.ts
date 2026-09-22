@@ -14,7 +14,14 @@ import { insertElementConfig, prop } from '@core/scene/runtime/schema-builders';
 import { propGroup, tab } from '@core/scene/built-ins/schema-groups';
 import { defineHostAdaptedBuiltIn, getEnginePrivateContext } from '@core/scene/built-ins/define-built-in';
 import { syncSceneElementTiming } from '@core/scene/built-ins/scene-element-timing';
-import { resolveTemporalWindow } from '@core/timing/temporal-window';
+import {
+    convertTemporalWindow,
+    createTemporalFrame,
+    resolveAdjacentWindows,
+    resolveAlignedWindow,
+    resolveMaterializationWindow,
+} from '@core/timing/temporal-window';
+import { quarterNotesPerBar } from '@core/timing/meter';
 
 const DEFAULT_ROLL_WIDTH = 800;
 const DEFAULT_NOTE_COLOR = '#FF6B6B';
@@ -510,10 +517,31 @@ export class TimeUnitPianoRollElement extends BoundSceneElement {
             syncSceneElementTiming(this.timingManager, elementContext, bpm, timeSignature);
         } catch {}
 
-        const temporalFrame = resolveTemporalWindow(this.timingManager, effectiveTime, {
+        const anchor = { domain: 'seconds' as const, value: effectiveTime };
+        const windowSpan = {
+            domain: 'beats' as const,
+            value: timeUnitBars * quarterNotesPerBar(this.timingManager.timeSignature),
+        };
+        const viewportBeats = resolveAlignedWindow(anchor, windowSpan, this.timingManager, 'previous');
+        const viewport = convertTemporalWindow(viewportBeats, 'seconds', this.timingManager);
+        const adjacentWindows = resolveAdjacentWindows(viewportBeats, { before: 1, after: 1 }).map(({ window }) =>
+            convertTemporalWindow(window, 'seconds', this.timingManager)
+        );
+        const temporalFrame = createTemporalFrame({
+            anchor,
+            viewport,
+            materialization: resolveMaterializationWindow(
+                viewportBeats,
+                {
+                    before: windowSpan,
+                    after: { domain: 'seconds', value: attackDuration },
+                    outputDomain: 'seconds',
+                },
+                this.timingManager
+            ),
             cadence: 'transport-relative',
-            bars: timeUnitBars,
-            lookAheadSeconds: attackDuration,
+            reconstruction: 'hold',
+            mapping: { mode: 'viewport', window: viewport },
         });
 
         // Compute overall content extents (for layout bounds and optional backgrounds)
@@ -584,7 +612,7 @@ export class TimeUnitPianoRollElement extends BoundSceneElement {
         const windowedNoteBlocks: NoteBlock[] = NoteBlock.buildWindowedSegments(
             sourceNotes,
             this.timingManager,
-            temporalFrame
+            adjacentWindows
         );
 
         // Create render objects for the piano roll
@@ -596,7 +624,15 @@ export class TimeUnitPianoRollElement extends BoundSceneElement {
         if (showNotes && windowedNoteBlocks.length > 0) {
             const noteBlocks = windowedNoteBlocks; // already NoteBlock instances with window metadata
             const animatedRenderObjects = this.animationController.buildNoteRenderObjects(
-                { noteHeight, minNote, maxNote, pianoWidth, rollWidth: effectiveRollWidth, temporalFrame },
+                {
+                    noteHeight,
+                    minNote,
+                    maxNote,
+                    pianoWidth,
+                    rollWidth: effectiveRollWidth,
+                    temporalFrame,
+                    conversions: this.timingManager,
+                },
                 noteBlocks,
                 effectiveTime
             );

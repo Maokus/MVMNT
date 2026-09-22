@@ -364,3 +364,41 @@ The window model can be reduced to a simple idea:
 > A real-time visualisation maintains a temporally defined set of data around an anchor, derives each item's position within that temporal context, and independently chooses which portion of that context is visible.
 
 From this foundation, scrolling, accumulation, triggering, beat-synchronised updates, temporal zooming, and many other behaviours emerge as configurations of the same underlying concepts rather than as separate special cases.
+
+---
+
+## Implementation status
+
+**Status: implemented internally; public SDK exposure remains open.**
+
+The current internal implementation is in `src/core/timing/temporal-window.ts`. It deliberately implements only the
+bounded-window concepts needed by the Moving Notes and Time Unit piano rolls:
+
+- domain-tagged seconds, beats, and ticks coordinates;
+- anchored and musically aligned bounded windows;
+- independent materialisation padding and viewport bounds;
+- independent cadence and reconstruction metadata;
+- explicit viewport and anchor-relative mappings;
+- interval clipping; and
+- deterministic equal-sized adjacent windows.
+
+Triggered anchors, accumulating histories, viewport pan/zoom, periodic cadence, and event-driven cadence remain design
+possibilities rather than implemented features.
+
+### Public plugin SDK decision
+
+These helpers are not yet exported from `@mvmnt-app/plugin-sdk/timing`. The existing `TimingApi` remains the public,
+host-authoritative conversion surface. Before publishing temporal-window utilities, the following should be settled:
+
+1. Define how pure helpers compose with the SDK's `Result`-returning timing conversions without hiding conversion
+   failures or requiring internal host classes.
+2. Validate the coordinate, padding, and mapping vocabulary with at least one non-piano-roll consumer such as a
+   waveform, CC history, or spectrogram.
+3. Decide which boundary policies are broadly useful public concepts and which are application compatibility details.
+4. Add package-level contract tests and documentation for any selected types and helpers before assigning them an SDK
+   semantic-versioning commitment.
+
+Interval intersection and normalized viewport mapping are individually simple enough for a future public API, but
+publishing only those pieces now would prematurely fragment the model. Keeping the coherent utility set internal avoids
+freezing names and error semantics while preserving the existing `timing.conversion` capability as the path to a future
+pure SDK implementation.

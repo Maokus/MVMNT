@@ -44,6 +44,14 @@ describe('TimingManager additions', () => {
         expect(tm.getTimeUnitWindow(2.5, 0.5)).toEqual({ start: 2, end: 3 });
     });
 
+    it('preserves the previous window at an exact boundary without affecting the next instant', () => {
+        const tm = new TimingManager('test');
+        tm.setBPM(120);
+
+        expect(tm.getTimeUnitWindow(2, 1)).toEqual({ start: 0, end: 2 });
+        expect(tm.getTimeUnitWindow(2 + 1e-6, 1)).toEqual({ start: 2, end: 4 });
+    });
+
     it('uses host conversions for tempo-mapped bar windows and grids', () => {
         const host = new TimingManager('host');
         host.setTempoMap([
