@@ -217,6 +217,41 @@ describe('simplified audio scene elements', () => {
         expect(waveform).toBeInstanceOf(Poly);
     });
 
+    it('queries and maps the waveform using the same sample-derived temporal window', () => {
+        const requests: any[] = [];
+        vi.spyOn(builtInDefinition, 'getEnginePrivateContext').mockReturnValue(
+            makeCapabilityContext({
+                getSampleRate: () => 48_000,
+                getRawSamples: (args) => {
+                    requests.push(args);
+                    return new Float32Array([0, 0.5, -0.5, 0]);
+                },
+            })
+        );
+
+        const element = new AudioWaveformElement('waveform', {
+            audioTrackId: 'track-1',
+            width: 200,
+            height: 100,
+            sampleCount: 4_800,
+            startOffset: 0.75,
+            showPlayhead: true,
+        });
+
+        const [container] = element.buildRenderObjects({}, 2);
+
+        expect(requests).toEqual([
+            { trackId: 'track-1', startSeconds: 1.925, endSeconds: 2.025, channel: 'left' },
+            { trackId: 'track-1', startSeconds: 1.925, endSeconds: 2.025, channel: 'right' },
+        ]);
+        const polylines = (container as any).children.filter((child: unknown) => child instanceof Poly) as Poly[];
+        const playhead = polylines.at(-1)!;
+        expect(playhead.points).toEqual([
+            { x: 150, y: 0 },
+            { x: 150, y: 100 },
+        ]);
+    });
+
     it('clips vectorscope trace overflow to the element bounds', () => {
         vi.spyOn(builtInDefinition, 'getEnginePrivateContext').mockReturnValue(
             makeCapabilityContext({ getRawSamples: () => new Float32Array([0, 0.75]) })

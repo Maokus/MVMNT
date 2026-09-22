@@ -7,13 +7,13 @@ A temporal window system defines **which part of a time-varying data stream is c
 The key idea is to separate three questions that are often conflated in real-time visualisation code:
 
 1. **What data should exist right now?**  
-   A *materialisation window* selects or constructs the temporal data that is currently available to the visualisation.
+   A _materialisation window_ selects or constructs the temporal data that is currently available to the visualisation.
 
 2. **Where is that data relative to a temporal reference point?**  
-   An *anchor* and a temporal coordinate system determine how samples or events are positioned in time.
+   An _anchor_ and a temporal coordinate system determine how samples or events are positioned in time.
 
 3. **What part of that materialised data should be visible?**  
-   A *viewport window* determines how the available temporal data is mapped into the visible visual space.
+   A _viewport window_ determines how the available temporal data is mapped into the visible visual space.
 
 Keeping these concerns separate makes it possible to describe scrolling traces, accumulating histories, triggered displays, transport-synchronised views, and other temporal behaviours using the same small set of concepts.
 
@@ -175,8 +175,8 @@ This produces smoother movement while preserving a lower underlying update caden
 
 Cadence and reconstruction should therefore be treated as separate concepts:
 
-- **cadence** determines *when authoritative temporal states are produced*;
-- **reconstruction** determines *how those states are presented between updates*.
+- **cadence** determines _when authoritative temporal states are produced_;
+- **reconstruction** determines _how those states are presented between updates_.
 
 ---
 
@@ -323,13 +323,13 @@ Typical use: inspecting a selected historical region while acquisition continues
 
 A general temporal window system can be understood as five mostly independent decisions:
 
-| Concern | Question |
-|---|---|
-| **Temporal coordinate system** | In what units is time represented? |
-| **Anchor** | What temporal point acts as the current reference? |
-| **Materialisation** | Which temporal values currently exist? |
+| Concern                        | Question                                                           |
+| ------------------------------ | ------------------------------------------------------------------ |
+| **Temporal coordinate system** | In what units is time represented?                                 |
+| **Anchor**                     | What temporal point acts as the current reference?                 |
+| **Materialisation**            | Which temporal values currently exist?                             |
 | **Cadence and reconstruction** | When does temporal state update, and what happens between updates? |
-| **Viewport** | Which part of the available temporal data is visible? |
+| **Viewport**                   | Which part of the available temporal data is visible?              |
 
 This decomposition is useful because many apparently different visualisations vary along only one or two of these dimensions.
 
@@ -372,7 +372,8 @@ From this foundation, scrolling, accumulation, triggering, beat-synchronised upd
 **Status: implemented internally; public SDK exposure remains open.**
 
 The current internal implementation is in `src/core/timing/temporal-window.ts`. It deliberately implements only the
-bounded-window concepts needed by the Moving Notes and Time Unit piano rolls:
+bounded-window concepts exercised by the Moving Notes and Time Unit piano rolls, Audio Spectrogram, and Audio
+Waveform:
 
 - domain-tagged seconds, beats, and ticks coordinates;
 - anchored and musically aligned bounded windows;
@@ -382,6 +383,11 @@ bounded-window concepts needed by the Moving Notes and Time Unit piano rolls:
 - interval clipping; and
 - deterministic equal-sized adjacent windows.
 
+The audio displays validate the same model against continuous sampled data. The Spectrogram keeps a full viewport
+while its materialisation window stops at the playhead when future data is hidden. The Waveform uses one seconds-domain
+window for both raw-sample materialisation and display mapping; its span is derived from sample count and sample rate.
+Sampling, tiling, caching, resampling, smoothing, and rendering remain consumer concerns.
+
 Triggered anchors, accumulating histories, viewport pan/zoom, periodic cadence, and event-driven cadence remain design
 possibilities rather than implemented features.
 
@@ -390,12 +396,10 @@ possibilities rather than implemented features.
 These helpers are not yet exported from `@mvmnt-app/plugin-sdk/timing`. The existing `TimingApi` remains the public,
 host-authoritative conversion surface. Before publishing temporal-window utilities, the following should be settled:
 
-1. Define how pure helpers compose with the SDK's `Result`-returning timing conversions without hiding conversion
-   failures or requiring internal host classes.
-2. Validate the coordinate, padding, and mapping vocabulary with at least one non-piano-roll consumer such as a
-   waveform, CC history, or spectrogram.
-3. Decide which boundary policies are broadly useful public concepts and which are application compatibility details.
-4. Add package-level contract tests and documentation for any selected types and helpers before assigning them an SDK
+1. Decide whether the public facade accepts the SDK's `Result`-returning conversion functions directly or uses a
+   small adapter with explicit error propagation, without hiding failures or requiring internal host classes.
+2. Decide which boundary policies are broadly useful public concepts and which are application compatibility details.
+3. Add package-level contract tests and documentation for the selected types and helpers before assigning them an SDK
    semantic-versioning commitment.
 
 Interval intersection and normalized viewport mapping are individually simple enough for a future public API, but

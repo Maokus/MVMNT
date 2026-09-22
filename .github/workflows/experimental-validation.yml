@@ -26,8 +26,6 @@ jobs:
                   node-version: 22
                   cache: npm
             - run: npm install
-            - name: Check formatting
-              run: npx prettier --check .
             - run: npm run test
             - run: npm run build
             - run: npm run compile

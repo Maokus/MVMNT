@@ -5,6 +5,7 @@ import { normalizeColorAlphaValue, applyOpacity } from '@utils/color';
 import { prop, insertElementConfig } from '@core/scene/runtime/schema-builders';
 import { propGroup, BLEND_MODE_CHOICES, tab } from '@core/scene/built-ins/schema-groups';
 import { defineHostAdaptedBuiltIn, getEnginePrivateContext } from '@core/scene/built-ins/define-built-in';
+import { createTemporalFrame, resolveAnchoredWindow, type TemporalFrame } from '@core/timing';
 
 /** UI limit for a responsive waveform trace. The raw PCM API itself has no fixed cap. */
 const MAX_SAMPLE_COUNT = 8192;
@@ -275,6 +276,33 @@ function renderWaveformDots(points: { x: number; y: number }[], options: RenderW
             strokeColor: '#FFFFFF00',
         });
         options.objects.push(dot);
+    });
+}
+
+export function resolveWaveformTemporalFrame(
+    targetTime: number,
+    sampleCount: number,
+    sampleRate: number,
+    startOffset: number
+): TemporalFrame<'seconds'> {
+    const anchor = { domain: 'seconds' as const, value: targetTime };
+    const anchoredWindow = resolveAnchoredWindow(
+        anchor,
+        { domain: 'seconds', value: sampleCount / sampleRate },
+        startOffset
+    );
+    // Preserve the raw-sample API's historical end calculation exactly: start + sample extent.
+    const viewport = {
+        ...anchoredWindow,
+        end: anchoredWindow.start + sampleCount / sampleRate,
+    };
+    return createTemporalFrame({
+        anchor,
+        viewport,
+        materialization: viewport,
+        cadence: 'continuous',
+        reconstruction: 'interpolate',
+        mapping: { mode: 'viewport', window: viewport },
     });
 }
 
@@ -632,14 +660,12 @@ export class AudioWaveformElement extends BoundSceneElement {
             return pushFlatLine();
         }
 
-        const windowSeconds = sampleCount / sampleRate;
-        const startSeconds = targetTime - windowSeconds * startOffset;
-        const endSeconds = startSeconds + windowSeconds;
+        const temporalFrame = resolveWaveformTemporalFrame(targetTime, sampleCount, sampleRate, startOffset);
 
         const leftResult = audio.getRawSamples({
             trackId: props.audioTrackId,
-            startSeconds,
-            endSeconds,
+            startSeconds: temporalFrame.materialization.start,
+            endSeconds: temporalFrame.materialization.end,
             channel: 'left',
         });
         if (!leftResult.ok) {
@@ -648,8 +674,8 @@ export class AudioWaveformElement extends BoundSceneElement {
         const leftRaw = leftResult.value;
         const rightResult = audio.getRawSamples({
             trackId: props.audioTrackId,
-            startSeconds,
-            endSeconds,
+            startSeconds: temporalFrame.materialization.start,
+            endSeconds: temporalFrame.materialization.end,
             channel: 'right',
         });
         const rightRaw = rightResult.ok ? rightResult.value : leftRaw;
@@ -716,6 +742,8 @@ export class AudioWaveformElement extends BoundSceneElement {
         }
 
         if (showPlayhead) {
+            // Keep the configured playhead coordinate exact even when floating-point sample extents
+            // make the equivalent viewport-normalized value differ by a sub-pixel epsilon.
             const playheadX = startOffset * width;
             const playheadLine = new Poly(
                 [

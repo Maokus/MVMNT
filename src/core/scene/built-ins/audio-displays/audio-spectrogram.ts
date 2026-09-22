@@ -9,6 +9,12 @@ import { createFeatureDescriptor } from '@audio/features/descriptorBuilder';
 import { getBaseAnalysisProfile } from '@audio/features/analysisProfileRegistry';
 import type { AudioAnalysisProfileOverrides } from '@audio/features/audioFeatureTypes';
 import type { AudioFeatureRequirement } from '@audio/audioElementMetadata';
+import {
+    createTemporalFrame,
+    mapTemporalPositionInWindow,
+    resolveAnchoredWindow,
+    type TemporalFrame,
+} from '@core/timing';
 import type { AudioSpectrumScale } from './audio-spectrum';
 import {
     getSpectrogramTile,
@@ -104,6 +110,28 @@ export function getSpectrogramFrequencyPosition(
         return 2595 * Math.log10(1 + value / 700);
     };
     return clamp((toScale(frequency) - toScale(safeMin)) / (toScale(safeMax) - toScale(safeMin)), 0, 1);
+}
+
+export function resolveSpectrogramTemporalFrame(
+    targetTime: number,
+    windowSeconds: number,
+    playheadPosition: number,
+    seeFuture: boolean
+): TemporalFrame<'seconds'> {
+    const anchor = { domain: 'seconds' as const, value: targetTime };
+    const viewport = resolveAnchoredWindow(anchor, { domain: 'seconds', value: windowSeconds }, playheadPosition);
+    const materialization = seeFuture
+        ? viewport
+        : { domain: 'seconds' as const, start: viewport.start, end: anchor.value };
+
+    return createTemporalFrame({
+        anchor,
+        viewport,
+        materialization,
+        cadence: 'continuous',
+        reconstruction: 'interpolate',
+        mapping: { mode: 'viewport', window: viewport },
+    });
 }
 
 function addGuideLine(
@@ -426,13 +454,23 @@ export class AudioSpectrogramElement extends BoundSceneElement {
         const rows = clamp(Math.round(height), 1, MAX_GRID_ROWS);
         const windowSeconds = clamp(props.windowSeconds ?? 6, 0.1, 60);
         const playheadPosition = clamp(props.playheadPosition ?? 0.5, 0, 1);
-        const startSeconds = targetTime - windowSeconds * playheadPosition;
-        const endSeconds = targetTime + windowSeconds * (1 - playheadPosition);
+        const temporalFrame = resolveSpectrogramTemporalFrame(
+            targetTime,
+            windowSeconds,
+            playheadPosition,
+            props.seeFuture === true
+        );
+        const { start: startSeconds, end: endSeconds } = temporalFrame.viewport;
         const stepSeconds = windowSeconds / Math.max(1, cols - 1);
         const gain = clamp(props.gain ?? 1, 0, 10);
         const columnWidth = cols > 1 ? width / (cols - 1) : width;
-        const lastVisibleSeconds = props.seeFuture === true ? endSeconds : targetTime;
-        const { firstTile, lastTile } = getSpectrogramTileRange(startSeconds, lastVisibleSeconds, stepSeconds);
+        const { firstTile, lastTile } = getSpectrogramTileRange(
+            temporalFrame.materialization.start,
+            temporalFrame.materialization.end,
+            stepSeconds
+        );
+        // Preserve the configured clip edge exactly; the materialization window supplies
+        // the equivalent temporal query bound.
         const clipWidth = props.seeFuture === true ? width : width * playheadPosition;
         const tiles = new ClipLayer(Math.max(0, clipWidth), height, { layoutParticipation: 'exclude' });
         tiles.blendMode = props.blendMode === 'source-over' ? null : (props.blendMode as GlobalCompositeOperation);
@@ -457,7 +495,10 @@ export class AudioSpectrogramElement extends BoundSceneElement {
             if (!resource) continue;
             hasData = true;
             const tileStartSeconds = tileIndex * SPECTROGRAM_TILE_COLUMNS * stepSeconds;
-            const x = ((tileStartSeconds - startSeconds) / stepSeconds) * columnWidth;
+            const x =
+                mapTemporalPositionInWindow({ domain: 'seconds', value: tileStartSeconds }, temporalFrame.viewport, {
+                    clamp: false,
+                }) * width;
             tiles.addChild(
                 new SpectrogramTileRenderObject(resource, x, 0, SPECTROGRAM_TILE_COLUMNS * columnWidth, height, {
                     layoutParticipation: 'exclude',
@@ -519,7 +560,10 @@ export class AudioSpectrogramElement extends BoundSceneElement {
             }
         }
         const addTimeGuide = (seconds: number, label: string, color = guideColor) => {
-            const x = ((seconds - startSeconds) / windowSeconds) * width;
+            const x =
+                mapTemporalPositionInWindow({ domain: 'seconds', value: seconds }, temporalFrame.viewport, {
+                    clamp: false,
+                }) * width;
             if (x >= 0 && x <= width) {
                 addGuideLine(objects, x, 0, x, height, color, guideWidth);
                 if (showGuideLabels) {

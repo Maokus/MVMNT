@@ -73,15 +73,19 @@ export function convertTemporalValue(
     value: number,
     from: TemporalCoordinateDomain,
     to: TemporalCoordinateDomain,
-    conversions: TemporalCoordinateConversions
+    conversions?: TemporalCoordinateConversions
 ): number {
     if (from === to) return value;
-    if (from === 'seconds' && to === 'beats') return conversions.secondsToBeats(value);
-    if (from === 'beats' && to === 'seconds') return conversions.beatsToSeconds(value);
-    if (from === 'seconds' && to === 'ticks') return conversions.secondsToTicks(value);
-    if (from === 'ticks' && to === 'seconds') return conversions.ticksToSeconds(value);
-    if (from === 'beats' && to === 'ticks') return conversions.beatsToTicks(value);
-    return conversions.ticksToBeats(value);
+    if (!conversions) throw new Error(`Temporal conversion from ${from} to ${to} requires conversions`);
+
+    switch (from) {
+        case 'seconds':
+            return to === 'beats' ? conversions.secondsToBeats(value) : conversions.secondsToTicks(value);
+        case 'beats':
+            return to === 'seconds' ? conversions.beatsToSeconds(value) : conversions.beatsToTicks(value);
+        case 'ticks':
+            return to === 'seconds' ? conversions.ticksToSeconds(value) : conversions.ticksToBeats(value);
+    }
 }
 
 export function convertTemporalPoint<D extends TemporalCoordinateDomain>(
@@ -112,8 +116,9 @@ export function resolveAnchoredWindow<D extends TemporalCoordinateDomain>(
     anchor: TemporalPoint,
     span: TemporalDuration<D>,
     anchorPosition: number,
-    conversions: TemporalCoordinateConversions
+    conversions?: TemporalCoordinateConversions
 ): TemporalWindow<D> {
+    assertPositiveSpan(span.value);
     const anchorValue = convertTemporalValue(anchor.value, anchor.domain, span.domain, conversions);
     return {
         domain: span.domain,
@@ -129,6 +134,7 @@ export function resolveAlignedWindow<D extends TemporalCoordinateDomain>(
     conversions: TemporalCoordinateConversions,
     boundary: 'next' | 'previous' = 'next'
 ): TemporalWindow<D> {
+    assertPositiveSpan(span.value);
     const anchorValue = convertTemporalValue(anchor.value, anchor.domain, span.domain, conversions);
     const quotient = anchorValue / span.value;
     const nearestBoundary = Math.round(quotient);
@@ -144,6 +150,7 @@ export function resolveAdjacentWindows<D extends TemporalCoordinateDomain>(
     retention: { before: number; after: number }
 ): Array<{ offset: number; window: TemporalWindow<D> }> {
     const duration = window.end - window.start;
+    assertPositiveSpan(duration);
     const windows: Array<{ offset: number; window: TemporalWindow<D> }> = [];
     for (
         let offset = -Math.max(0, Math.floor(retention.before));
@@ -220,6 +227,19 @@ export function clipTemporalIntervalAcrossWindows<D extends TemporalCoordinateDo
     });
 }
 
+/** Map a point already expressed in the viewport's coordinate domain. */
+export function mapTemporalPositionInWindow<D extends TemporalCoordinateDomain>(
+    point: TemporalPoint<D>,
+    window: TemporalWindow<D>,
+    options: TemporalPositionOptions = {}
+): number {
+    assertMatchingDomains(point.domain, window.domain);
+    const duration = window.end - window.start;
+    assertPositiveSpan(duration);
+    const position = (point.value - window.start) / duration;
+    return options.clamp === false ? position : Math.max(0, Math.min(1, position));
+}
+
 /** Map a temporal value using an explicit viewport or anchor-relative mapping. */
 export function mapTemporalPosition(
     point: TemporalPoint,
@@ -230,9 +250,9 @@ export function mapTemporalPosition(
     let position: number;
     if (mapping.mode === 'viewport') {
         const value = convertTemporalValue(point.value, point.domain, mapping.window.domain, conversions);
-        const duration = Math.max(1e-9, mapping.window.end - mapping.window.start);
-        position = (value - mapping.window.start) / duration;
+        return mapTemporalPositionInWindow({ domain: mapping.window.domain, value }, mapping.window, options);
     } else {
+        assertPositiveSpan(mapping.span.value);
         const value = convertTemporalValue(point.value, point.domain, mapping.span.domain, conversions);
         const anchor = convertTemporalValue(
             mapping.anchor.value,
@@ -240,11 +260,17 @@ export function mapTemporalPosition(
             mapping.span.domain,
             conversions
         );
-        position = (value - anchor) / Math.max(1e-9, mapping.span.value) + mapping.anchorPosition;
+        position = (value - anchor) / mapping.span.value + mapping.anchorPosition;
     }
     return options.clamp === false ? position : Math.max(0, Math.min(1, position));
 }
 
 function assertMatchingDomains(left: TemporalCoordinateDomain, right: TemporalCoordinateDomain): void {
     if (left !== right) throw new Error(`Temporal coordinate domains do not match: ${left} and ${right}`);
+}
+
+function assertPositiveSpan(value: number): void {
+    if (!Number.isFinite(value) || value <= 0) {
+        throw new Error(`Temporal span must be a positive finite number; received ${value}`);
+    }
 }

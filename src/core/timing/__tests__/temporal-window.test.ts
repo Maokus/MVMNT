@@ -4,6 +4,7 @@ import {
     convertTemporalWindow,
     createTemporalFrame,
     mapTemporalPosition,
+    mapTemporalPositionInWindow,
     resolveAdjacentWindows,
     resolveAlignedWindow,
     resolveAnchoredWindow,
@@ -21,6 +22,23 @@ const tempoMappedTiming = () => {
 };
 
 describe('temporal windows', () => {
+    it('resolves and maps same-domain sampled windows without a conversion capability', () => {
+        const viewport = resolveAnchoredWindow({ domain: 'seconds', value: 10 }, { domain: 'seconds', value: 4 }, 0.25);
+
+        expect(viewport).toEqual({ domain: 'seconds', start: 9, end: 13 });
+        expect(mapTemporalPositionInWindow({ domain: 'seconds', value: 10 }, viewport)).toBe(0.25);
+        expect(mapTemporalPositionInWindow({ domain: 'seconds', value: 14 }, viewport, { clamp: false })).toBe(1.25);
+    });
+
+    it('rejects non-positive or non-finite temporal spans', () => {
+        expect(() =>
+            resolveAnchoredWindow({ domain: 'seconds', value: 1 }, { domain: 'seconds', value: 0 }, 0.5)
+        ).toThrow('Temporal span must be a positive finite number');
+        expect(() =>
+            mapTemporalPositionInWindow({ domain: 'seconds', value: 1 }, { domain: 'seconds', start: 1, end: 1 })
+        ).toThrow('Temporal span must be a positive finite number');
+    });
+
     it('resolves and converts explicit beat and tick coordinate domains across tempo changes', () => {
         const timing = tempoMappedTiming();
         const anchor = { domain: 'seconds' as const, value: 3 };
