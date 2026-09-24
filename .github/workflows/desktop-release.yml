@@ -16,8 +16,8 @@ jobs:
     verify:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
-            - uses: actions/setup-node@v4
+            - uses: actions/checkout@v7
+            - uses: actions/setup-node@v7
               with:
                   node-version: 22
                   cache: npm
@@ -50,8 +50,8 @@ jobs:
             POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
             POSTHOG_PROJECT_ID: ${{ vars.POSTHOG_PROJECT_ID }}
         steps:
-            - uses: actions/checkout@v4
-            - uses: actions/setup-node@v4
+            - uses: actions/checkout@v7
+            - uses: actions/setup-node@v7
               with:
                   node-version: 22
                   cache: npm
@@ -61,7 +61,7 @@ jobs:
             - run: npm run make:mac
               env:
                   MVMNT_SKIP_MAC_SIGNING: '1'
-            - uses: actions/upload-artifact@v4
+            - uses: actions/upload-artifact@v7
               with:
                   name: macos-release
                   path: out/make/**/*
@@ -75,8 +75,8 @@ jobs:
             POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
             POSTHOG_PROJECT_ID: ${{ vars.POSTHOG_PROJECT_ID }}
         steps:
-            - uses: actions/checkout@v4
-            - uses: actions/setup-node@v4
+            - uses: actions/checkout@v7
+            - uses: actions/setup-node@v7
               with:
                   node-version: 22
                   cache: npm
@@ -94,7 +94,7 @@ jobs:
             - run: npm run make:win
               env:
                   WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
-            - uses: actions/upload-artifact@v4
+            - uses: actions/upload-artifact@v7
               with:
                   name: windows-release
                   path: out/make/**/*
@@ -103,7 +103,7 @@ jobs:
         needs: [macos, windows]
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/download-artifact@v4
+            - uses: actions/download-artifact@v8
               with:
                   path: artifacts
             - name: Create draft GitHub release
