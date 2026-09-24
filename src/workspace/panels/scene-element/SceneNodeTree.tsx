@@ -238,7 +238,8 @@ export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
                         aria-label={expanded ? 'Collapse group' : 'Expand group'}
                         onClick={(event) => {
                             event.stopPropagation();
-                            if (event.metaKey) setNodesExpanded(groupAndDescendantIds(graph, node.id), !expanded);
+                            if (event.metaKey || event.ctrlKey)
+                                setNodesExpanded(groupAndDescendantIds(graph, node.id), !expanded);
                             else toggleNodeExpanded(node.id);
                         }}
                     >

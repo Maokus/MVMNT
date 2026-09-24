@@ -54,7 +54,7 @@ const Section: React.FC<{ node: Extract<PropertyLayoutNode, { kind: 'section' }>
                 <button
                     type="button"
                     className="ae-property-layout-section-title"
-                    onClick={(event) => toggle(event.metaKey)}
+                    onClick={(event) => toggle(event.metaKey || event.ctrlKey)}
                     aria-expanded={!collapsed}
                     aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${node.label} section`}
                 >

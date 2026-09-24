@@ -181,6 +181,8 @@ const MidiVisualizerInner: React.FC = () => {
         suppressed: automatedRenderer.current,
         renderingVideo: showProgressOverlay && exportKind === 'video',
     });
+    const revealTutorialProperties = useCallback(() => setSidePanelsCollapsed(false), []);
+    const revealTutorialTimeline = useCallback(() => setTimelineCollapsed(false), []);
     const [showRenderModal, setShowRenderModal] = useState(false);
     const [assetPanelCollapsed, setAssetPanelCollapsed] = useState(false);
     const [assetPanelWidth, setAssetPanelWidth] = useState(ASSET_PANEL_DEFAULT_WIDTH);
@@ -401,8 +403,8 @@ const MidiVisualizerInner: React.FC = () => {
                                     {...onboarding.session}
                                     onDismiss={onboarding.dismissGuide}
                                     step={onboarding.step ?? 'complete'}
-                                    revealProperties={() => setSidePanelsCollapsed(false)}
-                                    revealTimeline={() => setTimelineCollapsed(false)}
+                                    revealProperties={revealTutorialProperties}
+                                    revealTimeline={revealTutorialTimeline}
                                 />
                             )}
                             <div className="flex min-h-0 flex-1 flex-col">

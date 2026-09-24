@@ -96,4 +96,20 @@ describe('NodeTransformPanel multi-selection property search', () => {
         );
         expect(screen.getByText('Opacity')).toBeInTheDocument();
     });
+
+    it('Ctrl-clicks a Host group to contract and expand every Host group', () => {
+        useSelectionStore.setState({ selectedNodeIds: ['element:one'], selectionPivot: null });
+        render(<NodeTransformPanel />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Collapse Position group' }), { ctrlKey: true });
+        expect(screen.getByRole('button', { name: 'Expand Node State group' })).toHaveAttribute(
+            'aria-expanded',
+            'false'
+        );
+        fireEvent.click(screen.getByRole('button', { name: 'Expand Node State group' }), { ctrlKey: true });
+        expect(screen.getByRole('button', { name: 'Collapse Position group' })).toHaveAttribute(
+            'aria-expanded',
+            'true'
+        );
+    });
 });

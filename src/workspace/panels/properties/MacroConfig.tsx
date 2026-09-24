@@ -647,7 +647,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
         }
     };
 
-    const renderMacroItem = (macro: Macro) => {
+    const renderMacroItem = (macro: Macro, index: number) => {
         const assignments = assignmentMap.get(macro.name) ?? [];
         const isEditingName = editingMacroId === macro.name;
 
@@ -662,6 +662,8 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                     <div
                         className="flex-shrink-0 text-neutral-500 hover:text-neutral-300 cursor-grab active:cursor-grabbing px-0.5 self-center"
                         title="Drag to reorder"
+                        draggable
+                        onDragStart={() => setDraggedIndex(index)}
                     >
                         <FaGripVertical size={10} />
                     </div>
@@ -761,8 +763,6 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                     macros.map((macro, index) => (
                         <div
                             key={macro.name}
-                            draggable
-                            onDragStart={() => setDraggedIndex(index)}
                             onDragOver={(e) => {
                                 e.preventDefault();
                                 setDragOverIndex(index);
@@ -773,7 +773,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                                 dragOverIndex === index && draggedIndex !== index ? 'border-t-2 border-t-blue-400' : ''
                             }
                         >
-                            {renderMacroItem(macro)}
+                            {renderMacroItem(macro, index)}
                         </div>
                     ))
                 )}

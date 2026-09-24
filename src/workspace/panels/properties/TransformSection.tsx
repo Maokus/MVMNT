@@ -58,7 +58,7 @@ export function TransformSection({
             <button
                 type="button"
                 className="ae-group-header"
-                onClick={(event) => toggle(event.metaKey)}
+                onClick={(event) => toggle(event.metaKey || event.ctrlKey)}
                 aria-expanded={!collapsed}
                 aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${title} group`}
             >

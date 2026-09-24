@@ -113,5 +113,11 @@ describe('SceneNodeTree element ID editing', () => {
             'group:inner': true,
         });
         expect(screen.getByText('Inner')).toBeInTheDocument();
+
+        fireEvent.click(outerDisclosure(), { ctrlKey: true });
+        expect(useSelectionStore.getState().expandedNodeIds).toMatchObject({
+            'group:outer': false,
+            'group:inner': false,
+        });
     });
 });

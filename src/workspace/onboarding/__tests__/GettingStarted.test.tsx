@@ -45,6 +45,7 @@ describe('tutorial checklist', () => {
         expect(callbacks.revealProperties).toHaveBeenCalled();
         expect(clearSelection).toHaveBeenCalled();
         await waitFor(() => expect(input.scrollIntoView).toHaveBeenCalledOnce());
+        expect(input).toHaveFocus();
         expect(screen.getByText('Enter your own text in the highlighted songTitle field.')).toBeVisible();
         expect(screen.queryByRole('button', { name: 'Show title control' })).not.toBeInTheDocument();
         input.remove();

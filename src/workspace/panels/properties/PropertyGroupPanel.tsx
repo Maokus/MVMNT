@@ -541,7 +541,7 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
             <button
                 type="button"
                 className="ae-group-header"
-                onClick={(event) => onCollapseToggle(group.id, event.metaKey)}
+                onClick={(event) => onCollapseToggle(group.id, event.metaKey || event.ctrlKey)}
                 aria-expanded={!group.collapsed}
                 aria-label={`${group.collapsed ? 'Expand' : 'Collapse'} ${group.label} group`}
             >

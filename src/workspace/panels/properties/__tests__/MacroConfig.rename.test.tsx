@@ -32,6 +32,7 @@ vi.mock('@state/scene', () => ({
 describe('MacroConfig macro name editing', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        macros.splice(2);
         vi.spyOn(window, 'alert').mockImplementation(() => undefined);
         macroActions.rename.mockReturnValueOnce(false).mockReturnValueOnce(true);
     });
@@ -54,5 +55,30 @@ describe('MacroConfig macro name editing', () => {
 
         expect(macroActions.rename).toHaveBeenLastCalledWith('second', 'renamed-second');
         expect(screen.queryByRole('textbox', { name: 'Macro name' })).not.toBeInTheDocument();
+    });
+
+    it('keeps the highlighted song title input outside the drag surface', () => {
+        macros.push({ name: 'songTitle', type: 'string', value: 'Song Title', options: {} } as any);
+        macroActions.updateValue.mockImplementation((name, value) => {
+            const macro = macros.find((candidate) => candidate.name === name);
+            if (macro) macro.value = value;
+            return true;
+        });
+        const { rerender } = render(<MacroConfig />);
+
+        const input = screen.getByRole('textbox', { name: 'songTitle' });
+        expect(input).toHaveAttribute('data-tutorial-target', 'edit-title');
+        expect(input.closest('[draggable="true"]')).toBeNull();
+        expect(input.closest('.macro-item')?.querySelector('[title="Drag to reorder"]')).toHaveAttribute(
+            'draggable',
+            'true'
+        );
+        input.focus();
+        expect(input).toHaveFocus();
+        fireEvent.change(input, { target: { value: 'My Song' } });
+        rerender(<MacroConfig />);
+        expect(input).toHaveFocus();
+        expect(input).toHaveValue('My Song');
+        expect(macroActions.updateValue).toHaveBeenCalledWith('songTitle', 'My Song');
     });
 });
