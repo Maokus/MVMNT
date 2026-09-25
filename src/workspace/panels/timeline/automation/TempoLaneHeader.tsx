@@ -1,6 +1,87 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTimelineStore } from '@state/timelineStore';
 import { AUTOMATION_HEADER_HEIGHT, TEMPO_LANE_HEIGHT } from '../constants';
+import { useTempoRange } from '../context/tempoRangeContext';
+
+const formatBpm = (value: number) => value.toFixed(1);
+
+const TempoRangeControls: React.FC = () => {
+    const { autoRange, range, setAutoRange, setManualRange } = useTempoRange();
+    const [minText, setMinText] = useState(() => formatBpm(range.min));
+    const [maxText, setMaxText] = useState(() => formatBpm(range.max));
+    const minFocused = useRef(false);
+    const maxFocused = useRef(false);
+
+    useEffect(() => {
+        if (!minFocused.current) setMinText(formatBpm(range.min));
+        if (!maxFocused.current) setMaxText(formatBpm(range.max));
+    }, [range.min, range.max]);
+
+    const commit = (bound: 'min' | 'max', text: string) => {
+        const value = text.trim() ? Number(text) : NaN;
+        const next = { ...range, [bound]: value };
+        if (!setManualRange(next)) {
+            if (bound === 'min') setMinText(formatBpm(range.min));
+            else setMaxText(formatBpm(range.max));
+        }
+    };
+
+    return (
+        <div
+            className="flex flex-col items-center justify-center gap-1 border-b border-neutral-800/60 bg-neutral-900/30"
+            style={{ height: TEMPO_LANE_HEIGHT }}
+        >
+            <span className="text-[9px] text-neutral-500">BPM range</span>
+            <div className="flex items-center gap-1 text-[9px] text-neutral-500">
+                <input
+                    aria-label="Minimum visible BPM"
+                    type="text"
+                    inputMode="decimal"
+                    className="w-12 rounded border border-neutral-700 bg-neutral-950 px-1 text-right text-neutral-200 read-only:text-neutral-500"
+                    value={autoRange ? formatBpm(range.min) : minText}
+                    readOnly={autoRange}
+                    onChange={(event) => setMinText(event.target.value)}
+                    onFocus={() => (minFocused.current = true)}
+                    onBlur={(event) => {
+                        minFocused.current = false;
+                        if (!autoRange) commit('min', event.target.value);
+                    }}
+                    onKeyDown={(event) => {
+                        if (event.key === 'Enter') event.currentTarget.blur();
+                    }}
+                />
+                <span>–</span>
+                <input
+                    aria-label="Maximum visible BPM"
+                    type="text"
+                    inputMode="decimal"
+                    className="w-12 rounded border border-neutral-700 bg-neutral-950 px-1 text-right text-neutral-200 read-only:text-neutral-500"
+                    value={autoRange ? formatBpm(range.max) : maxText}
+                    readOnly={autoRange}
+                    onChange={(event) => setMaxText(event.target.value)}
+                    onFocus={() => (maxFocused.current = true)}
+                    onBlur={(event) => {
+                        maxFocused.current = false;
+                        if (!autoRange) commit('max', event.target.value);
+                    }}
+                />
+                <button
+                    type="button"
+                    aria-label="Auto fit BPM range"
+                    aria-pressed={autoRange}
+                    className={`rounded border px-1.5 ${autoRange ? 'border-amber-500/50 bg-amber-600/20 text-amber-300' : 'border-neutral-700 text-neutral-400 hover:text-neutral-200'}`}
+                    onClick={() => {
+                        if (autoRange) setManualRange(range);
+                        else setAutoRange(true);
+                    }}
+                >
+                    auto
+                </button>
+            </div>
+            <span className="text-[8px] text-neutral-600">Double-click the lane to add</span>
+        </div>
+    );
+};
 
 /** Left-column header for the tempo automation lane. */
 const TempoLaneHeader: React.FC = () => {
@@ -12,12 +93,6 @@ const TempoLaneHeader: React.FC = () => {
     const enabled = tempoAutomation?.enabled ?? false;
     const laneVisible = tempoAutomation?.laneVisible !== false;
     const keyframes = tempoAutomation?.keyframes ?? [];
-
-    const bpmRange = useMemo(() => {
-        if (keyframes.length === 0) return null;
-        const bpms = keyframes.map((kf) => kf.bpm);
-        return { min: Math.min(...bpms), max: Math.max(...bpms) };
-    }, [keyframes]);
 
     const toggleEnabled = useCallback(() => {
         if (enabled) {
@@ -86,19 +161,7 @@ const TempoLaneHeader: React.FC = () => {
                 </div>
             </div>
             {/* Lane spacer (synced with right column lane height) */}
-            {enabled && laneVisible && (
-                <div
-                    className="flex flex-col justify-center px-2 border-b border-neutral-800/60 bg-neutral-900/30 text-neutral-500"
-                    style={{ height: TEMPO_LANE_HEIGHT }}
-                >
-                    <span className="text-[9px]">BPM · double-click the lane to add</span>
-                    {bpmRange && (
-                        <span className="text-[8px] text-neutral-600">
-                            {Math.round(bpmRange.min)}–{Math.round(bpmRange.max)}
-                        </span>
-                    )}
-                </div>
-            )}
+            {enabled && laneVisible && <TempoRangeControls />}
         </div>
     );
 };

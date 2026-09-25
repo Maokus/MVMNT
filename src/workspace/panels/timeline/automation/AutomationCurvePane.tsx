@@ -38,6 +38,7 @@ import {
 } from './automationCurveUtils';
 import { useAutomationCurveDrag } from './useAutomationCurveDrag';
 import { useResizeHandle } from './useResizeHandle';
+import { isValueRangeWheel } from './valueRangeWheel';
 
 // ─── Visual constants ─────────────────────────────────────────────────────────
 
@@ -263,11 +264,10 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
         const el = containerRef.current;
         if (!el) return;
         const onWheel = (e: WheelEvent) => {
-            // Stop propagation natively so the timeline's native wheel listener (attached to
-            // a parent DOM element) never sees this event.
+            if (!isValueRangeWheel(e) || channel.valueType === 'boolean') return;
+            // Vertical wheel movement changes the value range. Other gestures reach the timeline.
             e.stopPropagation();
             e.preventDefault();
-            if (channel.valueType === 'boolean') return; // range is fixed 0-1 for boolean
             const currentMin = animMinRef.current;
             const currentMax = animMaxRef.current;
             const rangeSpan = currentMax - currentMin;
@@ -279,7 +279,7 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
         };
         el.addEventListener('wheel', onWheel, { passive: false });
         return () => el.removeEventListener('wheel', onWheel);
-    }, [channel.id, setAutoRange, setManualRange]);
+    }, [channel.id, channel.valueType, setAutoRange, setManualRange]);
 
     // ── Resize handle ─────────────────────────────────────────────────────────
 

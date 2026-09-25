@@ -4,11 +4,11 @@ import { useTickScale } from '../hooks/useTickScale';
 import { AUTOMATION_HEADER_HEIGHT } from '../constants';
 import { useSnapTicks } from '../hooks/useSnapTicks';
 import { CommandContextMenu } from '@workspace/components/CommandContextMenu';
+import { useTempoRange } from '../context/tempoRangeContext';
+import { isValueRangeWheel } from './valueRangeWheel';
 
 const DIAMOND_SIZE = 7;
 const PADDING_Y = 12;
-const BPM_MIN = 20;
-const BPM_MAX = 400;
 const TICK_TOLERANCE = 1;
 
 interface TempoAutomationLaneProps {
@@ -36,44 +36,32 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
     const snapTick = useSnapTicks();
     const keyframes = tempoAutomation?.keyframes ?? [];
     const chartHeight = Math.max(40, height - AUTOMATION_HEADER_HEIGHT);
+    const { range: bpmRange, panByWheel } = useTempoRange();
 
     const [selectedTick, setSelectedTick] = useState<number | null>(null);
     const [drag, setDrag] = useState<DragState | null>(null);
     const [draft, setDraft] = useState<{ tick: number; bpm: number } | null>(null);
-    const [bpmRange, setBpmRange] = useState({ min: 60, max: 180 });
     const [menu, setMenu] = useState<{ tick: number; x: number; y: number } | null>(null);
     const [status, setStatus] = useState<string | null>(null);
     const svgRef = useRef<SVGSVGElement>(null);
     const laneRef = useRef<HTMLDivElement>(null);
-    const initialRangeSet = useRef(false);
 
     const selected = keyframes.find(
         (kf) => selectedTick !== null && Math.abs(kf.tick - selectedTick) <= TICK_TOLERANCE
     );
 
-    const fitBpmRange = useCallback(() => {
-        const bpms = keyframes.map((kf) => kf.bpm);
-        if (!bpms.length) return setBpmRange({ min: 60, max: 180 });
-        const low = Math.min(...bpms);
-        const high = Math.max(...bpms);
-        const padding = Math.max(10, (high - low) * 0.2);
-        setBpmRange({
-            min: Math.max(BPM_MIN, Math.floor(low - padding)),
-            max: Math.min(BPM_MAX, Math.ceil(high + padding)),
-        });
-    }, [keyframes]);
-
-    // Fit imported/existing maps once, then keep the ruler stable while users edit.
     useEffect(() => {
-        if (!keyframes.length) {
-            initialRangeSet.current = false;
-            return;
-        }
-        if (!initialRangeSet.current) {
-            initialRangeSet.current = true;
-            fitBpmRange();
-        }
-    }, [fitBpmRange, keyframes.length]);
+        const el = svgRef.current;
+        if (!el) return;
+        const onWheel = (event: WheelEvent) => {
+            if (!isValueRangeWheel(event)) return;
+            event.preventDefault();
+            event.stopPropagation();
+            panByWheel(event.deltaY);
+        };
+        el.addEventListener('wheel', onWheel, { passive: false });
+        return () => el.removeEventListener('wheel', onWheel);
+    }, [panByWheel]);
 
     const range = Math.max(1, bpmRange.max - bpmRange.min);
     const bpmToY = useCallback(
@@ -127,15 +115,18 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
         [addTempoKeyframe, keyframes, selectAtTick, snapTick, toTick, width, yToBpm]
     );
 
-    const handlePointerDown = useCallback((event: React.PointerEvent, tick: number, bpm: number) => {
-        if (event.button !== 0) return;
-        event.preventDefault();
-        event.stopPropagation();
-        svgRef.current?.setPointerCapture(event.pointerId);
-        laneRef.current?.focus({ preventScroll: true });
-        setDrag({ tick, bpm, startX: event.clientX, startY: event.clientY, moved: false });
-        setDraft({ tick, bpm });
-    }, []);
+    const handlePointerDown = useCallback(
+        (event: React.PointerEvent, tick: number, bpm: number) => {
+            if (event.button !== 0) return;
+            event.preventDefault();
+            event.stopPropagation();
+            svgRef.current?.setPointerCapture(event.pointerId);
+            selectAtTick(tick);
+            setDrag({ tick, bpm, startX: event.clientX, startY: event.clientY, moved: false });
+            setDraft({ tick, bpm });
+        },
+        [selectAtTick]
+    );
 
     const handlePointerMove = useCallback(
         (event: React.PointerEvent) => {
@@ -162,7 +153,6 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
     const finishDrag = useCallback(() => {
         if (!drag || !draft) return;
         if (!drag.moved) {
-            selectAtTick(drag.tick);
             setDrag(null);
             setDraft(null);
             return;
@@ -176,7 +166,7 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
         }
         setDrag(null);
         setDraft(null);
-    }, [drag, draft, selectAtTick, updateTempoKeyframe]);
+    }, [drag, draft, updateTempoKeyframe]);
 
     const deleteSelected = useCallback(() => {
         if (!selected || isBasePoint(selected.tick)) return;
@@ -206,6 +196,7 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
     return (
         <div
             ref={laneRef}
+            aria-label="Tempo automation lane"
             className="relative h-full w-full outline-none"
             tabIndex={0}
             onKeyDown={(event) => {
@@ -222,6 +213,7 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
             <div className="border-b border-neutral-800" style={{ height: AUTOMATION_HEADER_HEIGHT }} />
             <svg
                 ref={svgRef}
+                aria-label="Tempo BPM chart"
                 width={width}
                 height={chartHeight}
                 className="block"
@@ -267,6 +259,7 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
                     return (
                         <g key={kf.tick}>
                             <rect
+                                data-tempo-keyframe-tick={kf.tick}
                                 x={x - 11}
                                 y={y - 11}
                                 width={22}
@@ -310,13 +303,6 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
                 )}
             </svg>
 
-            <button
-                type="button"
-                onClick={fitBpmRange}
-                className="absolute bottom-1 left-1 rounded border border-neutral-700 bg-neutral-900/90 px-1.5 py-0.5 text-[8px] text-neutral-400 hover:text-neutral-200"
-            >
-                Fit BPM
-            </button>
             {selected && (
                 <div
                     key={selected.tick}

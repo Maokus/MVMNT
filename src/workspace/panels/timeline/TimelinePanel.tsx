@@ -13,6 +13,7 @@ import { MidiImportModeModal } from '@workspace/modals/MidiImportModeModal';
 import { MidiTempoImportModal } from '@workspace/modals/MidiTempoImportModal';
 import { CurveHeightProvider } from './context/curveHeightContext';
 import { CurveRangeProvider } from './context/curveRangeContext';
+import { TempoRangeProvider } from './context/tempoRangeContext';
 import TimeIndicator from './header/TimeIndicator';
 import HeaderRightControls from './header/HeaderRightControls';
 import TrackImportButtons from './header/TrackImportButtons';
@@ -145,32 +146,34 @@ const TimelinePanel: React.FC = () => {
                 <div className="timeline-body flex flex-1 items-stretch gap-0 overflow-hidden">
                     <CurveHeightProvider>
                         <CurveRangeProvider>
-                            <div className="h-full w-full overflow-y-auto overflow-x-hidden">
-                                <div className="flex min-h-full">
-                                    <div className="tracklist-container relative z-10 w-60 shrink-0 border-r border-neutral-800 bg-neutral-900/40">
-                                        <TrackList
-                                            trackIds={trackIds}
-                                            activeTab={activeTab}
-                                            setActiveTab={setActiveTab}
-                                        />
-                                    </div>
-                                    <div ref={(el) => setRightPaneEl(el)} className="flex flex-1 flex-col">
-                                        <div className="sticky top-0 z-10">
-                                            <TimelineRuler />
+                            <TempoRangeProvider>
+                                <div className="h-full w-full overflow-y-auto overflow-x-hidden">
+                                    <div className="flex min-h-full">
+                                        <div className="tracklist-container relative z-10 w-60 shrink-0 border-r border-neutral-800 bg-neutral-900/40">
+                                            <TrackList
+                                                trackIds={trackIds}
+                                                activeTab={activeTab}
+                                                setActiveTab={setActiveTab}
+                                            />
                                         </div>
-                                        <div
-                                            className="relative"
-                                            ref={lanesScrollRef}
-                                            style={{ touchAction: 'none' }}
-                                            onPointerDown={onRightPointerDown}
-                                            onPointerMove={onRightPointerMove}
-                                            onPointerUp={onRightPointerUp}
-                                        >
-                                            <TrackLanes trackIds={trackIds} activeTab={activeTab} />
+                                        <div ref={(el) => setRightPaneEl(el)} className="flex flex-1 flex-col">
+                                            <div className="sticky top-0 z-10">
+                                                <TimelineRuler />
+                                            </div>
+                                            <div
+                                                className="relative"
+                                                ref={lanesScrollRef}
+                                                style={{ touchAction: 'none' }}
+                                                onPointerDown={onRightPointerDown}
+                                                onPointerMove={onRightPointerMove}
+                                                onPointerUp={onRightPointerUp}
+                                            >
+                                                <TrackLanes trackIds={trackIds} activeTab={activeTab} />
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
+                            </TempoRangeProvider>
                         </CurveRangeProvider>
                     </CurveHeightProvider>
                 </div>
