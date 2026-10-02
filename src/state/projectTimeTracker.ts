@@ -25,6 +25,15 @@ export class ProjectTimeTracker {
         this.lastTick = this.isActive() ? now : null;
     };
 
+    /** Includes the current foreground interval without changing saved metadata. */
+    currentSeconds() {
+        const elapsed =
+            this.lastTick !== null && this.isActive()
+                ? Math.min(Math.max(0, performance.now() - this.lastTick), 60_000)
+                : 0;
+        return (this.pendingMs + elapsed) / 1000;
+    }
+
     private updateActivity = () => {
         this.flush();
         if (!this.isActive()) this.lastTick = null;
@@ -79,4 +88,8 @@ export function resetProjectTimeClock() {
 
 export function suspendProjectTime() {
     activeTracker?.suspend();
+}
+
+export function getProjectTimeSpentSeconds(persistedSeconds: number) {
+    return persistedSeconds + (activeTracker?.currentSeconds() ?? 0);
 }

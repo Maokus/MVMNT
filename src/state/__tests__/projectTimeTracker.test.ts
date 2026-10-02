@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ProjectTimeTracker } from '../projectTimeTracker';
+import { getProjectTimeSpentSeconds, ProjectTimeTracker } from '../projectTimeTracker';
 
 describe('ProjectTimeTracker', () => {
     afterEach(() => vi.restoreAllMocks());
@@ -18,6 +18,21 @@ describe('ProjectTimeTracker', () => {
         vi.advanceTimersByTime(30_000);
         const counted = addSeconds.mock.calls.reduce((sum, [seconds]) => sum + seconds, 0);
         expect(counted).toBe(30);
+
+        tracker.stop();
+        vi.useRealTimers();
+    });
+
+    it('reports elapsed time between persistence updates without writing metadata', () => {
+        vi.useFakeTimers();
+        vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+        const addSeconds = vi.fn();
+        const tracker = new ProjectTimeTracker(addSeconds);
+        tracker.start();
+
+        vi.advanceTimersByTime(1500);
+        expect(getProjectTimeSpentSeconds(120)).toBe(121.5);
+        expect(addSeconds).not.toHaveBeenCalled();
 
         tracker.stop();
         vi.useRealTimers();

@@ -5,6 +5,7 @@ import { useTimelineStore } from '@state/timelineStore';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { ticksPerBar } from '@core/timing/meter';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
+import { getProjectTimeSpentSeconds } from '@state/projectTimeTracker';
 import { useScene } from '@context/SceneContext';
 import { useSceneStore } from '@state/sceneStore';
 import { dispatchSceneCommand } from '@state/scene';
@@ -380,6 +381,18 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
     const [activeTab, setActiveTab] = useState<'general' | 'caches' | 'fonts' | 'developer' | 'metadata' | 'plugins'>(
         'general'
     );
+    const [displayedTimeSeconds, setDisplayedTimeSeconds] = useState(() =>
+        Math.floor(getProjectTimeSpentSeconds(metadata.timeSpentSeconds ?? 0))
+    );
+
+    useEffect(() => {
+        if (activeTab !== 'metadata') return;
+        const update = () =>
+            setDisplayedTimeSeconds(Math.floor(getProjectTimeSpentSeconds(metadata.timeSpentSeconds ?? 0)));
+        update();
+        const interval = window.setInterval(update, 250);
+        return () => window.clearInterval(interval);
+    }, [activeTab, metadata.timeSpentSeconds]);
 
     const tabs: Array<{ id: typeof activeTab; label: string }> = useMemo(
         () => [
@@ -751,7 +764,7 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                                 <div>
                                     <span className="block uppercase tracking-wide text-neutral-500">Time spent</span>
                                     <span className="block text-neutral-300">
-                                        {formatTimeSpent(metadata.timeSpentSeconds ?? 0)}
+                                        {formatTimeSpent(displayedTimeSeconds)}
                                     </span>
                                 </div>
                             </div>
