@@ -28,7 +28,11 @@ export function useMidiImport({ requestImportMode, requestTempoImport }: UseMidi
                 midiData = await parseMIDIFileToData(file);
             } catch (error) {
                 console.error('Failed to parse MIDI file', error);
-                void analytics.capture('media_import_failed', { media_type: 'midi', failure_category: 'import' });
+                void analytics.capture('media_import_failed', {
+                    media_type: 'midi',
+                    failure_category: 'import',
+                    stage: 'parse',
+                });
                 alert(`Unable to read ${file.name}. Please verify the file is a valid MIDI.`);
                 return false;
             }
@@ -40,7 +44,11 @@ export function useMidiImport({ requestImportMode, requestTempoImport }: UseMidi
                         clipName: file.name,
                     });
                 } catch (error) {
-                    void analytics.capture('media_import_failed', { media_type: 'midi', failure_category: 'import' });
+                    void analytics.capture('media_import_failed', {
+                        media_type: 'midi',
+                        failure_category: 'import',
+                        stage: 'track_add',
+                    });
                     throw error;
                 }
             };

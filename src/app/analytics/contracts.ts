@@ -18,34 +18,61 @@ export type ItemType = 'template' | 'plugin';
 export type ExportFormat = 'video' | 'png';
 export type ExportExecutionMode = 'foreground' | 'background' | 'automation';
 export type FailureCategory = 'cancelled' | 'validation' | 'import' | 'save' | 'render' | 'output' | 'unknown';
+export type TutorialStepName =
+    'play' | 'edit_title' | 'import_midi' | 'connect_midi' | 'import_audio' | 'save' | 'render';
+export type ExportDurationBucket = 'under_30s' | '30s_2m' | '2m_10m' | 'over_10m' | 'unknown';
 
 export interface AnalyticsEventMap {
     analytics_consent_granted: { policy_version: string };
     analytics_consent_withdrawn: { policy_version: string };
     app_opened: EmptyProperties;
+    tutorial_started: EmptyProperties;
+    tutorial_step_completed: { step: TutorialStepName };
+    tutorial_completed: EmptyProperties;
+    tutorial_dismissed: { last_step: TutorialStepName | 'complete' };
+    tutorial_failed: { stage: 'setup' };
     screen_viewed: { screen: 'home' | 'workspace' | 'about' | 'privacy' | 'changelog' | 'community' | 'contribute' };
+    independent_project_started: { source: 'created' | 'opened' | 'template' };
     document_created: { entry_point: EntryPoint };
     document_opened: { source: DocumentSource };
     document_saved: { save_mode: 'save' | 'save_as' };
     document_operation_failed: { operation: 'open' | 'save'; failure_category: FailureCategory };
     media_imported: { media_type: MediaType };
-    media_import_failed: { media_type: 'midi' | 'audio'; failure_category: 'import' };
+    media_import_failed: {
+        media_type: 'midi' | 'audio';
+        failure_category: 'import';
+        stage: 'parse' | 'track_add' | 'preflight' | 'decode_or_add';
+    };
     scene_element_added: { element_type: string };
     playback_started: EmptyProperties;
     template_applied: { entry_point: 'home' | 'workspace' | 'community' };
     export_started: {
+        export_attempt_id: string;
         export_format: ExportFormat;
         includes_audio: boolean;
         transparent_background: boolean;
         execution_mode: ExportExecutionMode;
     };
-    export_completed: { export_format: ExportFormat; execution_mode: ExportExecutionMode };
+    export_completed: {
+        export_attempt_id: string;
+        export_format: ExportFormat;
+        execution_mode: ExportExecutionMode;
+        duration_bucket: ExportDurationBucket;
+    };
     export_failed: {
+        export_attempt_id: string;
         export_format: ExportFormat;
         execution_mode: ExportExecutionMode;
         failure_category: FailureCategory;
+        duration_bucket: ExportDurationBucket;
     };
-    export_cancelled: { export_format: ExportFormat; execution_mode: ExportExecutionMode };
+    export_cancelled: {
+        export_attempt_id: string;
+        export_format: ExportFormat;
+        execution_mode: ExportExecutionMode;
+        duration_bucket: ExportDurationBucket;
+    };
+    plugin_operation_failed: { operation: 'install' | 'upgrade'; stage: 'download' | 'load' };
     community_signup_submitted: EmptyProperties;
     community_sign_in_completed: EmptyProperties;
     community_sign_out: EmptyProperties;

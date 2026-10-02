@@ -8,6 +8,8 @@ import { useDocumentSaveStatusStore } from '@state/documentSaveStatusStore';
 import { useTemplateStatusStore } from '@state/templateStatusStore';
 import { useTemplateApply } from '@workspace/templates/useTemplateApply';
 import { easyModeTemplates } from '@workspace/templates/easyModeTemplates';
+import { analytics } from '@app/analytics';
+import type { TutorialStepName } from '@app/analytics/contracts';
 import { rememberOnboarding, shouldShowWelcome } from './preferences';
 
 interface TutorialSession {
@@ -39,6 +41,20 @@ function getTutorialStep(session: TutorialSession | null): TutorialStep | null {
     return 'complete';
 }
 
+const completedStepFields = [
+    ['played', 'play'],
+    ['edited', 'edit_title'],
+    ['midiImported', 'import_midi'],
+    ['midiConnected', 'connect_midi'],
+    ['audioImported', 'import_audio'],
+    ['saved', 'save'],
+    ['rendered', 'render'],
+] as const;
+
+function analyticsStep(step: TutorialStep): TutorialStepName | 'complete' {
+    return step.replaceAll('-', '_') as TutorialStepName | 'complete';
+}
+
 export function useOnboarding({
     ready,
     suppressed,
@@ -54,8 +70,22 @@ export function useOnboarding({
     const [error, setError] = useState('');
     const loading = useRef(false);
     const nextSessionId = useRef(0);
+    const reportedSteps = useRef(new Set<string>());
+    const reportedDismissals = useRef(new Set<number>());
+    const reportedCompletions = useRef(new Set<number>());
+    const sessionRef = useRef<TutorialSession | null>(null);
     const mounted = useRef(true);
     const applyTemplate = useTemplateApply();
+    sessionRef.current = session;
+
+    const reportDismissal = (current: TutorialSession | null) => {
+        if (!current || reportedDismissals.current.has(current.id)) return;
+        const step = getTutorialStep(current);
+        if (step && step !== 'complete') {
+            reportedDismissals.current.add(current.id);
+            void analytics.capture('tutorial_dismissed', { last_step: analyticsStep(step) });
+        }
+    };
 
     useEffect(() => {
         mounted.current = true;
@@ -70,7 +100,10 @@ export function useOnboarding({
         if (!session) return;
         const initialTitle = session.initialTitle;
         const metadata = useSceneMetadataStore.getState().metadata;
-        const stop = () => setSession(null);
+        const stop = () => {
+            reportDismissal(sessionRef.current);
+            setSession(null);
+        };
         const unsubscribers = [
             useSceneMetadataStore.subscribe((state) => {
                 if (state.metadata.id !== metadata.id || state.metadata.createdAt !== metadata.createdAt) stop();
@@ -164,8 +197,25 @@ export function useOnboarding({
         session.rendered
     );
     useEffect(() => {
-        if (complete) rememberOnboarding('completed');
-    }, [complete]);
+        if (complete && session) {
+            rememberOnboarding('completed');
+            if (!reportedCompletions.current.has(session.id)) {
+                reportedCompletions.current.add(session.id);
+                void analytics.capture('tutorial_completed', {});
+            }
+        }
+    }, [complete, session]);
+
+    useEffect(() => {
+        if (!session) return;
+        for (const [field, step] of completedStepFields) {
+            if (!session[field]) continue;
+            const key = `${session.id}:${step}`;
+            if (reportedSteps.current.has(key)) continue;
+            reportedSteps.current.add(key);
+            void analytics.capture('tutorial_step_completed', { step });
+        }
+    }, [session]);
 
     const startTutorial = async () => {
         if (loading.current || suppressed || !ready) return;
@@ -175,7 +225,7 @@ export function useOnboarding({
         try {
             const template = easyModeTemplates.find((candidate) => candidate.id === 'kashiwadelike');
             if (!template) throw new Error('The tutorial is unavailable. You can continue with your project.');
-            if (!(await applyTemplate(template))) return;
+            if (!(await applyTemplate(template, 'tutorial'))) return;
             if (!mounted.current) return;
             useTimelineStore.getState().pause();
             const title = useSceneStore.getState().macros.byId.songTitle?.value;
@@ -195,10 +245,13 @@ export function useOnboarding({
                 rendered: false,
             });
             rememberOnboarding('started');
+            void analytics.capture('tutorial_started', {});
             setWelcomeRequested(false);
         } catch (cause) {
-            if (mounted.current)
+            if (mounted.current) {
+                void analytics.capture('tutorial_failed', { stage: 'setup' });
                 setError(cause instanceof Error ? cause.message : 'Could not load the tutorial. Please try again.');
+            }
         } finally {
             loading.current = false;
             if (mounted.current) setBusy(false);
@@ -223,6 +276,7 @@ export function useOnboarding({
             setWelcomeRequested(false);
         },
         dismissGuide: () => {
+            reportDismissal(sessionRef.current);
             rememberOnboarding(complete ? 'completed' : 'dismissed');
             setSession(null);
         },

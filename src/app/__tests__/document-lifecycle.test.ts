@@ -31,8 +31,9 @@ describe('document analytics lifecycle', () => {
         await completePendingDocumentAnalytics(analytics);
 
         expect(analytics.capture).toHaveBeenCalledWith('document_opened', { source: 'browser_file_picker' });
+        expect(analytics.capture).toHaveBeenCalledWith('independent_project_started', { source: 'opened' });
         await failPendingDocumentAnalytics(analytics);
-        expect(analytics.capture).toHaveBeenCalledTimes(1);
+        expect(analytics.capture).toHaveBeenCalledTimes(2);
     });
 
     it('emits only a failure when a staged document import fails', async () => {

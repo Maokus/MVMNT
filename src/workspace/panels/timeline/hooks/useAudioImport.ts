@@ -52,6 +52,7 @@ export function useAudioImport() {
                 alert('Unsupported file type. Please select an audio file.');
                 return false;
             }
+            let stage: 'preflight' | 'decode_or_add' = 'preflight';
             try {
                 const estimate = await estimateAudioImportBatch([file]);
                 recordAudioMemoryDiagnostic({
@@ -66,6 +67,7 @@ export function useAudioImport() {
                         retainedAudio: estimate.retainedHeapBytes,
                     },
                 });
+                stage = 'decode_or_add';
                 await addAudioTrack({
                     name: getNextImportedTrackName('audio', useTimelineStore.getState().tracks),
                     file,
@@ -74,7 +76,11 @@ export function useAudioImport() {
                 return true;
             } catch (error) {
                 console.error('Failed to import audio track', error);
-                void analytics.capture('media_import_failed', { media_type: 'audio', failure_category: 'import' });
+                void analytics.capture('media_import_failed', {
+                    media_type: 'audio',
+                    failure_category: 'import',
+                    stage,
+                });
                 const reason =
                     error instanceof Error
                         ? error.message

@@ -293,7 +293,10 @@ export const useMenuBar = ({
             );
             if (!trusted) return;
             const pluginResult = await loadPlugin(toArrayBuffer(result.bytes));
-            if (!pluginResult.success) alert(pluginResult.error || 'Plugin installation failed.');
+            if (!pluginResult.success) {
+                void analytics.capture('plugin_operation_failed', { operation: 'install', stage: 'load' });
+                alert(pluginResult.error || 'Plugin installation failed.');
+            }
             return;
         }
 
@@ -337,6 +340,7 @@ export const useMenuBar = ({
             localStorage.setItem('mvmnt.desktop.recovery-state', 'clean');
             markSaveClean();
             void analytics.capture('document_opened', { source });
+            void analytics.capture('independent_project_started', { source: 'opened' });
         } catch (error) {
             if ((error as Error)?.name !== 'AbortError') {
                 console.error('Desktop open failed:', error);
@@ -429,6 +433,7 @@ export const useMenuBar = ({
         localStorage.setItem('mvmnt.desktop.recovery-state', 'dirty');
         markDirty();
         void analytics.capture('document_created', { entry_point: 'menu' });
+        void analytics.capture('independent_project_started', { source: 'created' });
         return true;
     };
 

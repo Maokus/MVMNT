@@ -147,15 +147,19 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({
     const handleInstall = useCallback(async () => {
         setActioning(true);
         setError(null);
+        let stage: 'download' | 'load' = 'download';
         try {
             const url = await downloadItem(item, user?.id ?? null);
             const response = await fetch(url);
+            if (!response.ok) throw new Error('Download failed');
             const buffer = await response.arrayBuffer();
+            stage = 'load';
             const result = await loadPlugin(buffer);
             if (!result.success) throw new Error(result.error ?? 'Installation failed');
             void analytics.capture('community_plugin_installed', {});
             onItemChanged();
         } catch (err: any) {
+            void analytics.capture('plugin_operation_failed', { operation: 'install', stage });
             setError(err.message ?? 'Installation failed');
         } finally {
             setActioning(false);
@@ -165,14 +169,18 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({
     const handleUpdate = useCallback(async () => {
         setActioning(true);
         setError(null);
+        let stage: 'download' | 'load' = 'download';
         try {
             const url = await downloadItem(item, user?.id ?? null);
             const response = await fetch(url);
+            if (!response.ok) throw new Error('Download failed');
             const buffer = await response.arrayBuffer();
+            stage = 'load';
             const result = await upgradePlugin(buffer);
             if (!result.success) throw new Error(result.error ?? 'Update failed');
             onItemChanged();
         } catch (err: any) {
+            void analytics.capture('plugin_operation_failed', { operation: 'upgrade', stage });
             setError(err.message ?? 'Update failed');
         } finally {
             setActioning(false);

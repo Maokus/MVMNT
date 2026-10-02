@@ -81,7 +81,12 @@ export function PrivacyPage() {
                                 <li>
                                     Successful workflow milestones, such as importing media or completing an export.
                                 </li>
-                                <li>Safe feature categories, Community actions, and export outcome categories.</li>
+                                <li>Tutorial steps and dismissal stage, without the text or media in your project.</li>
+                                <li>
+                                    Safe feature categories, Community actions, export outcomes, coarse duration
+                                    buckets, and a random identifier used only to match each export start with its
+                                    outcome.
+                                </li>
                                 <li>Sanitized renderer error type, fatal state, and stack locations.</li>
                             </ul>
                         </section>

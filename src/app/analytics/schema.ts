@@ -23,6 +23,9 @@ const screens = new Set(['home', 'workspace', 'about', 'privacy', 'changelog', '
 const templateEntryPoints = new Set(['home', 'workspace', 'community']);
 const exportFormats = new Set(['video', 'png']);
 const exportExecutionModes = new Set(['foreground', 'background', 'automation']);
+const tutorialSteps = new Set(['play', 'edit_title', 'import_midi', 'connect_midi', 'import_audio', 'save', 'render']);
+const exportDurationBuckets = new Set(['under_30s', '30s_2m', '2m_10m', 'over_10m', 'unknown']);
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function hasExactKeys(properties: UnknownProperties, keys: string[]): boolean {
     const actual = Object.keys(properties).sort();
@@ -42,12 +45,17 @@ function singleString<K extends string>(key: K, values: Set<string>) {
     };
 }
 
-function exportBase(
-    properties: UnknownProperties
-): { export_format: 'video' | 'png'; execution_mode: 'foreground' | 'background' | 'automation' } | null {
+function exportBase(properties: UnknownProperties): {
+    export_attempt_id: string;
+    export_format: 'video' | 'png';
+    execution_mode: 'foreground' | 'background' | 'automation';
+} | null {
+    const attemptId = properties.export_attempt_id;
     const format = properties.export_format;
     const mode = properties.execution_mode;
     if (
+        typeof attemptId !== 'string' ||
+        !uuidPattern.test(attemptId) ||
         typeof format !== 'string' ||
         !exportFormats.has(format) ||
         typeof mode !== 'string' ||
@@ -56,6 +64,7 @@ function exportBase(
         return null;
     }
     return {
+        export_attempt_id: attemptId,
         export_format: format as 'video' | 'png',
         execution_mode: mode as 'foreground' | 'background' | 'automation',
     };
@@ -71,7 +80,19 @@ const validators: Validators = {
             ? { policy_version: ANALYTICS_POLICY_VERSION }
             : null,
     app_opened: empty,
+    tutorial_started: empty,
+    tutorial_step_completed: singleString('step', tutorialSteps) as Validator<'tutorial_step_completed'>,
+    tutorial_completed: empty,
+    tutorial_dismissed: singleString(
+        'last_step',
+        new Set([...tutorialSteps, 'complete'])
+    ) as Validator<'tutorial_dismissed'>,
+    tutorial_failed: singleString('stage', new Set(['setup'])) as Validator<'tutorial_failed'>,
     screen_viewed: singleString('screen', screens) as Validator<'screen_viewed'>,
+    independent_project_started: singleString(
+        'source',
+        new Set(['created', 'opened', 'template'])
+    ) as Validator<'independent_project_started'>,
     document_created: singleString('entry_point', entryPoints) as Validator<'document_created'>,
     document_opened: singleString('source', documentSources) as Validator<'document_opened'>,
     document_saved: singleString('save_mode', new Set(['save', 'save_as'])) as Validator<'document_saved'>,
@@ -93,10 +114,13 @@ const validators: Validators = {
         new Set(['midi', 'audio', 'image', 'font'])
     ) as Validator<'media_imported'>,
     media_import_failed: (properties) =>
-        hasExactKeys(properties, ['media_type', 'failure_category']) &&
+        hasExactKeys(properties, ['media_type', 'failure_category', 'stage']) &&
         (properties.media_type === 'midi' || properties.media_type === 'audio') &&
-        properties.failure_category === 'import'
-            ? { media_type: properties.media_type, failure_category: 'import' }
+        properties.failure_category === 'import' &&
+        ((properties.media_type === 'midi' && (properties.stage === 'parse' || properties.stage === 'track_add')) ||
+            (properties.media_type === 'audio' &&
+                (properties.stage === 'preflight' || properties.stage === 'decode_or_add')))
+            ? { media_type: properties.media_type, failure_category: 'import', stage: properties.stage }
             : null,
     scene_element_added: (properties) => {
         const value = properties.element_type;
@@ -111,7 +135,13 @@ const validators: Validators = {
     export_started: (properties) => {
         const base = exportBase(properties);
         return base &&
-            hasExactKeys(properties, ['export_format', 'includes_audio', 'transparent_background', 'execution_mode']) &&
+            hasExactKeys(properties, [
+                'export_attempt_id',
+                'export_format',
+                'includes_audio',
+                'transparent_background',
+                'execution_mode',
+            ]) &&
             typeof properties.includes_audio === 'boolean' &&
             typeof properties.transparent_background === 'boolean'
             ? {
@@ -121,20 +151,55 @@ const validators: Validators = {
               }
             : null;
     },
-    export_completed: (properties) =>
-        hasExactKeys(properties, ['export_format', 'execution_mode']) ? exportBase(properties) : null,
+    export_completed: (properties) => {
+        const base = exportBase(properties);
+        const duration = properties.duration_bucket;
+        return base &&
+            hasExactKeys(properties, ['export_attempt_id', 'export_format', 'execution_mode', 'duration_bucket']) &&
+            typeof duration === 'string' &&
+            exportDurationBuckets.has(duration)
+            ? { ...base, duration_bucket: duration as AnalyticsEventMap['export_completed']['duration_bucket'] }
+            : null;
+    },
     export_failed: (properties) => {
         const base = exportBase(properties);
         const category = properties.failure_category;
+        const duration = properties.duration_bucket;
         return base &&
-            hasExactKeys(properties, ['export_format', 'execution_mode', 'failure_category']) &&
+            hasExactKeys(properties, [
+                'export_attempt_id',
+                'export_format',
+                'execution_mode',
+                'failure_category',
+                'duration_bucket',
+            ]) &&
             typeof category === 'string' &&
-            failureCategories.has(category)
-            ? { ...base, failure_category: category as AnalyticsEventMap['export_failed']['failure_category'] }
+            failureCategories.has(category) &&
+            typeof duration === 'string' &&
+            exportDurationBuckets.has(duration)
+            ? {
+                  ...base,
+                  failure_category: category as AnalyticsEventMap['export_failed']['failure_category'],
+                  duration_bucket: duration as AnalyticsEventMap['export_failed']['duration_bucket'],
+              }
             : null;
     },
-    export_cancelled: (properties) =>
-        hasExactKeys(properties, ['export_format', 'execution_mode']) ? exportBase(properties) : null,
+    export_cancelled: (properties) => {
+        const base = exportBase(properties);
+        const duration = properties.duration_bucket;
+        return base &&
+            hasExactKeys(properties, ['export_attempt_id', 'export_format', 'execution_mode', 'duration_bucket']) &&
+            typeof duration === 'string' &&
+            exportDurationBuckets.has(duration)
+            ? { ...base, duration_bucket: duration as AnalyticsEventMap['export_cancelled']['duration_bucket'] }
+            : null;
+    },
+    plugin_operation_failed: (properties) =>
+        hasExactKeys(properties, ['operation', 'stage']) &&
+        (properties.operation === 'install' || properties.operation === 'upgrade') &&
+        (properties.stage === 'download' || properties.stage === 'load')
+            ? { operation: properties.operation, stage: properties.stage }
+            : null,
     community_signup_submitted: empty,
     community_sign_in_completed: empty,
     community_sign_out: empty,

@@ -23,9 +23,10 @@ milestone deduplication, and consent-gated renderer exception listeners. Provide
 loading, transport, provider persistence, and final wire-format defenses.
 
 Add new event names, typed properties, and matching runtime validators together. Properties must be
-categorical or bounded numeric values. Events with unknown properties or invalid values are rejected before they reach a
-provider. A replacement provider implements `AnalyticsProvider`; application call sites and consent
-behavior remain unchanged.
+categorical or bounded numeric values, except for the random UUID that pairs one export attempt
+with its outcome. Events with unknown properties or invalid values are rejected before they reach
+a provider. A replacement provider implements `AnalyticsProvider`; application call sites and
+consent behavior remain unchanged.
 
 PostHog's browser SDK puts the public project token in each event's properties for ingestion. The
 provider's final privacy guard strips incoming `token` values, then restores only its configured
@@ -34,15 +35,17 @@ remain present for events to be accepted.
 
 ## Event catalog
 
-| Area       | Events                                                                                                                    | Safe properties                                                                             |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Consent    | `analytics_consent_granted`, `analytics_consent_withdrawn`                                                                | policy version                                                                              |
-| Navigation | `app_opened`, `screen_viewed`                                                                                             | allowlisted screen                                                                          |
-| Activation | `document_created`, `document_opened`, `media_imported`, `media_import_failed`, `scene_element_added`, `playback_started` | entry point, source, media type, import failure category, built-in element type or `plugin` |
-| Creation   | `template_applied`, `document_saved`, `document_operation_failed`                                                         | entry point, save mode, operation, failure category                                         |
-| Export     | `export_started`, `export_completed`, `export_failed`, `export_cancelled`                                                 | format, audio/transparency flags, execution mode, failure category                          |
-| Community  | sign-up/sign-in/sign-out, item download/open/install/upload/rating                                                        | item type and numeric rating only                                                           |
-| Errors     | provider-neutral renderer exception report                                                                                | error type, fatal state, mechanism, sanitized stack coordinates                             |
+| Area       | Events                                                                                                                                                   | Safe properties                                                                                              |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Consent    | `analytics_consent_granted`, `analytics_consent_withdrawn`                                                                                               | policy version                                                                                               |
+| Navigation | `app_opened`, `screen_viewed`                                                                                                                            | allowlisted screen                                                                                           |
+| Tutorial   | start, bounded step completion, completion, dismissal, setup failure                                                                                     | fixed step and failure-stage labels only                                                                     |
+| Activation | `document_created`, `document_opened`, `independent_project_started`, `media_imported`, `media_import_failed`, `scene_element_added`, `playback_started` | entry point, source, media type, bounded import stage, built-in element type or `plugin`                     |
+| Creation   | `template_applied`, `document_saved`, `document_operation_failed`                                                                                        | entry point, save mode, operation, failure category                                                          |
+| Export     | `export_started`, `export_completed`, `export_failed`, `export_cancelled`                                                                                | random attempt UUID, format, audio/transparency flags, execution mode, bounded duration and failure category |
+| Community  | sign-up/sign-in/sign-out, item download/open/install/upload/rating                                                                                       | item type and numeric rating only                                                                            |
+| Plugins    | `plugin_operation_failed`                                                                                                                                | install/upgrade and download/load stage only                                                                 |
+| Errors     | provider-neutral renderer exception report                                                                                                               | error type, fatal state, mechanism, sanitized stack coordinates                                              |
 
 The PostHog adapter maps renderer exception reports to `$exception` only at its boundary. Milestone
 events derived from command telemetry must require success, reject transient commands,
@@ -50,7 +53,12 @@ and never forward command objects. Playback is deduplicated once per app session
 and element additions are deduplicated once per category per app session. Document, save, and export
 outcomes are emitted from their completion boundaries rather than button clicks. User-cancelled
 document imports and saves do not count as failures. Background export setup failures use the
-`output` category; renderer failures use `render`.
+`output` category; renderer failures use `render`. Export attempt IDs are random job UUIDs used
+only to pair one start with one terminal outcome. Duration is bucketed from job creation to its
+terminal status, including background setup time. Missing or invalid timestamps use `unknown`.
+Tutorial `render` completion means rendering started, not that the export succeeded; successful
+export is measured separately. Tutorial progress and independent-project starts never include
+scene content or project identifiers.
 
 ## PostHog project configuration
 
@@ -79,20 +87,42 @@ Every event receives these provider-neutral dimensions:
 - `build_commit`: exact source revision used for the build.
 - `runtime`, coarse `platform`, and `consent_policy_version`.
 
-Stable and opted-in nightly builds use the production EU project. Product views default to stable
-traffic and expose channel/version filters. Development analytics is off by default and must use a
-separate development project when explicitly enabled.
+Stable and opted-in nightly builds use the production EU project. The Product Health dashboard
+includes both channels; filter `build_channel` or `app_version` to inspect one release. Development
+analytics is off by default and must use a separate development project when explicitly enabled.
 
 ## Saved views
 
-Create and maintain these PostHog views:
+The [MVMNT Product Health dashboard](https://eu.posthog.com/project/250591/dashboard/899765)
+is pinned in the production project. It shows:
 
-1. Activation funnel: `app_opened` → document created/opened → `media_imported` →
-   `scene_element_added` → `playback_started` → `export_completed`.
-2. Weekly retention: users who reached `export_completed`, returning via `app_opened`.
-3. Adoption: template, media, element, export, `community_template_opened`, and
-   `community_plugin_installed` events by their categorical fields.
-4. Release health: `$exception`, document and media import failures, and export failures by app version and channel.
+1. Weekly distinct opted-in users from `app_opened`, by channel and exact app version.
+2. An ordered creation-to-export funnel: `app_opened` → successful document created/opened →
+   `export_started` → `export_completed`. Media import, element addition, and playback are useful
+   feature milestones, but none is required for every valid export workflow.
+3. Weekly retention after a user's first `app_opened`, and separately after their first
+   `export_completed`, each measured by a later `app_opened`.
+4. Weekly export starts, completions, failures, and cancellations, plus completed exports by
+   format. The dashboard also shows creation, save, media, element, template, and Community
+   activity. Media imports are broken down by type, and Community actions are shown separately.
+5. Release health: `$exception`, document operation failures, media import failures, and export
+   plugin failures and export failures, with channel and version filters.
+6. Tutorial starts, completions, dismissals, and setup failures; independent-project journeys;
+   and successful export duration buckets.
+
+The [MVMNT Workflow Diagnostics dashboard](https://eu.posthog.com/project/250591/dashboard/992915)
+shows tutorial steps, media and plugin failure stages, export duration, and release health. The
+independent-project funnel links events by opted-in user within 30 days, not by project file.
+Tutorial, independent-project, duration, and failure-stage events are absent from older builds;
+filter by `app_version` when comparing releases.
+
+These are opt-in measures, not download or installation totals. `app_opened` is captured once per
+app run after consent; media and element milestones are captured once per type per app run. Export,
+save, and Community action counts reflect completed actions or attempts as named by each event.
+Retention cohorts need subsequent weeks of data. A release-health chart with no data means no
+recorded failures in the selected period, not that ingestion has stopped; check weekly active users
+and the Activity event feed to confirm ingestion. The generic PostHog starter dashboard uses
+autocapture and page-view events that MVMNT intentionally disables and is therefore unpinned.
 
 ## Access and deletion requests
 

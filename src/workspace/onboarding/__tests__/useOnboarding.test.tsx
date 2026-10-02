@@ -10,8 +10,9 @@ import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { useSceneEditorStore } from '@state/sceneEditorStore';
 import { useOnboarding } from '../useOnboarding';
 
-const { apply } = vi.hoisted(() => ({ apply: vi.fn() }));
+const { apply, capture } = vi.hoisted(() => ({ apply: vi.fn(), capture: vi.fn() }));
 vi.mock('@workspace/templates/useTemplateApply', () => ({ useTemplateApply: () => apply }));
+vi.mock('@app/analytics', () => ({ analytics: { capture } }));
 vi.mock('@workspace/templates/easyModeTemplates', () => ({
     easyModeTemplates: [{ id: 'kashiwadelike', name: 'Kashiwade-like' }],
 }));
@@ -43,6 +44,7 @@ function play() {
 beforeEach(() => {
     localStorage.clear();
     apply.mockReset().mockResolvedValue(true);
+    capture.mockReset();
     dispatchSceneCommand({ type: 'clearScene', clearMacros: true });
     dispatchSceneCommand({
         type: 'createMacro',
@@ -125,6 +127,7 @@ describe('welcome lifecycle', () => {
         await act(async () => {
             await result.current.startTutorial();
         });
+        expect(apply).toHaveBeenCalledWith(expect.anything(), 'tutorial');
         expect(apply).toHaveBeenCalledTimes(1);
         expect(result.current.busy).toBe(true);
         act(() => result.current.closeWelcome());
@@ -140,6 +143,7 @@ describe('welcome lifecycle', () => {
             await result.current.startTutorial();
         });
         expect(result.current.error).toBe('Could not load tutorial');
+        expect(capture).toHaveBeenCalledWith('tutorial_failed', { stage: 'setup' });
         expect(result.current.showWelcome).toBe(true);
         await act(async () => {
             await result.current.startTutorial();
@@ -163,6 +167,7 @@ describe('tutorial progress', () => {
         await act(async () => {
             await result.current.startTutorial();
         });
+        expect(capture).toHaveBeenCalledWith('tutorial_started', {});
         expect(useTimelineStore.getState().transport.isPlaying).toBe(false);
         act(() => useTimelineStore.getState().setCurrentTick(50));
         expect(result.current.session?.played).toBe(false);
@@ -198,6 +203,20 @@ describe('tutorial progress', () => {
         rerender({ ...ready, renderingVideo: true });
         expect(result.current.complete).toBe(true);
         expect(localStorage.getItem('mvmnt_onboarding_v2')).toBe('completed');
+        expect(capture).toHaveBeenCalledWith('tutorial_step_completed', { step: 'render' });
+        expect(capture).toHaveBeenCalledWith('tutorial_completed', {});
+        expect(capture.mock.calls.filter(([event]) => event === 'tutorial_completed')).toHaveLength(1);
+    });
+
+    it('reports the step where a started guide is dismissed once', async () => {
+        const { result } = renderHook(() => useOnboarding(ready));
+        await act(async () => {
+            await result.current.startTutorial();
+        });
+        play();
+        act(() => result.current.dismissGuide());
+        expect(capture).toHaveBeenCalledWith('tutorial_dismissed', { last_step: 'edit_title' });
+        expect(capture.mock.calls.filter(([event]) => event === 'tutorial_dismissed')).toHaveLength(1);
     });
 
     it('does not count unrelated edits or a reverted title', async () => {
@@ -210,6 +229,12 @@ describe('tutorial progress', () => {
         editTitle('New title');
         editTitle('Song Title');
         expect(result.current.session?.edited).toBe(false);
+        editTitle('New title again');
+        expect(
+            capture.mock.calls.filter(
+                ([event, properties]) => event === 'tutorial_step_completed' && properties.step === 'edit_title'
+            )
+        ).toHaveLength(1);
     });
 
     it.each(['load', 'hydrate', 'new', 'delete'] as const)(

@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { usePluginStore } from '@state/pluginStore';
 import { disablePlugin, enablePlugin, loadPlugin, unloadPlugin, upgradePlugin } from '@core/scene/plugins';
+import { analytics } from '@app/analytics';
 
 const ScenePluginsTab: React.FC = () => {
     const { plugins, loading } = usePluginStore((state) => ({
@@ -47,10 +48,12 @@ const ScenePluginsTab: React.FC = () => {
                 if (result.error?.includes('is already loaded')) {
                     setUpgradeOffer(file);
                 } else {
+                    void analytics.capture('plugin_operation_failed', { operation: 'install', stage: 'load' });
                     setImportError(result.error || 'Failed to import plugin');
                 }
             }
         } catch (error) {
+            void analytics.capture('plugin_operation_failed', { operation: 'install', stage: 'load' });
             setImportError(error instanceof Error ? error.message : 'Failed to import plugin');
         } finally {
             setImporting(false);
@@ -69,9 +72,11 @@ const ScenePluginsTab: React.FC = () => {
             const result = await upgradePlugin(arrayBuffer);
 
             if (!result.success) {
+                void analytics.capture('plugin_operation_failed', { operation: 'upgrade', stage: 'load' });
                 setImportError(result.error || 'Failed to upgrade plugin');
             }
         } catch (error) {
+            void analytics.capture('plugin_operation_failed', { operation: 'upgrade', stage: 'load' });
             setImportError(error instanceof Error ? error.message : 'Failed to upgrade plugin');
         } finally {
             setImporting(false);

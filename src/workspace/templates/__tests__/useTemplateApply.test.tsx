@@ -9,12 +9,14 @@ const mocks = vi.hoisted(() => ({
     useScene: vi.fn(),
     useUndo: vi.fn(),
     useVisualizer: vi.fn(),
+    capture: vi.fn(),
 }));
 
 vi.mock('@persistence/index', () => ({ importScene: mocks.importScene }));
 vi.mock('@context/SceneContext', () => ({ useScene: mocks.useScene }));
 vi.mock('@context/UndoContext', () => ({ useUndo: mocks.useUndo }));
 vi.mock('@context/VisualizerContext', () => ({ useVisualizer: mocks.useVisualizer }));
+vi.mock('@app/analytics', () => ({ analytics: { capture: mocks.capture } }));
 
 describe('useTemplateApply', () => {
     const clearActivePath = vi.fn().mockResolvedValue(undefined);
@@ -94,6 +96,26 @@ describe('useTemplateApply', () => {
         expect(refreshSceneUI).toHaveBeenCalledOnce();
         expect(invalidateRender).toHaveBeenCalledOnce();
         expect(markDirty).toHaveBeenCalledOnce();
+        expect(mocks.capture).toHaveBeenCalledWith('independent_project_started', { source: 'template' });
+    });
+
+    it('does not classify the tutorial template as independent work', async () => {
+        const { result } = renderHook(() => useTemplateApply());
+        await act(async () => {
+            expect(
+                await result.current(
+                    {
+                        id: 'tutorial',
+                        name: 'Tutorial',
+                        description: '',
+                        loadArtifact: async () => ({ data: new Uint8Array([1]) }),
+                    },
+                    'tutorial'
+                )
+            ).toBe(true);
+        });
+        expect(mocks.capture).toHaveBeenCalledWith('template_applied', { entry_point: 'workspace' });
+        expect(mocks.capture).not.toHaveBeenCalledWith('independent_project_started', expect.anything());
     });
 
     it('preserves the current document when replacing dirty work is cancelled', async () => {

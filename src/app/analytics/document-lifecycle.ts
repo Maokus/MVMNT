@@ -35,6 +35,9 @@ export async function completePendingDocumentAnalytics(analytics: AnalyticsServi
     if (context.templateEntryPoint)
         await analytics.capture('template_applied', { entry_point: context.templateEntryPoint });
     if (context.source === 'community') await analytics.capture('community_template_opened', {});
+    if (context.templateEntryPoint) await analytics.capture('independent_project_started', { source: 'template' });
+    else if (context.createdEntryPoint) await analytics.capture('independent_project_started', { source: 'created' });
+    else if (context.source) await analytics.capture('independent_project_started', { source: 'opened' });
 }
 
 export async function failPendingDocumentAnalytics(analytics: AnalyticsService, cancelled = false): Promise<void> {

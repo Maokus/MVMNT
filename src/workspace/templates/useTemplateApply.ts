@@ -19,7 +19,7 @@ export function useTemplateApply() {
     const finishTemplateLoading = useTemplateStatusStore((state) => state.finishLoading);
 
     return useCallback(
-        async (template: TemplateDefinition): Promise<boolean> => {
+        async (template: TemplateDefinition, context: 'independent' | 'tutorial' = 'independent'): Promise<boolean> => {
             if (isDirty) {
                 const ok = window.confirm(
                     `Use template "${template.name}"?\n\nYou have unsaved changes that will be lost. Continue?`
@@ -83,6 +83,8 @@ export function useTemplateApply() {
                 }
                 markDirty();
                 void analytics.capture('template_applied', { entry_point: 'workspace' });
+                if (context === 'independent')
+                    void analytics.capture('independent_project_started', { source: 'template' });
                 return true;
             } finally {
                 finishTemplateLoading();

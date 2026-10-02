@@ -40,6 +40,7 @@ describe('useAudioImport analytics', () => {
         expect(capture).toHaveBeenCalledWith('media_import_failed', {
             media_type: 'audio',
             failure_category: 'import',
+            stage: 'decode_or_add',
         });
         capture.mockRestore();
         alert.mockRestore();

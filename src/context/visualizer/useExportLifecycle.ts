@@ -63,7 +63,9 @@ export function useExportLifecycle({
                 job.kind,
                 status,
                 executionMode,
-                failureCategory
+                failureCategory,
+                job.snapshot.createdAt,
+                job.finishedAt
             );
             if (!outcome) return;
             if (outcome.event === 'export_completed') void analytics.capture(outcome.event, outcome.properties);
@@ -191,9 +193,11 @@ export function useExportLifecycle({
             const sceneStart = Number(latestRef.current.visualizer?.getPlayRange?.()?.startSec ?? 0);
             const plan: ResolvedExportPlan = resolveExportPlan(request, duration, sceneStart);
             const [sceneElementCount, trackCount] = counts();
+            const attemptId = crypto.randomUUID();
             setShowProgressOverlay(true);
             setExportKind(kind);
             void analytics.capture('export_started', {
+                export_attempt_id: attemptId,
                 export_format: kind,
                 includes_audio: kind === 'video' && Boolean(settings.includeAudio),
                 transparent_background: Boolean(settings.transparentBackground),
@@ -201,7 +205,14 @@ export function useExportLifecycle({
             });
 
             if (window.mvmntDesktop && !readBackgroundExportBootstrap()) {
-                const job = createExportJob(kind, request.sceneName, plan.settings, sceneElementCount, trackCount);
+                const job = createExportJob(
+                    kind,
+                    request.sceneName,
+                    plan.settings,
+                    sceneElementCount,
+                    trackCount,
+                    attemptId
+                );
                 useExportJobStore.getState().enqueue(job);
                 useExportJobStore.getState().update(job.id, {
                     status: 'preparing',
@@ -241,7 +252,7 @@ export function useExportLifecycle({
                 return job;
             }
 
-            return coordinator.submit(request, sceneElementCount, trackCount);
+            return coordinator.submit(request, sceneElementCount, trackCount, attemptId);
         },
         [coordinator, counts, reportTerminalJob, sceneNameRef, setExportKind, setProgressData, setShowProgressOverlay]
     );

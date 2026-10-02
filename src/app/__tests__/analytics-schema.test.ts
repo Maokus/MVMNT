@@ -32,23 +32,41 @@ describe('analytics runtime event schema', () => {
             element_type: 'audio-spectrum',
         });
         expect(
-            validateAnalyticsEvent('media_import_failed', { media_type: 'audio', failure_category: 'import' })
+            validateAnalyticsEvent('media_import_failed', {
+                media_type: 'audio',
+                failure_category: 'import',
+                stage: 'decode_or_add',
+            })
         ).toEqual({
             media_type: 'audio',
             failure_category: 'import',
+            stage: 'decode_or_add',
         });
         expect(
             validateAnalyticsEvent('export_started', {
+                export_attempt_id: '123e4567-e89b-42d3-a456-426614174000',
                 export_format: 'video',
                 includes_audio: true,
                 transparent_background: false,
                 execution_mode: 'background',
             })
         ).toEqual({
+            export_attempt_id: '123e4567-e89b-42d3-a456-426614174000',
             export_format: 'video',
             includes_audio: true,
             transparent_background: false,
             execution_mode: 'background',
+        });
+        expect(validateAnalyticsEvent('tutorial_step_completed', { step: 'import_midi' })).toEqual({
+            step: 'import_midi',
+        });
+        expect(validateAnalyticsEvent('tutorial_step_completed', { step: 'private_file.mid' })).toBeNull();
+        expect(validateAnalyticsEvent('independent_project_started', { source: 'opened' })).toEqual({
+            source: 'opened',
+        });
+        expect(validateAnalyticsEvent('plugin_operation_failed', { operation: 'install', stage: 'load' })).toEqual({
+            operation: 'install',
+            stage: 'load',
         });
     });
 });

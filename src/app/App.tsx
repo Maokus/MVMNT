@@ -146,9 +146,17 @@ export function App() {
                 if (!trusted) return;
                 const bytes = result.bytes;
                 const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
-                void loadPlugin(buffer).then((pluginResult) => {
-                    if (!pluginResult.success) alert(pluginResult.error || 'Plugin installation failed.');
-                });
+                void loadPlugin(buffer)
+                    .then((pluginResult) => {
+                        if (!pluginResult.success) {
+                            void analytics.capture('plugin_operation_failed', { operation: 'install', stage: 'load' });
+                            alert(pluginResult.error || 'Plugin installation failed.');
+                        }
+                    })
+                    .catch(() => {
+                        void analytics.capture('plugin_operation_failed', { operation: 'install', stage: 'load' });
+                        alert('Plugin installation failed.');
+                    });
             }
         });
     }, [location.pathname, navigate]);
@@ -255,7 +263,13 @@ export function App() {
                                 file.bytes.byteOffset + file.bytes.byteLength
                             ) as ArrayBuffer;
                             const result = await loadPlugin(buffer);
-                            if (!result.success) alert(result.error || 'Plugin installation failed.');
+                            if (!result.success) {
+                                void analytics.capture('plugin_operation_failed', {
+                                    operation: 'install',
+                                    stage: 'load',
+                                });
+                                alert(result.error || 'Plugin installation failed.');
+                            }
                         }
                     } else {
                         const arrayBuffer = file.bytes.buffer.slice(
