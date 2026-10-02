@@ -254,7 +254,7 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
         const desktop = window.mvmntDesktop;
         if (!desktop) return;
         return desktop.documents.onOpenPathRequest((result) => {
-            void openDesktopFile(result);
+            void openDesktopFile(result, 'os_open');
         });
     }, [openDesktopFile]);
 

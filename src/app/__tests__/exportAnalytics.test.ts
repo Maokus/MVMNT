@@ -23,4 +23,11 @@ describe('export analytics outcomes', () => {
             },
         });
     });
+
+    it('classifies background setup failures as output failures', () => {
+        expect(takeExportTerminalAnalytics(new Set(), 'job-3', 'video', 'failed', 'background', 'output')).toEqual({
+            event: 'export_failed',
+            properties: { export_format: 'video', execution_mode: 'background', failure_category: 'output' },
+        });
+    });
 });

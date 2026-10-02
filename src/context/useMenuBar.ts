@@ -51,7 +51,7 @@ interface UseMenuBarProps {
 interface MenuBarActions {
     saveProject: (forceSaveAs?: boolean) => Promise<boolean>;
     loadScene: () => void;
-    openDesktopFile: (result: DesktopOpenResult) => Promise<void>;
+    openDesktopFile: (result: DesktopOpenResult, source?: 'file_picker' | 'os_open') => Promise<void>;
     clearScene: () => void;
     createNewDefaultScene: () => Promise<boolean>;
 }
@@ -172,14 +172,17 @@ export const useMenuBar = ({
                 canonicalName = selection.displayName.replace(/\.mvt$/i, '');
                 onSceneNameChange(canonicalName);
                 const revision = captureSaveRevision();
-                return saveScene(canonicalName, { saveAsSelectionId: selection.selectionId }, revision);
+                return {
+                    ...(await saveScene(canonicalName, { saveAsSelectionId: selection.selectionId }, revision)),
+                    saveMode: 'save_as' as const,
+                };
             }
             if (document.displayName) {
                 canonicalName = document.displayName.replace(/\.mvt$/i, '');
                 if (canonicalName !== sceneNameRef.current) onSceneNameChange(canonicalName);
             }
             const revision = captureSaveRevision();
-            return saveScene(canonicalName, undefined, revision);
+            return { ...(await saveScene(canonicalName, undefined, revision)), saveMode: 'save' as const };
         } catch (error) {
             console.error('Save failed:', error);
             const message = error instanceof Error ? error.message : String(error);
@@ -215,14 +218,19 @@ export const useMenuBar = ({
                         if (result.saved) {
                             useDocumentSaveStatusStore.getState().recordSuccessfulSave(result.revision);
                         }
-                        await analytics
-                            .capture(
-                                result.saved ? 'document_saved' : 'document_operation_failed',
-                                result.saved
-                                    ? { save_mode: request.forceSaveAs ? 'save_as' : 'save' }
-                                    : { operation: 'save', failure_category: 'save' }
-                            )
-                            .catch(() => undefined);
+                        if (result.saved)
+                            await analytics
+                                .capture('document_saved', {
+                                    save_mode: 'saveMode' in result ? result.saveMode : 'save',
+                                })
+                                .catch(() => undefined);
+                        else if (!result.canceled)
+                            await analytics
+                                .capture('document_operation_failed', {
+                                    operation: 'save',
+                                    failure_category: 'save',
+                                })
+                                .catch(() => undefined);
                         request.waiters.forEach((waiter) => waiter(result.saved));
                         if (!result.saved) {
                             saveQueueRef.current?.waiters.forEach((waiter) => waiter(false));
@@ -266,7 +274,10 @@ export const useMenuBar = ({
         });
     };
 
-    const openDesktopFile = async (result: DesktopOpenResult): Promise<void> => {
+    const openDesktopFile = async (
+        result: DesktopOpenResult,
+        source: 'file_picker' | 'os_open' = 'file_picker'
+    ): Promise<void> => {
         if (result.canceled || !result.bytes) return;
         await saveDrainPromiseRef.current;
         if (isDirty) {
@@ -300,13 +311,16 @@ export const useMenuBar = ({
                     }),
             });
             if (!imported.ok) {
-                void analytics.capture('document_operation_failed', {
-                    operation: 'open',
-                    failure_category: 'import',
-                });
-                alert(
-                    'Import failed: ' + (imported.errors.map(humanReadableImportError).join('\n') || 'Unknown error')
-                );
+                if (!abortController.signal.aborted) {
+                    void analytics.capture('document_operation_failed', {
+                        operation: 'open',
+                        failure_category: 'import',
+                    });
+                    alert(
+                        'Import failed: ' +
+                            (imported.errors.map(humanReadableImportError).join('\n') || 'Unknown error')
+                    );
+                }
                 return;
             }
             const fallbackName = fileName.replace(/\.mvt$/i, '');
@@ -319,7 +333,7 @@ export const useMenuBar = ({
             await LocalFileStore.save(result.bytes).catch(() => undefined);
             localStorage.setItem('mvmnt.desktop.recovery-state', 'clean');
             markSaveClean();
-            void analytics.capture('document_opened', { source: 'file_picker' });
+            void analytics.capture('document_opened', { source });
         } catch (error) {
             if ((error as Error)?.name !== 'AbortError') {
                 console.error('Desktop open failed:', error);

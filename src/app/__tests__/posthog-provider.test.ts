@@ -94,12 +94,14 @@ describe('PostHog analytics provider', () => {
             loader: async () => client,
         });
         localStorage.setItem('ph_phc_test_posthog', 'identifier');
+        localStorage.setItem('ph_other_project_posthog', 'keep');
         localStorage.setItem('mvmnt.analytics-consent.v1', 'decision');
         await provider.initialize(context);
 
         provider.shutdown({ clearPersistence: true });
 
         expect(localStorage.getItem('ph_phc_test_posthog')).toBeNull();
+        expect(localStorage.getItem('ph_other_project_posthog')).toBe('keep');
         expect(localStorage.getItem('mvmnt.analytics-consent.v1')).toBe('decision');
     });
 

@@ -10,6 +10,7 @@ import {
 import { recordAudioMemoryDiagnostic } from '@state/audioMemoryDiagnosticsStore';
 import { isMidiFile, isAudioFile } from '../utils/fileTypeUtils';
 import { getNextImportedTrackName } from './importTrackName';
+import { analytics } from '@app/analytics';
 
 export interface AudioImportProgressState {
     active: boolean;
@@ -73,6 +74,7 @@ export function useAudioImport() {
                 return true;
             } catch (error) {
                 console.error('Failed to import audio track', error);
+                void analytics.capture('media_import_failed', { media_type: 'audio', failure_category: 'import' });
                 const reason =
                     error instanceof Error
                         ? error.message

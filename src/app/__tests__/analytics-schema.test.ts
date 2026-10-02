@@ -18,12 +18,24 @@ describe('analytics runtime event schema', () => {
         expect(validateAnalyticsEvent('community_item_rated', { rating: 6 })).toBeNull();
         expect(validateAnalyticsEvent('community_item_rated', { rating: 4.5 })).toBeNull();
         expect(validateAnalyticsEvent('scene_element_added', { element_type: 'author/private-plugin' })).toBeNull();
+        expect(
+            validateAnalyticsEvent('media_import_failed', { media_type: 'image', failure_category: 'import' })
+        ).toBeNull();
+        expect(
+            validateAnalyticsEvent('media_import_failed', { media_type: 'midi', failure_category: 'unknown' })
+        ).toBeNull();
     });
 
     it('accepts reviewed safe values', () => {
         expect(validateAnalyticsEvent('community_item_rated', { rating: 5 })).toEqual({ rating: 5 });
         expect(validateAnalyticsEvent('scene_element_added', { element_type: 'audio-spectrum' })).toEqual({
             element_type: 'audio-spectrum',
+        });
+        expect(
+            validateAnalyticsEvent('media_import_failed', { media_type: 'audio', failure_category: 'import' })
+        ).toEqual({
+            media_type: 'audio',
+            failure_category: 'import',
         });
         expect(
             validateAnalyticsEvent('export_started', {

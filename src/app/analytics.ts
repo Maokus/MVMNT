@@ -82,4 +82,5 @@ export { ANALYTICS_CONSENT_STORAGE_KEY, ANALYTICS_POLICY_VERSION, stagePendingDo
 export type { AnalyticsEventMap, PendingDocumentAnalytics };
 
 export const completePendingDocumentAnalytics = () => completePendingDocumentAnalyticsWith(analytics);
-export const failPendingDocumentAnalytics = () => failPendingDocumentAnalyticsWith(analytics);
+export const failPendingDocumentAnalytics = (cancelled = false) =>
+    failPendingDocumentAnalyticsWith(analytics, cancelled);

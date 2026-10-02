@@ -2,6 +2,7 @@ import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useTimelineStore } from '@state/timelineStore';
 import { useMidiImport } from './useMidiImport';
+import { analytics } from '@app/analytics';
 
 const parseMIDIFileToData = vi.hoisted(() => vi.fn());
 
@@ -60,5 +61,45 @@ describe('useMidiImport initial project timing', () => {
         });
         expect(useTimelineStore.getState().timeline.globalBpm).toBe(150);
         expect(useTimelineStore.getState().timeline.timeSignature).toEqual({ numerator: 6, denominator: 8 });
+    });
+
+    it('reports a bounded failure only after MIDI parsing fails', async () => {
+        parseMIDIFileToData.mockRejectedValueOnce(new Error('private file name'));
+        const capture = vi.spyOn(analytics, 'capture').mockResolvedValue(undefined);
+        const alert = vi.spyOn(window, 'alert').mockImplementation(() => undefined);
+        const { result } = renderHook(() => useMidiImport({ requestImportMode: vi.fn(), requestTempoImport: vi.fn() }));
+
+        await act(async () => {
+            expect(await result.current.importMidiFile(new File([new Uint8Array([1])], 'private.mid'))).toBe(false);
+        });
+
+        expect(capture).toHaveBeenCalledWith('media_import_failed', {
+            media_type: 'midi',
+            failure_category: 'import',
+        });
+        capture.mockRestore();
+        alert.mockRestore();
+    });
+
+    it('reports a track creation failure without including the error', async () => {
+        const original = useTimelineStore.getState().addMidiTrack;
+        useTimelineStore.setState({ addMidiTrack: vi.fn().mockRejectedValue(new Error('private file name')) });
+        const capture = vi.spyOn(analytics, 'capture').mockResolvedValue(undefined);
+        const { result } = renderHook(() => useMidiImport({ requestImportMode: vi.fn(), requestTempoImport: vi.fn() }));
+
+        try {
+            await act(async () => {
+                await expect(
+                    result.current.importMidiFile(new File([new Uint8Array([1])], 'private.mid'))
+                ).rejects.toThrow('private file name');
+            });
+            expect(capture).toHaveBeenCalledWith('media_import_failed', {
+                media_type: 'midi',
+                failure_category: 'import',
+            });
+        } finally {
+            useTimelineStore.setState({ addMidiTrack: original });
+            capture.mockRestore();
+        }
     });
 });

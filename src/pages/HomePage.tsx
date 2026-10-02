@@ -10,6 +10,8 @@ import { BUILD_INFO } from '@app/build-info';
 import { stagePendingDocumentAnalytics } from '@app/analytics';
 import type { UpdateCheckResult } from '../../electron/shared/build-info';
 import { LocalSaveService } from '@persistence/local-save-service';
+import { StretchyWord } from './StretchyWord';
+import './homepage.css';
 
 const PENDING_DESKTOP_NAME_KEY = 'mvmnt.desktop.pending-open-name';
 
@@ -144,13 +146,11 @@ const HomePage: React.FC = () => {
             <div className="mx-auto w-full max-w-4xl">
                 <div className="mb-10">
                     <p>
-                        <span className="text-8xl font-extrabold tracking-tight text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.15)]">
-                            MVMNT
-                        </span>
+                        <span className="home-logo text-8xl font-extrabold tracking-tight text-white">MVMNT</span>
                         <span className="ml-2 text-sm text-neutral-400">v{BUILD_INFO.displayVersion}</span>
                     </p>
                     <p className="mt-4 max-w-2xl text-lg text-neutral-400">
-                        Open-source, flexible MIDI visualization & rendering workspace.
+                        Open-source, <StretchyWord /> MIDI visualization & rendering workspace.
                     </p>
                     {update?.status === 'available' ? (
                         <div

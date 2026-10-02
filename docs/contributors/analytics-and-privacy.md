@@ -29,21 +29,23 @@ behavior remain unchanged.
 
 ## Event catalog
 
-| Area       | Events                                                                                             | Safe properties                                                    |
-| ---------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Consent    | `analytics_consent_granted`, `analytics_consent_withdrawn`                                         | policy version                                                     |
-| Navigation | `app_opened`, `screen_viewed`                                                                      | allowlisted screen                                                 |
-| Activation | `document_created`, `document_opened`, `media_imported`, `scene_element_added`, `playback_started` | entry point, source, media type, built-in element type or `plugin` |
-| Creation   | `template_applied`, `document_saved`, `document_operation_failed`                                  | entry point, save mode, operation, failure category                |
-| Export     | `export_started`, `export_completed`, `export_failed`, `export_cancelled`                          | format, audio/transparency flags, execution mode, failure category |
-| Community  | sign-up/sign-in/sign-out, item download/open/install/upload/rating                                 | item type and numeric rating only                                  |
-| Errors     | provider-neutral renderer exception report                                                         | error type, fatal state, mechanism, sanitized stack coordinates    |
+| Area       | Events                                                                                                                    | Safe properties                                                                             |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Consent    | `analytics_consent_granted`, `analytics_consent_withdrawn`                                                                | policy version                                                                              |
+| Navigation | `app_opened`, `screen_viewed`                                                                                             | allowlisted screen                                                                          |
+| Activation | `document_created`, `document_opened`, `media_imported`, `media_import_failed`, `scene_element_added`, `playback_started` | entry point, source, media type, import failure category, built-in element type or `plugin` |
+| Creation   | `template_applied`, `document_saved`, `document_operation_failed`                                                         | entry point, save mode, operation, failure category                                         |
+| Export     | `export_started`, `export_completed`, `export_failed`, `export_cancelled`                                                 | format, audio/transparency flags, execution mode, failure category                          |
+| Community  | sign-up/sign-in/sign-out, item download/open/install/upload/rating                                                        | item type and numeric rating only                                                           |
+| Errors     | provider-neutral renderer exception report                                                                                | error type, fatal state, mechanism, sanitized stack coordinates                             |
 
 The PostHog adapter maps renderer exception reports to `$exception` only at its boundary. Milestone
 events derived from command telemetry must require success, reject transient commands,
-and never forward command objects. High-frequency activation events are deduplicated once per app
-session. Document, save, and export outcomes are emitted from their completion boundaries rather
-than button clicks.
+and never forward command objects. Playback is deduplicated once per app session; media imports
+and element additions are deduplicated once per category per app session. Document, save, and export
+outcomes are emitted from their completion boundaries rather than button clicks. User-cancelled
+document imports and saves do not count as failures. Background export setup failures use the
+`output` category; renderer failures use `render`.
 
 ## PostHog project configuration
 
@@ -85,7 +87,7 @@ Create and maintain these PostHog views:
 2. Weekly retention: users who reached `export_completed`, returning via `app_opened`.
 3. Adoption: template, media, element, export, `community_template_opened`, and
    `community_plugin_installed` events by their categorical fields.
-4. Release health: `$exception`, document failures, and export failures by app version and channel.
+4. Release health: `$exception`, document and media import failures, and export failures by app version and channel.
 
 ## Access and deletion requests
 

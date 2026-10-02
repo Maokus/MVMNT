@@ -34,10 +34,11 @@ export async function completePendingDocumentAnalytics(analytics: AnalyticsServi
         await analytics.capture('document_created', { entry_point: context.createdEntryPoint });
     if (context.templateEntryPoint)
         await analytics.capture('template_applied', { entry_point: context.templateEntryPoint });
+    if (context.source === 'community') await analytics.capture('community_template_opened', {});
 }
 
-export async function failPendingDocumentAnalytics(analytics: AnalyticsService): Promise<void> {
+export async function failPendingDocumentAnalytics(analytics: AnalyticsService, cancelled = false): Promise<void> {
     const context = takePendingDocumentAnalytics();
-    if (!context?.source) return;
+    if (!context?.source || cancelled) return;
     await analytics.capture('document_operation_failed', { operation: 'open', failure_category: 'import' });
 }

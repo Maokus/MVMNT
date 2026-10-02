@@ -135,7 +135,6 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({
             const buffer = await response.arrayBuffer();
             writeStoredImportPayload(buffer);
             stagePendingDocumentAnalytics({ source: 'community', templateEntryPoint: 'community' });
-            void analytics.capture('community_template_opened', {});
             onItemChanged();
             navigate('/workspace', { state: { importScene: true } });
         } catch (err: any) {

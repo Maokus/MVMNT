@@ -29,6 +29,7 @@ export interface AnalyticsEventMap {
     document_saved: { save_mode: 'save' | 'save_as' };
     document_operation_failed: { operation: 'open' | 'save'; failure_category: FailureCategory };
     media_imported: { media_type: MediaType };
+    media_import_failed: { media_type: 'midi' | 'audio'; failure_category: 'import' };
     scene_element_added: { element_type: string };
     playback_started: EmptyProperties;
     template_applied: { entry_point: 'home' | 'workspace' | 'community' };

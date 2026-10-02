@@ -15,7 +15,7 @@ export type ExportTerminalAnalytics =
           properties: {
               export_format: 'video' | 'png';
               execution_mode: ExportExecutionMode;
-              failure_category: 'render';
+              failure_category: 'render' | 'output';
           };
       };
 
@@ -24,14 +24,15 @@ export function takeExportTerminalAnalytics(
     jobId: string,
     exportFormat: 'video' | 'png',
     status: ExportTerminalStatus,
-    executionMode: ExportExecutionMode
+    executionMode: ExportExecutionMode,
+    failureCategory: 'render' | 'output' = 'render'
 ): ExportTerminalAnalytics | null {
     if (reportedJobIds.has(jobId)) return null;
     reportedJobIds.add(jobId);
 
     const properties = { export_format: exportFormat, execution_mode: executionMode };
     if (status === 'failed') {
-        return { event: 'export_failed', properties: { ...properties, failure_category: 'render' } };
+        return { event: 'export_failed', properties: { ...properties, failure_category: failureCategory } };
     }
     return {
         event: status === 'completed' ? 'export_completed' : 'export_cancelled',

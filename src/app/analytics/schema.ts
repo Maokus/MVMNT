@@ -92,6 +92,12 @@ const validators: Validators = {
         'media_type',
         new Set(['midi', 'audio', 'image', 'font'])
     ) as Validator<'media_imported'>,
+    media_import_failed: (properties) =>
+        hasExactKeys(properties, ['media_type', 'failure_category']) &&
+        (properties.media_type === 'midi' || properties.media_type === 'audio') &&
+        properties.failure_category === 'import'
+            ? { media_type: properties.media_type, failure_category: 'import' }
+            : null,
     scene_element_added: (properties) => {
         const value = properties.element_type;
         return hasExactKeys(properties, ['element_type']) &&

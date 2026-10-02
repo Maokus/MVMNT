@@ -2,10 +2,11 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const exportScene = vi.fn();
+const importScene = vi.fn();
 
 vi.mock('@persistence/index', () => ({
     exportScene: (...args: unknown[]) => exportScene(...args),
-    importScene: vi.fn(),
+    importScene: (...args: unknown[]) => importScene(...args),
 }));
 vi.mock('@persistence/local-file-store', () => ({
     LocalFileStore: { save: vi.fn().mockResolvedValue(undefined) },
@@ -16,6 +17,7 @@ vi.mock('@app/analytics', () => ({
 
 import { useMenuBar } from '../useMenuBar';
 import { useDocumentSaveStatusStore } from '@state/documentSaveStatusStore';
+import { analytics } from '@app/analytics';
 
 function deferred<T>() {
     let resolve!: (value: T) => void;
@@ -39,12 +41,20 @@ function exported(byte = 1) {
 describe('useMenuBar document save queue', () => {
     beforeEach(() => {
         exportScene.mockReset();
+        importScene.mockReset();
+        vi.mocked(analytics.capture).mockClear();
         useDocumentSaveStatusStore.setState({ successfulSave: null });
         Object.defineProperty(window, 'mvmntDesktop', {
             configurable: true,
             value: {
                 documents: {
                     getState: vi.fn().mockResolvedValue({ status: 'saved', displayName: 'Scene.mvt' }),
+                    acceptOpen: vi.fn().mockResolvedValue(undefined),
+                    chooseSaveAs: vi.fn().mockResolvedValue({
+                        status: 'selected',
+                        selectionId: 'selection',
+                        displayName: 'Scene.mvt',
+                    }),
                     beginSave: vi.fn().mockResolvedValue({ status: 'ready', sessionId: 'save-session' }),
                     writeSaveChunk: vi.fn().mockResolvedValue(undefined),
                     completeSave: vi.fn().mockResolvedValue({ status: 'saved' }),
@@ -112,5 +122,57 @@ describe('useMenuBar document save queue', () => {
         );
         await expect(result.current.saveProject()).resolves.toBe(false);
         expect(useDocumentSaveStatusStore.getState().successfulSave).toBeNull();
+        if (status === 'canceled') expect(analytics.capture).not.toHaveBeenCalled();
+        else
+            expect(analytics.capture).toHaveBeenCalledWith('document_operation_failed', {
+                operation: 'save',
+                failure_category: 'save',
+            });
+    });
+
+    it('reports Save As when a document has no saved native path', async () => {
+        exportScene.mockResolvedValue(exported());
+        vi.mocked(window.mvmntDesktop!.documents.getState).mockResolvedValue({ status: 'unsaved' } as never);
+        const { result } = renderHook(() =>
+            useMenuBar({
+                visualizer: null,
+                sceneName: 'Scene',
+                onSceneNameChange: vi.fn(),
+                isDirty: true,
+                markSaveClean: vi.fn(),
+                captureSaveRevision: () => 1,
+                markSaveCleanIfRevision: vi.fn(() => true),
+                markDirty: vi.fn(),
+                requestUnsavedChangesDecision: vi.fn(),
+            })
+        );
+
+        await expect(result.current.saveProject()).resolves.toBe(true);
+        expect(analytics.capture).toHaveBeenCalledWith('document_saved', { save_mode: 'save_as' });
+    });
+
+    it('labels an OS open by its actual source after import succeeds', async () => {
+        importScene.mockResolvedValue({ ok: true });
+        const { result } = renderHook(() =>
+            useMenuBar({
+                visualizer: null,
+                sceneName: 'Scene',
+                onSceneNameChange: vi.fn(),
+                isDirty: false,
+                markSaveClean: vi.fn(),
+                captureSaveRevision: () => 1,
+                markSaveCleanIfRevision: vi.fn(() => true),
+                markDirty: vi.fn(),
+                requestUnsavedChangesDecision: vi.fn(),
+            })
+        );
+
+        await act(async () => {
+            await result.current.openDesktopFile(
+                { kind: 'project', bytes: new Uint8Array([1]), displayName: 'Scene.mvt', canceled: false } as never,
+                'os_open'
+            );
+        });
+        expect(analytics.capture).toHaveBeenCalledWith('document_opened', { source: 'os_open' });
     });
 });

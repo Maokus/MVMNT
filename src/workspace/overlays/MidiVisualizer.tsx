@@ -622,8 +622,9 @@ const TemplateInitializer: React.FC = () => {
                             if (!result.ok) {
                                 const msg = result.errors.map((e) => e.message).join('\n');
                                 console.warn('[Import] Failed:', msg);
-                                void failPendingDocumentAnalytics();
-                                alert('Failed to load scene: ' + msg);
+                                const cancelled = abortController?.signal.aborted ?? false;
+                                void failPendingDocumentAnalytics(cancelled);
+                                if (!cancelled) alert('Failed to load scene: ' + msg);
                             } else {
                                 const metadataStore = useSceneMetadataStore.getState();
                                 const importedName = metadataStore.metadata?.name?.trim() || 'Untitled';
@@ -822,7 +823,7 @@ const TemplateInitializer: React.FC = () => {
                 }
             } catch (e) {
                 if ((e as Error)?.name === 'AbortError') {
-                    void failPendingDocumentAnalytics();
+                    void failPendingDocumentAnalytics(true);
                     clearSceneAfterAbort();
                 } else {
                     void failPendingDocumentAnalytics();

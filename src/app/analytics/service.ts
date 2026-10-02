@@ -39,14 +39,17 @@ function defaultEventTarget(): Window | null {
 
 export function createAnalyticsService(options: CreateAnalyticsServiceOptions): AnalyticsServiceController {
     const consentListeners = new Set<() => void>();
-    const capturedSessionMilestones = new Set<AnalyticsEventName>();
+    const capturedSessionMilestones = new Set<string>();
     const getStorage = options.storage ?? defaultStorage;
     const getEventTarget = options.eventTarget ?? defaultEventTarget;
     let provider: AnalyticsProvider | null = null;
     let initialization: Promise<AnalyticsProvider | null> | null = null;
+    let initializationGeneration = 0;
     let pendingAccountId: string | null = null;
     let appOpenedCaptured = false;
     let removeExceptionListeners: (() => void) | null = null;
+    let consentOverride: AnalyticsConsentStatus | null = null;
+    let consentGeneration = 0;
 
     function readConsent(): AnalyticsConsentRecord | null {
         try {
@@ -67,14 +70,37 @@ export function createAnalyticsService(options: CreateAnalyticsServiceOptions): 
     }
 
     function getConsent(): AnalyticsConsentStatus {
-        return readConsent()?.status ?? 'unknown';
+        return consentOverride ?? readConsent()?.status ?? 'unknown';
     }
 
-    function writeConsent(status: Exclude<AnalyticsConsentStatus, 'unknown'>): AnalyticsConsentRecord {
+    function writeConsent(status: Exclude<AnalyticsConsentStatus, 'unknown'>): {
+        record: AnalyticsConsentRecord;
+        saved: boolean;
+    } {
         const record = { status, policyVersion: ANALYTICS_POLICY_VERSION, decidedAt: new Date().toISOString() };
-        getStorage()?.setItem(ANALYTICS_CONSENT_STORAGE_KEY, JSON.stringify(record));
-        for (const listener of consentListeners) listener();
-        return record;
+        let saved = false;
+        try {
+            const storage = getStorage();
+            if (storage) {
+                storage.setItem(ANALYTICS_CONSENT_STORAGE_KEY, JSON.stringify(record));
+                saved = true;
+            }
+        } catch {
+            try {
+                getStorage()?.removeItem(ANALYTICS_CONSENT_STORAGE_KEY);
+            } catch {
+                // Keep this choice fail-closed in memory when storage cannot be changed.
+            }
+        }
+        consentOverride = saved ? null : status === 'denied' ? 'denied' : 'unknown';
+        for (const listener of consentListeners) {
+            try {
+                listener();
+            } catch {
+                // A UI subscriber must not interrupt consent cleanup.
+            }
+        }
+        return { record, saved };
     }
 
     function installExceptionListeners(): void {
@@ -101,33 +127,65 @@ export function createAnalyticsService(options: CreateAnalyticsServiceOptions): 
     async function initialize(): Promise<boolean> {
         if (getConsent() !== 'granted' || !options.isEnabled()) return false;
         if (provider) return true;
-        if (!initialization) {
-            initialization = options
-                .providerFactory()
-                .then(async (createdProvider) => {
-                    await createdProvider.initialize(options.context());
-                    if (getConsent() !== 'granted') {
-                        createdProvider.setEnabled(false);
-                        createdProvider.shutdown({ clearPersistence: true });
+        while (getConsent() === 'granted' && !provider) {
+            if (!initialization) {
+                const generation = consentGeneration;
+                initializationGeneration = generation;
+                const attempt = Promise.resolve()
+                    .then(options.providerFactory)
+                    .then(async (createdProvider) => {
+                        try {
+                            if (generation !== consentGeneration || getConsent() !== 'granted') return null;
+                            await createdProvider.initialize(options.context());
+                            if (generation !== consentGeneration || getConsent() !== 'granted') {
+                                createdProvider.setEnabled(false);
+                                createdProvider.shutdown({ clearPersistence: true });
+                                return null;
+                            }
+                            provider = createdProvider;
+                            provider.setEnabled(true);
+                            if (pendingAccountId) provider.identify(pendingAccountId);
+                            installExceptionListeners();
+                            if (!appOpenedCaptured) {
+                                provider.capture('app_opened', {});
+                                appOpenedCaptured = true;
+                            }
+                            return provider;
+                        } catch (error) {
+                            if (provider === createdProvider) provider = null;
+                            removeExceptionListeners?.();
+                            try {
+                                createdProvider.setEnabled(false);
+                            } catch {
+                                // The provider may itself be in a failed state.
+                            }
+                            try {
+                                createdProvider.shutdown({ clearPersistence: true });
+                            } catch {
+                                // The provider may itself be in a failed state.
+                            }
+                            throw error;
+                        }
+                    })
+                    .catch((error) => {
+                        if (import.meta.env.DEV) console.warn('[analytics] initialization failed', error);
                         return null;
-                    }
-                    provider = createdProvider;
-                    provider.setEnabled(true);
-                    if (pendingAccountId) provider.identify(pendingAccountId);
-                    installExceptionListeners();
-                    if (!appOpenedCaptured) {
-                        appOpenedCaptured = true;
-                        provider.capture('app_opened', {});
-                    }
-                    return provider;
-                })
-                .catch((error) => {
-                    initialization = null;
-                    if (import.meta.env.DEV) console.warn('[analytics] initialization failed', error);
-                    return null;
-                });
+                    });
+                initialization = attempt;
+            }
+            const attempt = initialization;
+            const attemptGeneration = initializationGeneration;
+            const result = await attempt;
+            if (initialization === attempt) initialization = null;
+            if (result && provider === result) return true;
+            if (generationChangedOrUnavailable()) return false;
+            if (attemptGeneration === consentGeneration) return false;
         }
-        return Boolean(await initialization);
+        return Boolean(provider);
+    }
+
+    function generationChangedOrUnavailable(): boolean {
+        return getConsent() !== 'granted' || !options.isEnabled();
     }
 
     async function send<K extends AnalyticsEventName>(
@@ -136,9 +194,15 @@ export function createAnalyticsService(options: CreateAnalyticsServiceOptions): 
         immediate = false
     ): Promise<boolean> {
         const validated = validateAnalyticsEvent(event, properties);
-        if (!validated || !(await initialize()) || !provider) return false;
-        provider.capture(event, toAnalyticsProperties(validated), immediate ? { immediate: true } : undefined);
-        return true;
+        if (!validated) return false;
+        const generation = consentGeneration;
+        if (!(await initialize()) || generation !== consentGeneration || !provider) return false;
+        try {
+            provider.capture(event, toAnalyticsProperties(validated), immediate ? { immediate: true } : undefined);
+            return true;
+        } catch {
+            return false;
+        }
     }
 
     async function capture<K extends AnalyticsEventName>(event: K, properties: AnalyticsEventMap[K]): Promise<void> {
@@ -149,44 +213,98 @@ export function createAnalyticsService(options: CreateAnalyticsServiceOptions): 
         event: K,
         properties: AnalyticsEventMap[K]
     ): Promise<void> {
-        if (capturedSessionMilestones.has(event)) return;
-        if (await send(event, properties)) capturedSessionMilestones.add(event);
+        const validated = validateAnalyticsEvent(event, properties);
+        if (!validated) return;
+        const key =
+            event === 'media_imported' || event === 'scene_element_added'
+                ? `${event}:${Object.values(validated)[0]}`
+                : event;
+        if (capturedSessionMilestones.has(key)) return;
+        capturedSessionMilestones.add(key);
+        const generation = consentGeneration;
+        let sent = false;
+        try {
+            sent = await send(event, properties);
+        } finally {
+            if (!sent && generation === consentGeneration) capturedSessionMilestones.delete(key);
+        }
     }
 
     async function identify(accountId: string): Promise<void> {
         if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(accountId)) return;
         pendingAccountId = accountId;
-        if (await initialize()) provider?.identify(accountId);
+        if (provider && getConsent() === 'granted') provider.identify(accountId);
+        else await initialize();
     }
 
     function reset(): void {
         pendingAccountId = null;
-        provider?.reset();
+        try {
+            provider?.reset();
+        } catch {
+            try {
+                provider?.setEnabled(false);
+            } catch {
+                // Continue clearing a provider with a failed identity reset.
+            }
+            try {
+                provider?.shutdown({ clearPersistence: true });
+            } catch {
+                // Continue clearing a provider with a failed identity reset.
+            }
+            provider = null;
+            removeExceptionListeners?.();
+            appOpenedCaptured = false;
+            capturedSessionMilestones.clear();
+        }
     }
 
     async function setConsent(status: 'granted' | 'denied'): Promise<void> {
         const previous = getConsent();
-        const record = writeConsent(status);
+        if (status === 'granted' && previous === 'granted') {
+            await initialize();
+            return;
+        }
+        consentGeneration += 1;
+        const generation = consentGeneration;
+        const { record, saved } = writeConsent(status);
         if (status === 'granted') {
-            if (await initialize()) await send('analytics_consent_granted', { policy_version: record.policyVersion });
+            if (saved && previous !== 'granted' && (await initialize()) && generation === consentGeneration)
+                await send('analytics_consent_granted', { policy_version: record.policyVersion });
             return;
         }
         if (previous === 'granted' && provider) {
-            provider.capture(
-                'analytics_consent_withdrawn',
-                { policy_version: record.policyVersion },
-                { immediate: true }
-            );
+            try {
+                provider.capture(
+                    'analytics_consent_withdrawn',
+                    { policy_version: record.policyVersion },
+                    { immediate: true }
+                );
+            } catch {
+                // Withdrawal must proceed even if the transport fails.
+            }
         }
         pendingAccountId = null;
         removeExceptionListeners?.();
-        if (provider) {
-            provider.reset();
-            provider.setEnabled(false);
-            provider.shutdown({ clearPersistence: true });
-        }
+        const activeProvider = provider;
         provider = null;
-        initialization = null;
+        if (activeProvider) {
+            try {
+                activeProvider.reset();
+            } catch {
+                // Continue withdrawal if identity reset fails.
+            }
+            try {
+                activeProvider.setEnabled(false);
+            } catch {
+                // Continue withdrawal if opt-out fails.
+            }
+            try {
+                activeProvider.shutdown({ clearPersistence: true });
+            } catch {
+                // Continue withdrawal if provider cleanup fails.
+            }
+        }
         appOpenedCaptured = false;
         capturedSessionMilestones.clear();
     }
@@ -196,6 +314,7 @@ export function createAnalyticsService(options: CreateAnalyticsServiceOptions): 
     }
 
     function destroy(): void {
+        consentGeneration += 1;
         removeExceptionListeners?.();
         provider?.shutdown();
         provider = null;

@@ -88,6 +88,15 @@ describe('provider-neutral analytics service', () => {
         service.destroy();
     });
 
+    it('treats rapid repeated grants as one consent decision', async () => {
+        const { provider, providerFactory, service } = createHarness();
+        await Promise.all([service.setConsent('granted'), service.setConsent('granted')]);
+
+        expect(providerFactory).toHaveBeenCalledOnce();
+        expect(provider.capture.mock.calls.filter(([event]) => event === 'analytics_consent_granted')).toHaveLength(1);
+        service.destroy();
+    });
+
     it('identifies with only an account UUID before or after consent', async () => {
         const { provider, service } = createHarness();
 
@@ -155,6 +164,149 @@ describe('provider-neutral analytics service', () => {
 
         expect(provider.capture).toHaveBeenCalledOnce();
         expect(provider.capture).toHaveBeenCalledWith('playback_started', {}, undefined);
+        service.destroy();
+    });
+
+    it('reserves concurrent milestones and keeps one of each category', async () => {
+        const { provider, service } = createHarness();
+        await service.setConsent('granted');
+        provider.capture.mockClear();
+
+        await Promise.all([
+            service.captureMilestone('media_imported', { media_type: 'midi' }),
+            service.captureMilestone('media_imported', { media_type: 'midi' }),
+            service.captureMilestone('media_imported', { media_type: 'audio' }),
+            service.captureMilestone('scene_element_added', { element_type: 'piano-roll' }),
+            service.captureMilestone('scene_element_added', { element_type: 'spectrum' }),
+        ]);
+
+        expect(provider.capture.mock.calls.map(([event, properties]) => [event, properties])).toEqual([
+            ['media_imported', { media_type: 'midi' }],
+            ['media_imported', { media_type: 'audio' }],
+            ['scene_element_added', { element_type: 'piano-roll' }],
+            ['scene_element_added', { element_type: 'spectrum' }],
+        ]);
+        service.destroy();
+    });
+
+    it('does not identify an account after sign-out while initialization is pending', async () => {
+        const provider = createProvider();
+        let finishInitialization: (() => void) | undefined;
+        provider.initialize.mockImplementation(
+            () => new Promise<undefined>((resolve) => (finishInitialization = () => resolve(undefined)))
+        );
+        const service = createAnalyticsService({
+            providerFactory: async () => provider,
+            isEnabled: () => true,
+            context: () => context,
+        });
+        localStorage.setItem(
+            ANALYTICS_CONSENT_STORAGE_KEY,
+            JSON.stringify({
+                status: 'granted',
+                policyVersion: ANALYTICS_POLICY_VERSION,
+                decidedAt: new Date().toISOString(),
+            })
+        );
+
+        const identifying = service.identify(accountId);
+        await vi.waitFor(() => expect(finishInitialization).toBeTypeOf('function'));
+        service.reset();
+        finishInitialization?.();
+        await identifying;
+
+        expect(provider.identify).not.toHaveBeenCalled();
+        service.destroy();
+    });
+
+    it('discards a withdrawn initialization before starting a later consent generation', async () => {
+        const first = createProvider();
+        const second = createProvider();
+        let finishFirst: (() => void) | undefined;
+        first.initialize.mockImplementation(
+            () => new Promise<undefined>((resolve) => (finishFirst = () => resolve(undefined)))
+        );
+        const factory = vi.fn().mockResolvedValueOnce(first).mockResolvedValueOnce(second);
+        const service = createAnalyticsService({
+            providerFactory: factory,
+            isEnabled: () => true,
+            context: () => context,
+        });
+
+        const firstGrant = service.setConsent('granted');
+        await vi.waitFor(() => expect(finishFirst).toBeTypeOf('function'));
+        await service.setConsent('denied');
+        const secondGrant = service.setConsent('granted');
+        finishFirst?.();
+        await Promise.all([firstGrant, secondGrant]);
+
+        expect(first.capture).not.toHaveBeenCalled();
+        expect(first.shutdown).toHaveBeenCalledWith({ clearPersistence: true });
+        expect(second.capture).toHaveBeenCalledWith('app_opened', {});
+        expect(factory).toHaveBeenCalledTimes(2);
+        service.destroy();
+    });
+
+    it('stops capture when a denial cannot be written to storage', async () => {
+        const { provider } = createHarness();
+        let denyWrite = false;
+        const storage = {
+            getItem: (key: string) => localStorage.getItem(key),
+            setItem: (key: string, value: string) => {
+                if (denyWrite) throw new Error('storage unavailable');
+                localStorage.setItem(key, value);
+            },
+            removeItem: (key: string) => localStorage.removeItem(key),
+        } as Storage;
+        const service = createAnalyticsService({
+            providerFactory: async () => provider,
+            isEnabled: () => true,
+            context: () => context,
+            storage: () => storage,
+        });
+        await service.setConsent('granted');
+        denyWrite = true;
+        await service.setConsent('denied');
+        provider.capture.mockClear();
+        await service.capture('document_created', { entry_point: 'home' });
+
+        expect(service.getConsent()).toBe('denied');
+        expect(provider.capture).not.toHaveBeenCalled();
+        expect(localStorage.getItem(ANALYTICS_CONSENT_STORAGE_KEY)).toBeNull();
+        service.destroy();
+    });
+
+    it('does not initialize when a grant cannot be persisted', async () => {
+        const providerFactory = vi.fn(async () => createProvider());
+        const service = createAnalyticsService({
+            providerFactory,
+            isEnabled: () => true,
+            context: () => context,
+            storage: () =>
+                ({
+                    setItem: () => {
+                        throw new Error('storage unavailable');
+                    },
+                }) as unknown as Storage,
+        });
+
+        await service.setConsent('granted');
+        expect(service.getConsent()).toBe('unknown');
+        expect(providerFactory).not.toHaveBeenCalled();
+        service.destroy();
+    });
+
+    it('releases a milestone reservation after a provider capture failure', async () => {
+        const { provider, service } = createHarness();
+        await service.setConsent('granted');
+        provider.capture.mockClear().mockImplementationOnce(() => {
+            throw new Error('transport failed');
+        });
+
+        await service.captureMilestone('playback_started', {});
+        await service.captureMilestone('playback_started', {});
+
+        expect(provider.capture).toHaveBeenCalledTimes(2);
         service.destroy();
     });
 

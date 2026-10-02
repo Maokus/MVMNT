@@ -51,13 +51,19 @@ export function useExportLifecycle({
     const reportedTerminalJobsRef = useRef(new Set<string>());
 
     const reportTerminalJob = useCallback(
-        (job: ExportJob, status: ExportTerminalStatus, executionMode: ExportExecutionMode) => {
+        (
+            job: ExportJob,
+            status: ExportTerminalStatus,
+            executionMode: ExportExecutionMode,
+            failureCategory: 'render' | 'output' = 'render'
+        ) => {
             const outcome = takeExportTerminalAnalytics(
                 reportedTerminalJobsRef.current,
                 job.id,
                 job.kind,
                 status,
-                executionMode
+                executionMode,
+                failureCategory
             );
             if (!outcome) return;
             if (outcome.event === 'export_completed') void analytics.capture(outcome.event, outcome.properties);
@@ -229,7 +235,7 @@ export function useExportLifecycle({
                             error: error instanceof Error ? error.message : String(error),
                             finishedAt: new Date().toISOString(),
                         });
-                        reportTerminalJob(job, 'failed', executionMode);
+                        reportTerminalJob(job, 'failed', executionMode, 'output');
                     }
                 })();
                 return job;

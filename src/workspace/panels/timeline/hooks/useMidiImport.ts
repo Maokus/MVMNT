@@ -10,6 +10,7 @@ import type { MultiTrackChoice, MultiTrackDecisionState } from './useImportModal
 import type { TempoImportChoice } from '@workspace/modals/MidiTempoImportModal';
 import { getNextImportedTrackName } from './importTrackName';
 import { normalizeTimeSignature } from '@core/timing/meter';
+import { analytics } from '@app/analytics';
 
 interface UseMidiImportOptions {
     requestImportMode: (info: MultiTrackDecisionState) => Promise<MultiTrackChoice>;
@@ -27,9 +28,22 @@ export function useMidiImport({ requestImportMode, requestTempoImport }: UseMidi
                 midiData = await parseMIDIFileToData(file);
             } catch (error) {
                 console.error('Failed to parse MIDI file', error);
+                void analytics.capture('media_import_failed', { media_type: 'midi', failure_category: 'import' });
                 alert(`Unable to read ${file.name}. Please verify the file is a valid MIDI.`);
                 return false;
             }
+            const addImportedTrack = async (data: MIDIData) => {
+                try {
+                    await addMidiTrack({
+                        name: getNextImportedTrackName('midi', useTimelineStore.getState().tracks),
+                        midiData: data,
+                        clipName: file.name,
+                    });
+                } catch (error) {
+                    void analytics.capture('media_import_failed', { media_type: 'midi', failure_category: 'import' });
+                    throw error;
+                }
+            };
 
             const details = midiData.trackDetails ?? [];
             const playableTracks = details.length ? details : [];
@@ -92,30 +106,18 @@ export function useMidiImport({ requestImportMode, requestTempoImport }: UseMidi
             }
 
             if (choice === 'single' || playableTracks.length <= 1) {
-                await addMidiTrack({
-                    name: getNextImportedTrackName('midi', useTimelineStore.getState().tracks),
-                    midiData,
-                    clipName: file.name,
-                });
+                await addImportedTrack(midiData);
                 useTimelineStore.getState().finishInitialMidiTimingImport();
                 return true;
             }
             const splits = splitMidiDataByTracks(midiData);
             if (!splits.length) {
-                await addMidiTrack({
-                    name: getNextImportedTrackName('midi', useTimelineStore.getState().tracks),
-                    midiData,
-                    clipName: file.name,
-                });
+                await addImportedTrack(midiData);
                 useTimelineStore.getState().finishInitialMidiTimingImport();
                 return true;
             }
             for (const entry of splits) {
-                await addMidiTrack({
-                    name: getNextImportedTrackName('midi', useTimelineStore.getState().tracks),
-                    midiData: entry.data,
-                    clipName: file.name,
-                });
+                await addImportedTrack(entry.data);
             }
             useTimelineStore.getState().finishInitialMidiTimingImport();
             return true;

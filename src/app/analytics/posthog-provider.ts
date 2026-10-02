@@ -119,7 +119,7 @@ function removePostHogPersistence(token: string): void {
     try {
         for (let index = localStorage.length - 1; index >= 0; index -= 1) {
             const key = localStorage.key(index);
-            if (key && (key.includes(token) || key.startsWith('ph_') || key.startsWith('posthog'))) {
+            if (key?.startsWith(`ph_${token}_`)) {
                 localStorage.removeItem(key);
             }
         }

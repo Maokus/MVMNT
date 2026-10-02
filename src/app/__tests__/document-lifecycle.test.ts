@@ -48,4 +48,21 @@ describe('document analytics lifecycle', () => {
             failure_category: 'import',
         });
     });
+
+    it('waits for successful community import before reporting template use', async () => {
+        const analytics = createAnalytics();
+        stagePendingDocumentAnalytics({ source: 'community', templateEntryPoint: 'community' });
+        await completePendingDocumentAnalytics(analytics);
+
+        expect(analytics.capture).toHaveBeenCalledWith('community_template_opened', {});
+        expect(analytics.capture).toHaveBeenCalledWith('template_applied', { entry_point: 'community' });
+    });
+
+    it('discards cancelled imports without reporting a failure', async () => {
+        const analytics = createAnalytics();
+        stagePendingDocumentAnalytics({ source: 'file_picker' });
+        await failPendingDocumentAnalytics(analytics, true);
+        await completePendingDocumentAnalytics(analytics);
+        expect(analytics.capture).not.toHaveBeenCalled();
+    });
 });
