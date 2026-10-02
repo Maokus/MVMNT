@@ -27,6 +27,11 @@ categorical or bounded numeric values. Events with unknown properties or invalid
 provider. A replacement provider implements `AnalyticsProvider`; application call sites and consent
 behavior remain unchanged.
 
+PostHog's browser SDK puts the public project token in each event's properties for ingestion. The
+provider's final privacy guard strips incoming `token` values, then restores only its configured
+public project token. This transport field is separate from application event properties and must
+remain present for events to be accepted.
+
 ## Event catalog
 
 | Area       | Events                                                                                                                    | Safe properties                                                                             |

@@ -125,6 +125,25 @@ describe('PostHog analytics provider', () => {
         expect(sanitizePostHogEvent({ event: '$pageview', properties: {} })).toBeNull();
     });
 
+    it('keeps the configured public project token in SDK events after privacy filtering', async () => {
+        const client = createClient();
+        const provider = createPostHogProvider({
+            token: 'phc_test',
+            host: 'https://eu.i.posthog.com',
+            loader: async () => client,
+        });
+        await provider.initialize(context);
+
+        const beforeSend = client.init.mock.calls[0]?.[1].before_send as typeof sanitizePostHogEvent;
+        expect(
+            beforeSend({
+                event: 'app_opened',
+                properties: { token: 'untrusted-token', email: 'person@example.com', app_version: '0.16.0' },
+            })?.properties
+        ).toEqual({ token: 'phc_test', $geoip_disable: true, app_version: '0.16.0' });
+        expect(beforeSend({ event: '$pageview', properties: { token: 'untrusted-token' } })).toBeNull();
+    });
+
     it('redacts exception messages while retaining sanitized stack coordinates', () => {
         const event = sanitizePostHogEvent({
             event: '$exception',

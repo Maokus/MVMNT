@@ -9,6 +9,7 @@ import type { DesktopOpenResult } from '../../electron/shared/desktop-api';
 import { analytics } from '@app/analytics';
 import { writeNativeDocument } from '@persistence/native-document-writer';
 import { useDocumentSaveStatusStore } from '@state/documentSaveStatusStore';
+import { flushProjectTime } from '@state/projectTimeTracker';
 
 function humanReadableImportError(error: ImportError): string {
     switch (error.code) {
@@ -171,6 +172,7 @@ export const useMenuBar = ({
                 }
                 canonicalName = selection.displayName.replace(/\.mvt$/i, '');
                 onSceneNameChange(canonicalName);
+                flushProjectTime();
                 const revision = captureSaveRevision();
                 return {
                     ...(await saveScene(canonicalName, { saveAsSelectionId: selection.selectionId }, revision)),
@@ -181,6 +183,7 @@ export const useMenuBar = ({
                 canonicalName = document.displayName.replace(/\.mvt$/i, '');
                 if (canonicalName !== sceneNameRef.current) onSceneNameChange(canonicalName);
             }
+            flushProjectTime();
             const revision = captureSaveRevision();
             return { ...(await saveScene(canonicalName, undefined, revision)), saveMode: 'save' as const };
         } catch (error) {

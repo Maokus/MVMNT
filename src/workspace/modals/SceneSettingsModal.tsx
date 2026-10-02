@@ -368,6 +368,15 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
         }
     };
 
+    const formatTimeSpent = (seconds: number) => {
+        const totalSeconds = Math.floor(Math.max(0, seconds));
+        const totalMinutes = Math.floor(totalSeconds / 60);
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+        const remainingSeconds = totalSeconds % 60;
+        return `${hours}h ${minutes}m ${remainingSeconds}s`;
+    };
+
     const [activeTab, setActiveTab] = useState<'general' | 'caches' | 'fonts' | 'developer' | 'metadata' | 'plugins'>(
         'general'
     );
@@ -737,6 +746,12 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                                     <span className="block uppercase tracking-wide text-neutral-500">Modified</span>
                                     <span className="block text-neutral-300">
                                         {formatTimestamp(metadata.modifiedAt)}
+                                    </span>
+                                </div>
+                                <div>
+                                    <span className="block uppercase tracking-wide text-neutral-500">Time spent</span>
+                                    <span className="block text-neutral-300">
+                                        {formatTimeSpent(metadata.timeSpentSeconds ?? 0)}
                                     </span>
                                 </div>
                             </div>

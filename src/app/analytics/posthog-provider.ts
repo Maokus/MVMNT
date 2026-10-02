@@ -163,7 +163,14 @@ export function createPostHogProvider(options: PostHogProviderOptions): Analytic
                 persistence: 'localStorage',
                 cross_subdomain_cookie: false,
                 respect_dnt: true,
-                before_send: sanitizePostHogEvent,
+                before_send: (event: PostHogEvent | null) => {
+                    const sanitized = sanitizePostHogEvent(event);
+                    if (sanitized) {
+                        // PostHog requires its public project token inside event properties for ingestion.
+                        sanitized.properties!.token = options.token;
+                    }
+                    return sanitized;
+                },
             });
             loadedClient.register({ ...context });
             client = loadedClient;

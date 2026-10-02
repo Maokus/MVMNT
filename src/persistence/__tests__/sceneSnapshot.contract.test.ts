@@ -6,6 +6,7 @@ import { exportScene, importScene } from '..';
 import { createSceneSubtreeBundle, dispatchSceneCommand } from '@state/scene';
 import { createSceneSnapshot, useSceneStore } from '@state/sceneStore';
 import type { FontAsset } from '@state/scene/fonts';
+import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 
 const font: FontAsset = {
     id: 'snapshot-contract-font',
@@ -47,6 +48,18 @@ describe('canonical scene snapshot contract', () => {
         useSceneStore.getState().clearScene();
         useSceneStore.getState().replaceMacros(null);
         await AutosaveVersionStore.clear();
+    });
+
+    it('restores project time with a document snapshot', () => {
+        const metadata = useSceneMetadataStore.getState();
+        metadata.stampNewDocument();
+        metadata.addTimeSpentSeconds(125);
+        const snapshot = DocumentGateway.build({ includeEphemeral: true });
+
+        metadata.stampNewDocument();
+        expect(useSceneMetadataStore.getState().metadata.timeSpentSeconds).toBe(0);
+        DocumentGateway.apply(snapshot);
+        expect(useSceneMetadataStore.getState().metadata.timeSpentSeconds).toBe(125);
     });
 
     it('preserves every persistent scene slice through undo and document application', () => {

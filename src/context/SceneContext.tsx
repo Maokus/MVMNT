@@ -10,6 +10,8 @@ import { LocalFileStore } from '@persistence/local-file-store';
 import { useDirtyTracking } from '@hooks/useDirtyTracking';
 import { useTemplateStatusStore } from '@state/templateStatusStore';
 import { useTimelineStore } from '@state/timelineStore';
+import { ProjectTimeTracker, flushProjectTime, suspendProjectTime } from '@state/projectTimeTracker';
+import { useDocumentRevisionStore } from '@state/documentRevisionStore';
 import { matchesShortcut, useGlobalShortcut } from './shortcuts/shortcutRegistry';
 
 interface SceneContextValue {
@@ -41,6 +43,14 @@ interface SceneContextValue {
 const SceneContext = createContext<SceneContextValue | undefined>(undefined);
 
 export function SceneProvider({ children }: { children: React.ReactNode }) {
+    useEffect(() => {
+        const tracker = new ProjectTimeTracker((seconds) =>
+            useSceneMetadataStore.getState().addTimeSpentSeconds(seconds)
+        );
+        tracker.start();
+        return () => tracker.stop();
+    }, []);
+
     const { visualizer } = useVisualizer();
     const sceneName = useSceneMetadataStore((state) => state.metadata.name);
     const setSceneName = useSceneMetadataStore((state) => state.setName);
@@ -159,7 +169,9 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
     });
 
     const leaveWorkspace = useCallback(async (): Promise<boolean> => {
-        if (isDirty) {
+        flushProjectTime();
+        const revisionState = useDocumentRevisionStore.getState();
+        if (revisionState.revision !== revisionState.cleanRevision) {
             const decision = await requestUnsavedChangesDecision(
                 'Your current scene has unsaved changes. Save them before leaving the workspace?'
             );
@@ -170,6 +182,7 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
             }
         }
 
+        suspendProjectTime();
         // Returning home closes the editor document. Do not let recovery state
         // silently reopen it the next time the workspace is entered.
         // The transport coordinator is shared beyond the workspace component,
@@ -180,7 +193,7 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem('mvmnt.desktop.recovery-state', 'clean');
         markClean();
         return true;
-    }, [isDirty, markClean, menuBarActions, requestUnsavedChangesDecision]);
+    }, [markClean, menuBarActions, requestUnsavedChangesDecision]);
 
     // -------------------------------------------------------------------------
     // Export to file (download .mvt)
@@ -286,7 +299,8 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
         let disposed = false;
         const saveRecovery = async () => {
             const state = recoveryState.current;
-            const revision = latestDirtyRevision.current;
+            flushProjectTime();
+            const revision = useDocumentRevisionStore.getState().captureRevision();
             if (state.savedRevision === revision) return;
             if (state.saving) {
                 state.queued = true;
@@ -322,12 +336,14 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
         // block its approved close request.
         if (window.mvmntDesktop) return;
         const handler = (event: BeforeUnloadEvent) => {
-            if (!isDirty) return;
+            flushProjectTime();
+            const revisionState = useDocumentRevisionStore.getState();
+            if (revisionState.revision === revisionState.cleanRevision) return;
             event.preventDefault();
         };
         window.addEventListener('beforeunload', handler);
         return () => window.removeEventListener('beforeunload', handler);
-    }, [isDirty]);
+    }, []);
 
     const value: SceneContextValue = {
         sceneName,

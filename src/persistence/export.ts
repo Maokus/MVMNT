@@ -14,6 +14,7 @@ import { collectVisualAssets, type VisualAssetRecord } from './visual-asset-expo
 import pkg from '../../package.json';
 import { strToU8 } from 'fflate';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
+import { flushProjectTime } from '@state/projectTimeTracker';
 import { usePluginStore } from '@state/pluginStore';
 import { sceneElementRegistry } from '@core/scene/registry';
 import { PluginBinaryStore } from './plugin-binary-store';
@@ -45,6 +46,7 @@ export interface SceneMetadata {
     format: 'scene';
     description?: string;
     author?: string;
+    timeSpentSeconds?: number;
 }
 
 export interface ScenePluginDependency {
@@ -606,6 +608,7 @@ export async function exportScene(
         options.onProgress?.(Math.max(0, Math.min(1, value)), label);
     };
     reportProgress(0.02, 'Preparing scene…');
+    flushProjectTime();
     const doc = DocumentGateway.build();
     const docWarnings: string[] = (doc as any)._warnings ?? [];
     const state = useTimelineStore.getState();
@@ -632,6 +635,7 @@ export async function exportScene(
         createdAt: currentMetadata?.createdAt || now,
         modifiedAt: options.touchMetadata === false ? currentMetadata?.modifiedAt || now : now,
         format: 'scene',
+        timeSpentSeconds: currentMetadata?.timeSpentSeconds ?? 0,
     };
     const description = currentMetadata?.description?.trim();
     if (description) {

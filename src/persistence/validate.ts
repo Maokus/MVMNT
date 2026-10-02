@@ -38,6 +38,7 @@ export type ValidationErrorCode =
     | 'ERR_METADATA_ID'
     | 'ERR_METADATA_NAME'
     | 'ERR_METADATA_AUTHOR'
+    | 'ERR_METADATA_TIME_SPENT'
     | 'ERR_PLUGINS_SHAPE'
     | 'ERR_SCENE_MISSING'
     | 'ERR_SCENE_ELEMENTS_TYPE'
@@ -111,6 +112,20 @@ export function validateSceneEnvelope(data: unknown): ValidationResult {
             errors.push(err('ERR_METADATA_NAME', 'metadata.name missing or not string', 'metadata.name'));
         if (root.metadata.author !== undefined && typeof root.metadata.author !== 'string')
             errors.push(err('ERR_METADATA_AUTHOR', 'metadata.author must be string when present', 'metadata.author'));
+        if (
+            root.metadata.timeSpentSeconds !== undefined &&
+            (typeof root.metadata.timeSpentSeconds !== 'number' ||
+                !Number.isFinite(root.metadata.timeSpentSeconds) ||
+                root.metadata.timeSpentSeconds < 0)
+        ) {
+            errors.push(
+                err(
+                    'ERR_METADATA_TIME_SPENT',
+                    'metadata.timeSpentSeconds must be a nonnegative finite number when present',
+                    'metadata.timeSpentSeconds'
+                )
+            );
+        }
     }
     if (!root.scene || typeof root.scene !== 'object') {
         errors.push(err('ERR_SCENE_MISSING', 'Missing scene object', 'scene'));

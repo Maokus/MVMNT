@@ -24,13 +24,13 @@ async function fetchDefaultSceneBytes(): Promise<Uint8Array | null> {
             const { readFile } = await import('fs/promises');
             const { resolve } = await import('path');
             try {
-                const fileUrl = new URL('../templates/default.mvt', import.meta.url);
+                const fileUrl = new URL('../templates/electone.mvt', import.meta.url);
                 if (fileUrl.protocol === 'file:') {
                     const buffer = await readFile(fileUrl);
                     return buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
                 }
             } catch {}
-            const fallbackPath = resolve(process.cwd(), 'src/templates/default.mvt');
+            const fallbackPath = resolve(process.cwd(), 'src/templates/electone.mvt');
             const buffer = await readFile(fallbackPath);
             return buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
         }
@@ -39,7 +39,7 @@ async function fetchDefaultSceneBytes(): Promise<Uint8Array | null> {
             console.error('[default-scene-loader] fetch is not available to load default scene asset');
             return null;
         }
-        const resourceUrl = new URL('../templates/default.mvt', import.meta.url);
+        const resourceUrl = new URL('../templates/electone.mvt', import.meta.url);
         const response = await fetch(resourceUrl);
         if (!response.ok) {
             console.error(
@@ -50,7 +50,7 @@ async function fetchDefaultSceneBytes(): Promise<Uint8Array | null> {
         const buffer = await response.arrayBuffer();
         return new Uint8Array(buffer);
     } catch (error) {
-        console.error('[default-scene-loader] Failed to load bundled default.mvt', error);
+        console.error('[default-scene-loader] Failed to load bundled electone.mvt', error);
         return null;
     }
 }
@@ -67,7 +67,7 @@ async function resolveDefaultSceneCache(): Promise<DefaultSceneCache | null> {
                 const metadata = envelope?.metadata ? { ...envelope.metadata } : undefined;
                 return { sceneData: bytes, settings, metadata };
             } catch (error) {
-                console.error('[default-scene-loader] Failed to parse packaged default.mvt', error);
+                console.error('[default-scene-loader] Failed to parse packaged electone.mvt', error);
                 return null;
             }
         });

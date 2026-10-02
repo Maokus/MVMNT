@@ -5,8 +5,26 @@ import { serializeStable } from '../stable-stringify';
 import { describe, expect, it, test } from 'vitest';
 import { dispatchSceneCommand } from '@state/scene';
 import { useSceneStore } from '@state/sceneStore';
+import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 
 describe('persistence round-trip behavior', () => {
+    test('time spent survives export and import; older projects start at zero', async () => {
+        const metadata = useSceneMetadataStore.getState();
+        metadata.stampNewDocument();
+        metadata.addTimeSpentSeconds(3725.5);
+        const exported = await exportScene();
+        if (!exported.ok) throw new Error('Export failed');
+        expect(exported.envelope.metadata.timeSpentSeconds).toBe(3725.5);
+
+        metadata.stampNewDocument();
+        expect(useSceneMetadataStore.getState().metadata.timeSpentSeconds).toBe(0);
+        expect((await importScene(exported.zip)).ok).toBe(true);
+        expect(useSceneMetadataStore.getState().metadata.timeSpentSeconds).toBe(3725.5);
+
+        useSceneMetadataStore.getState().hydrate({ id: 'legacy-project', name: 'Legacy project' });
+        expect(useSceneMetadataStore.getState().metadata.timeSpentSeconds).toBe(0);
+    });
+
     test('Stable stringify deterministic for object key order', () => {
         const a = { b: 1, a: 2, c: { y: 1, x: 2 } };
         const s1 = serializeStable(a);

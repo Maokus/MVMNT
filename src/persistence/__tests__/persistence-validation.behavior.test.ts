@@ -108,6 +108,16 @@ describe('persistence validation behavior', () => {
         expect(r.errors.some((e) => e.code === 'ERR_METADATA_AUTHOR')).toBe(true);
     });
 
+    it('rejects invalid project time and accepts older files without it', async () => {
+        const env = await makeValidEnvelope();
+        env.metadata.timeSpentSeconds = -1;
+        expect(validateSceneEnvelope(env).errors.some((e) => e.code === 'ERR_METADATA_TIME_SPENT')).toBe(true);
+        env.metadata.timeSpentSeconds = Number.POSITIVE_INFINITY;
+        expect(validateSceneEnvelope(env).errors.some((e) => e.code === 'ERR_METADATA_TIME_SPENT')).toBe(true);
+        delete env.metadata.timeSpentSeconds;
+        expect(validateSceneEnvelope(env).ok).toBe(true);
+    });
+
     it('detects tracksOrder reference mismatch', async () => {
         const env = await makeValidEnvelope();
         env.timeline.tracks = {}; // ensure empty
