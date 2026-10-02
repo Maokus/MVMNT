@@ -83,6 +83,13 @@ They do not register MVMNT protocols or file associations, do not check for upda
 replace a stable installation. Download newer nightlies manually from the relevant GitHub Actions
 run.
 
+After installing the unsigned macOS build in `/Applications`, remove the download quarantine
+attribute from the app before opening it:
+
+```sh
+xattr -d com.apple.quarantine "/Applications/MVMNT Nightly.app"
+```
+
 Before starting nightlies for a new release line, update the root package version to the next intended
 stable version and run `npm install` to synchronize the lockfile.
 
@@ -96,6 +103,11 @@ stable version and run `npm install` to synchronize the lockfile.
 
 The release workflow rejects tags that do not match `package.json`. Stable macOS artifacts are
 currently unsigned and must be downloaded and installed manually.
+After installing the macOS app in `/Applications`, run:
+
+```sh
+xattr -d com.apple.quarantine "/Applications/MVMNT.app"
+```
 
 ## Update notification
 

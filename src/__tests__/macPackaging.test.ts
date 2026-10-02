@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module';
+import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -111,5 +112,22 @@ describe('macOS packaging dependencies', () => {
             expect(workflow).toContain('POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}');
             expect(workflow).toContain('POSTHOG_PROJECT_ID: ${{ vars.POSTHOG_PROJECT_ID }}');
         }
+        expect(testingWorkflow.match(/run: node scripts\/verify-analytics-build\.cjs/g)).toHaveLength(1);
+        expect(releaseWorkflow.match(/run: node scripts\/verify-analytics-build\.cjs/g)).toHaveLength(2);
+    });
+
+    it('rejects packaged builds with no analytics token or a non-EU host', () => {
+        const script = resolve(process.cwd(), 'scripts/verify-analytics-build.cjs');
+        const verify = (token: string | undefined, host: string) => {
+            const env: NodeJS.ProcessEnv = { ...process.env, VITE_PUBLIC_POSTHOG_HOST: host };
+            if (token === undefined) delete env.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN;
+            else env.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN = token;
+            return spawnSync(process.execPath, [script], { env, encoding: 'utf8' });
+        };
+
+        expect(verify(undefined, 'https://eu.i.posthog.com').status).toBe(1);
+        expect(verify('  ', 'https://eu.i.posthog.com').status).toBe(1);
+        expect(verify('phc_test', 'https://us.i.posthog.com').status).toBe(1);
+        expect(verify('phc_test', 'https://eu.i.posthog.com').status).toBe(0);
     });
 });

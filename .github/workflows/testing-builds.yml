@@ -86,6 +86,8 @@ jobs:
               with:
                   node-version: 22
                   cache: npm
+            - name: Verify packaged analytics configuration
+              run: node scripts/verify-analytics-build.cjs
             - run: npm version "${{ needs.metadata.outputs.version }}" --no-git-tag-version --workspaces=false
             - run: npm install
             - run: ${{ matrix.command }}

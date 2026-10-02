@@ -67,6 +67,6 @@ npm run test:electron
 npm run package
 ```
 
-Use `npm run make:mac` on macOS and `npm run make:win` on Windows. Tagged `v*` releases build signed
-desktop artifacts through `.github/workflows/desktop-release.yml`; macOS release artifacts also
-require notarization.
+Use `npm run make:mac` on macOS and `npm run make:win` on Windows. Tagged `v*` releases build
+desktop artifacts through `.github/workflows/desktop-release.yml`. Current macOS artifacts are
+unsigned; see [versioning and releases](../versioning-and-releases.md) for installation instructions.

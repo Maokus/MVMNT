@@ -55,6 +55,8 @@ jobs:
               with:
                   node-version: 22
                   cache: npm
+            - name: Verify packaged analytics configuration
+              run: node scripts/verify-analytics-build.cjs
             - run: npm install
             - run: npm run build
             - run: npm run test:electron
@@ -80,6 +82,8 @@ jobs:
               with:
                   node-version: 22
                   cache: npm
+            - name: Verify packaged analytics configuration
+              run: node scripts/verify-analytics-build.cjs
             - run: npm install
             - run: npm run build
             - run: npm run test:electron
