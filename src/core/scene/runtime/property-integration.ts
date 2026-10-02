@@ -19,6 +19,75 @@ export type PropertyIntegrationResult =
 
 type SampleResult = Readonly<{ ok: true; value: number }> | Readonly<{ ok: false; message: string }>;
 
+/** Exact-endpoint cumulative memo for repeated random-access property integrals. */
+export class CumulativePropertyIntegral {
+    private points: Array<{ time: number; area: number }> = [];
+    private samples = new Map<number, SampleResult>();
+    private static readonly MAX_POINTS = 4096;
+    private static readonly MAX_SAMPLES = 16385;
+
+    integrate(
+        sample: (timeSeconds: number) => SampleResult,
+        startSeconds: number,
+        endSeconds: number
+    ): PropertyIntegrationResult {
+        if (startSeconds === endSeconds) return { ok: true, value: 0 };
+        const cachedSample = (time: number): SampleResult => {
+            const cached = this.samples.get(time);
+            if (cached) return cached;
+            const result = sample(time);
+            if (result.ok) {
+                if (this.samples.size >= CumulativePropertyIntegral.MAX_SAMPLES) this.samples.clear();
+                this.samples.set(time, result);
+            }
+            return result;
+        };
+        if (!this.points.length) {
+            const first = integratePropertySampler(cachedSample, startSeconds, endSeconds);
+            if (first.ok)
+                this.points = [
+                    { time: startSeconds, area: 0 },
+                    { time: endSeconds, area: first.value },
+                ];
+            return first;
+        }
+        const start = this.areaAt(cachedSample, startSeconds);
+        if (!start.ok) return start;
+        const end = this.areaAt(cachedSample, endSeconds);
+        if (!end.ok) return end;
+        const difference = end.value - start.value;
+        if (Math.abs(difference) <= 1e-9 * Math.max(1, Math.abs(start.value), Math.abs(end.value))) {
+            return integratePropertySampler(cachedSample, startSeconds, endSeconds);
+        }
+        return { ok: true, value: difference };
+    }
+
+    private areaAt(sample: (timeSeconds: number) => SampleResult, time: number): PropertyIntegrationResult {
+        let lo = 0;
+        let hi = this.points.length;
+        while (lo < hi) {
+            const mid = (lo + hi) >>> 1;
+            if (this.points[mid].time < time) lo = mid + 1;
+            else hi = mid;
+        }
+        if (this.points[lo]?.time === time) return { ok: true, value: this.points[lo].area };
+        const left = this.points[lo - 1];
+        const right = this.points[lo];
+        const anchor = !left ? right : !right || time - left.time <= right.time - time ? left : right;
+        const low = Math.min(anchor.time, time);
+        const high = Math.max(anchor.time, time);
+        const interval = integratePropertySampler(sample, low, high);
+        if (!interval.ok) return interval;
+        const area = anchor.area + (time >= anchor.time ? interval.value : -interval.value);
+        if (this.points.length >= CumulativePropertyIntegral.MAX_POINTS) {
+            this.points = [{ time, area }];
+        } else {
+            this.points.splice(lo, 0, { time, area });
+        }
+        return { ok: true, value: area };
+    }
+}
+
 function resolveOptions(
     options?: PropertyIntegrationOptions
 ):

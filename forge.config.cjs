@@ -117,11 +117,21 @@ module.exports = {
                 certificatePassword: process.env.WINDOWS_CERTIFICATE_PASSWORD,
             },
         },
-        { name: '@electron-forge/maker-zip', platforms: ['darwin'] },
         {
             name: '@electron-forge/maker-dmg',
             config: {
                 format: 'ULFO',
+                contents: (options) => [
+                    { x: 192, y: 344, type: 'file', path: options.appPath },
+                    { x: 448, y: 344, type: 'link', path: '/Applications' },
+                    {
+                        x: 320,
+                        y: 160,
+                        type: 'file',
+                        path: path.resolve(__dirname, 'packaging/macos/readme.txt'),
+                        name: 'readme.txt',
+                    },
+                ],
             },
             platforms: ['darwin'],
         },

@@ -13,6 +13,8 @@ type ChannelProvider = (channelId: string) => AutomationChannel | undefined;
 
 export class AutomationEvaluatorImpl {
     private curveCache = new Map<string, AutomationCurve>();
+    private revisions = new Map<string, number>();
+    private revisionEpoch = 0;
     private channelProvider: ChannelProvider | null = null;
 
     /**
@@ -46,11 +48,19 @@ export class AutomationEvaluatorImpl {
     /** Invalidate the cached curve for a specific channel. */
     invalidateChannel(channelId: string): void {
         this.curveCache.delete(channelId);
+        this.revisions.set(channelId, (this.revisions.get(channelId) ?? 0) + 1);
     }
 
     /** Clear all cached curves. */
     invalidateAll(): void {
         this.curveCache.clear();
+        this.revisions.clear();
+        this.revisionEpoch += 1;
+    }
+
+    /** Changes whenever the effective curve for a channel is invalidated. */
+    revision(channelId: string): string {
+        return `${this.revisionEpoch}:${this.revisions.get(channelId) ?? 0}`;
     }
 
     private resolveChannel(channelId: string): AutomationChannel | undefined {

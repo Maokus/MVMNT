@@ -47,7 +47,6 @@ export function GettingStarted({
             const frame = requestAnimationFrame(() => {
                 const target = document.querySelector<HTMLElement>(`[data-tutorial-target="${step}"]`);
                 target?.scrollIntoView({ block: 'nearest' });
-                if (step === 'edit-title') target?.focus({ preventScroll: true });
             });
             return () => cancelAnimationFrame(frame);
         }

@@ -27,7 +27,10 @@ import {
 } from '@audio/features/declarativeDemands';
 import { ensureFontLoaded } from '@fonts/font-loader';
 import { renderResourceManager } from '@core/render/render-resource-manager';
-import { integratePropertySampler } from '@core/scene/runtime/property-integration';
+import { CumulativePropertyIntegral, integratePropertySampler } from '@core/scene/runtime/property-integration';
+import { KeyframeBinding } from '@bindings/keyframe-binding';
+import { automationEvaluator } from '@automation/automation-evaluator';
+import { useTimelineStore } from '@state/timelineStore';
 import type { SceneElementOrigin, SceneElementRegistration } from './types';
 import {
     SimulationRunner,
@@ -955,6 +958,16 @@ export function createPluginDefinitionScope(
         }
         private readonly instanceController = new AbortController();
         private readonly instanceCleanups = new Set<() => void>();
+        private readonly propertyIntegralCaches = new Map<
+            string,
+            {
+                binding: KeyframeBinding;
+                revision: string;
+                tempoMap: unknown;
+                bpm: number;
+                integral: CumulativePropertyIntegral;
+            }
+        >();
         private readonly instanceContext = createContext(
             definition,
             this.instanceController,
@@ -1054,28 +1067,55 @@ export function createPluginDefinitionScope(
             ): Result<number> => {
                 const valid = finiteRange(range?.startSeconds, range?.endSeconds, 'properties.integrate');
                 if (!valid.ok) return valid;
+                if (range.startSeconds === range.endSeconds) return ok(0);
                 let sampleFailure: PluginDiagnostic | undefined;
-                const result = integratePropertySampler(
-                    (timeSeconds) => {
-                        const sampled = valueAt(key, timeSeconds);
-                        if (!sampled.ok) {
-                            sampleFailure = sampled.error;
-                            return { ok: false, message: sampled.error.message };
-                        }
-                        if (typeof sampled.value !== 'number' || !Number.isFinite(sampled.value)) {
-                            sampleFailure = diagnostic(
-                                'INVALID_ARGUMENT',
-                                `Property '${key}' must resolve to finite numeric values for integration`,
-                                'properties.integrate'
-                            );
-                            return { ok: false, message: sampleFailure.message };
-                        }
-                        return { ok: true, value: sampled.value };
-                    },
-                    range.startSeconds,
-                    range.endSeconds,
-                    integrationOptions
-                );
+                const sample = (timeSeconds: number): { ok: true; value: number } | { ok: false; message: string } => {
+                    const sampled = valueAt(key, timeSeconds);
+                    if (!sampled.ok) {
+                        sampleFailure = sampled.error;
+                        return { ok: false, message: sampled.error.message };
+                    }
+                    if (typeof sampled.value !== 'number' || !Number.isFinite(sampled.value)) {
+                        sampleFailure = diagnostic(
+                            'INVALID_ARGUMENT',
+                            `Property '${key}' must resolve to finite numeric values for integration`,
+                            'properties.integrate'
+                        );
+                        return { ok: false, message: sampleFailure.message };
+                    }
+                    return { ok: true, value: sampled.value };
+                };
+                const binding = this.getBinding(key);
+                let result: ReturnType<typeof integratePropertySampler>;
+                if (!integrationOptions && binding && binding.type !== 'keyframes') {
+                    const current = sample(range.startSeconds);
+                    result = current.ok
+                        ? { ok: true, value: current.value * (range.endSeconds - range.startSeconds) }
+                        : { ok: false, error: { reason: 'sample-failed', message: current.message } };
+                } else if (!integrationOptions && binding instanceof KeyframeBinding) {
+                    const timeline = useTimelineStore.getState().timeline;
+                    const revision = automationEvaluator.revision(binding.getChannelId());
+                    let cached = this.propertyIntegralCaches.get(key);
+                    if (
+                        !cached ||
+                        cached.binding !== binding ||
+                        cached.revision !== revision ||
+                        cached.tempoMap !== timeline.masterTempoMap ||
+                        cached.bpm !== timeline.globalBpm
+                    ) {
+                        cached = {
+                            binding,
+                            revision,
+                            tempoMap: timeline.masterTempoMap,
+                            bpm: timeline.globalBpm,
+                            integral: new CumulativePropertyIntegral(),
+                        };
+                        this.propertyIntegralCaches.set(key, cached);
+                    }
+                    result = cached.integral.integrate(sample, range.startSeconds, range.endSeconds);
+                } else {
+                    result = integratePropertySampler(sample, range.startSeconds, range.endSeconds, integrationOptions);
+                }
                 if (result.ok) return ok(result.value);
                 if (sampleFailure) return err(sampleFailure);
                 return err(

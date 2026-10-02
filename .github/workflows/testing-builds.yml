@@ -76,10 +76,12 @@ jobs:
                       runner: macos-14
                       command: npm run make:mac
                       artifact_suffix: macOS-universal
+                      artifact_path: out/make/*.dmg
                     - name: Windows
                       runner: windows-latest
                       command: npm run make:win
                       artifact_suffix: windows-x64
+                      artifact_path: out/make/**/*
         steps:
             - uses: actions/checkout@v7
             - uses: actions/setup-node@v7
@@ -97,5 +99,5 @@ jobs:
             - uses: actions/upload-artifact@v7
               with:
                   name: MVMNT-Nightly-${{ needs.metadata.outputs.version }}-${{ needs.metadata.outputs.short_sha }}-${{ matrix.artifact_suffix }}
-                  path: out/make/**/*
+                  path: ${{ matrix.artifact_path }}
                   if-no-files-found: error

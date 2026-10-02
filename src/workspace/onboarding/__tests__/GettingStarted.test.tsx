@@ -35,20 +35,26 @@ describe('tutorial checklist', () => {
         expect(screen.queryByRole('button', { name: 'Play demo' })).not.toBeInTheDocument();
     });
 
-    it('reveals properties and points to the title field without editing it for the user', async () => {
+    it('highlights and scrolls to the title field without taking focus from playback', async () => {
         const callbacks = props();
         const input = document.createElement('input');
         input.dataset.tutorialTarget = 'edit-title';
         input.scrollIntoView = vi.fn();
         document.body.append(input);
-        render(<GettingStarted {...callbacks} played step="edit-title" />);
+        const { rerender } = render(<GettingStarted {...callbacks} />);
+        const playButton = document.createElement('button');
+        document.body.append(playButton);
+        playButton.focus();
+        rerender(<GettingStarted {...callbacks} played step="edit-title" />);
         expect(callbacks.revealProperties).toHaveBeenCalled();
         expect(clearSelection).toHaveBeenCalled();
         await waitFor(() => expect(input.scrollIntoView).toHaveBeenCalledOnce());
-        expect(input).toHaveFocus();
+        expect(input).toHaveAttribute('data-tutorial-target', 'edit-title');
+        expect(playButton).toHaveFocus();
         expect(screen.getByText('Enter your own text in the highlighted songTitle field.')).toBeVisible();
         expect(screen.queryByRole('button', { name: 'Show title control' })).not.toBeInTheDocument();
         input.remove();
+        playButton.remove();
     });
 
     it('points to the existing save paths without saving for the user', () => {

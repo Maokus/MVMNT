@@ -1,7 +1,8 @@
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import packageManifest from '../../package.json';
@@ -24,6 +25,48 @@ describe('macOS packaging dependencies', () => {
 
         expect(dmgMaker?.config.additionalDMGOptions).toBeUndefined();
         expect(dmgMaker?.config.name).toBeUndefined();
+    });
+
+    it('ships one macOS installer with the quarantine instructions inside it', () => {
+        const macMakers = forgeConfig.makers.filter((maker: { platforms?: string[] }) =>
+            maker.platforms?.includes('darwin')
+        );
+        expect(macMakers.map((maker: { name: string }) => maker.name)).toEqual(['@electron-forge/maker-dmg']);
+
+        const contents = macMakers[0].config.contents({ appPath: '/tmp/MVMNT.app' });
+        expect(contents).toContainEqual({ x: 192, y: 344, type: 'file', path: '/tmp/MVMNT.app' });
+        expect(contents).toContainEqual({ x: 448, y: 344, type: 'link', path: '/Applications' });
+        const readme = contents.find((entry: { name?: string }) => entry.name === 'readme.txt');
+        expect(readme).toEqual({
+            x: 320,
+            y: 160,
+            type: 'file',
+            path: resolve(process.cwd(), 'packaging/macos/readme.txt'),
+            name: 'readme.txt',
+        });
+
+        const instructions = readFileSync(readme.path, 'utf8');
+        expect(instructions).toContain('xattr -dr com.apple.quarantine "/Applications/MVMNT.app"');
+        expect(instructions).toContain('xattr -dr com.apple.quarantine "/Applications/MVMNT Nightly.app"');
+    });
+
+    it('clears stale macOS artifacts before packaging while retaining Windows installers', () => {
+        const makeDir = mkdtempSync(join(tmpdir(), 'mvmnt-mac-make-'));
+        try {
+            const zipDir = join(makeDir, 'zip', 'darwin', 'universal');
+            mkdirSync(zipDir, { recursive: true });
+            writeFileSync(join(zipDir, 'MVMNT.zip'), 'stale');
+            writeFileSync(join(makeDir, 'MVMNT-old.dmg'), 'stale');
+            writeFileSync(join(makeDir, 'MVMNT-Setup.exe'), 'keep');
+
+            const result = spawnSync(process.execPath, [resolve('scripts/clean-mac-make.cjs'), makeDir]);
+            expect(result.status).toBe(0);
+            expect(existsSync(join(makeDir, 'zip', 'darwin'))).toBe(false);
+            expect(existsSync(join(makeDir, 'MVMNT-old.dmg'))).toBe(false);
+            expect(existsSync(join(makeDir, 'MVMNT-Setup.exe'))).toBe(true);
+        } finally {
+            rmSync(makeDir, { recursive: true, force: true });
+        }
     });
 
     it('validates cached universal Electron archives without fetching GitHub checksums', () => {
@@ -87,6 +130,8 @@ describe('macOS packaging dependencies', () => {
         expect(experimentalWorkflow).toContain('npm run compile');
         expect(releaseWorkflow).toContain('Verify tag matches package version');
         expect(releaseWorkflow).toContain("MVMNT_SKIP_MAC_SIGNING: '1'");
+        expect(releaseWorkflow).toContain('path: out/make/*.dmg');
+        expect(testingWorkflow).toContain('artifact_path: out/make/*.dmg');
         expect(forgeConfig.packagerConfig.ignore).toContainEqual(/^\/dist\/.*\.map$/);
         expect(viteConfig).toContain('releaseVersion: buildMetadata.version');
         expect(viteConfig).toContain('build: buildMetadata.commit');

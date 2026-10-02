@@ -83,11 +83,11 @@ They do not register MVMNT protocols or file associations, do not check for upda
 replace a stable installation. Download newer nightlies manually from the relevant GitHub Actions
 run.
 
-After installing the unsigned macOS build in `/Applications`, remove the download quarantine
-attribute from the app before opening it:
+The macOS DMG includes `readme.txt` with installation steps. After copying the unsigned app to
+`/Applications`, remove its download quarantine attribute before opening it:
 
 ```sh
-xattr -d com.apple.quarantine "/Applications/MVMNT Nightly.app"
+xattr -dr com.apple.quarantine "/Applications/MVMNT Nightly.app"
 ```
 
 Before starting nightlies for a new release line, update the root package version to the next intended
@@ -101,12 +101,12 @@ stable version and run `npm install` to synchronize the lockfile.
 4. Push the tag. GitHub Actions verifies, packages, and creates a draft GitHub Release.
 5. Test the draft assets, edit the release notes if needed, and publish the release.
 
-The release workflow rejects tags that do not match `package.json`. Stable macOS artifacts are
-currently unsigned and must be downloaded and installed manually.
-After installing the macOS app in `/Applications`, run:
+The release workflow rejects tags that do not match `package.json`. Stable macOS builds produce a
+DMG containing the app and `readme.txt`; they are currently unsigned and must be installed manually.
+After copying the app to `/Applications`, run:
 
 ```sh
-xattr -d com.apple.quarantine "/Applications/MVMNT.app"
+xattr -dr com.apple.quarantine "/Applications/MVMNT.app"
 ```
 
 ## Update notification

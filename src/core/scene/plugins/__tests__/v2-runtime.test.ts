@@ -7,6 +7,10 @@ import { audioFeatureCalculatorRegistry } from '@audio/features/audioFeatureRegi
 import { renderResourceManager } from '@core/render/render-resource-manager';
 import type { ElementContext } from '../../../../../packages/plugin-sdk/src/scene';
 import { KeyframeBinding } from '@bindings/keyframe-binding';
+import { automationEvaluator } from '@automation/automation-evaluator';
+import { ConstantBinding } from '@bindings/property-bindings';
+import { useTimelineStore } from '@state/timelineStore';
+import { BoundSceneElement } from '@core/scene/runtime/bound-scene-element';
 
 afterEach(() => {
     document.querySelectorAll('link[id^="gf-"]').forEach((link) => link.remove());
@@ -234,6 +238,35 @@ describe('SDK v2 runtime', () => {
         instance.buildRenderObjects({}, 2);
         expect(rendered).toEqual([20, 20]);
         expect(bindingRead).toHaveBeenCalledWith(expect.objectContaining({ targetTime: 0.25 }));
+
+        const reads = bindingRead.mock.calls.length;
+        expect(context.properties.integrate('speed', { startSeconds: 0, endSeconds: 1 })).toEqual({
+            ok: true,
+            value: 5,
+        });
+        expect(bindingRead).toHaveBeenCalledTimes(reads);
+        bindingRead.mockImplementation((sampleContext) => sampleContext.targetTime * 20);
+        automationEvaluator.invalidateChannel('channel:speed');
+        expect(context.properties.integrate('speed', { startSeconds: 0, endSeconds: 1 })).toEqual({
+            ok: true,
+            value: 10,
+        });
+
+        const previousTimeline = useTimelineStore.getState().timeline;
+        useTimelineStore.setState({ timeline: { ...previousTimeline, globalBpm: previousTimeline.globalBpm + 1 } });
+        const readsBeforeTempoChange = bindingRead.mock.calls.length;
+        expect(context.properties.integrate('speed', { startSeconds: 0, endSeconds: 1 })).toEqual({
+            ok: true,
+            value: 10,
+        });
+        expect(bindingRead.mock.calls.length).toBeGreaterThan(readsBeforeTempoChange);
+        useTimelineStore.setState({ timeline: previousTimeline });
+
+        (instance as BoundSceneElement).setBinding('speed', new ConstantBinding(7));
+        expect(context.properties.integrate('speed', { startSeconds: 0, endSeconds: 1 })).toEqual({
+            ok: true,
+            value: 7,
+        });
 
         instance.dispose();
         await scope.dispose();

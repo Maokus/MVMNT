@@ -19,6 +19,7 @@ export function createAutomationChannelActions(
 ): AutomationChannelActions {
     return {
         setAutomationChannel(channel) {
+            automationEvaluator.invalidateChannel(channel.id);
             set((state) => ({
                 automation: {
                     channels: { ...state.automation.channels, [channel.id]: channel },
