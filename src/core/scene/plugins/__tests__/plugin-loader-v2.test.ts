@@ -1,6 +1,13 @@
 import { zipSync } from 'fflate';
 import { afterEach, describe, expect, it } from 'vitest';
-import { disablePlugin, enablePlugin, getDevelopmentPluginBundle, loadPlugin, unloadPlugin } from '../plugin-loader';
+import {
+    disablePlugin,
+    enablePlugin,
+    getDevelopmentPluginBundle,
+    loadPlugin,
+    restoreInstalledPlugins,
+    unloadPlugin,
+} from '../plugin-loader';
 import { sceneElementRegistry } from '@core/scene/registry';
 import { usePluginStore } from '@state/pluginStore';
 import { PluginBinaryStore } from '@persistence/plugin-binary-store';
@@ -76,6 +83,30 @@ describe('v2 plugin loader fixture', () => {
 
         expect(await unloadPlugin(pluginId)).toEqual({ success: true });
         expect(sceneElementRegistry.hasElement(`${pluginId}:loader-v2`)).toBe(false);
+    });
+
+    it('restores installed plugins and their element types after a renderer restart', async () => {
+        expect((await loadPlugin(bundle())).success).toBe(true);
+        await unloadPlugin(pluginId, { removePersisted: false });
+        expect(usePluginStore.getState().plugins[pluginId]).toBeUndefined();
+
+        await restoreInstalledPlugins();
+
+        expect(usePluginStore.getState().plugins[pluginId]).toMatchObject({ enabled: true, source: 'installed' });
+        expect(sceneElementRegistry.hasElement(`${pluginId}:loader-v2`)).toBe(true);
+    });
+
+    it('keeps disabled installed plugins visible but inactive after a renderer restart', async () => {
+        expect((await loadPlugin(bundle())).success).toBe(true);
+        expect((await disablePlugin(pluginId)).success).toBe(true);
+        await unloadPlugin(pluginId, { removePersisted: false });
+
+        await restoreInstalledPlugins();
+
+        expect(usePluginStore.getState().plugins[pluginId]).toMatchObject({ enabled: false, source: 'installed' });
+        expect(sceneElementRegistry.hasElement(`${pluginId}:loader-v2`)).toBe(false);
+        expect((await enablePlugin(pluginId)).success).toBe(true);
+        expect(sceneElementRegistry.hasElement(`${pluginId}:loader-v2`)).toBe(true);
     });
 
     it('injects host-resolved asynchronous font utilities', async () => {

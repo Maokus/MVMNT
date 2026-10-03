@@ -572,11 +572,55 @@ export async function reloadPluginFromStorage(
 
         return await loadPlugin(bundleData, {
             allowExistingPlugin: options.allowExistingPlugin,
+            persist: false,
             // Re-check the version when restoring a stored plugin after a host update.
         });
     } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error);
         return pluginLoadFailure('storage', errorMsg, { pluginId });
+    }
+}
+
+let restorePromise: Promise<void> | null = null;
+
+/** Restore installed bundles before a scene or plugin manager reads the registry. */
+export function restoreInstalledPlugins(): Promise<void> {
+    if (!restorePromise) {
+        restorePromise = restoreInstalledPluginsFromStorage().finally(() => {
+            restorePromise = null;
+        });
+    }
+    return restorePromise;
+}
+
+async function restoreInstalledPluginsFromStorage(): Promise<void> {
+    const pluginIds = await PluginBinaryStore.listIds();
+    for (const pluginId of pluginIds) {
+        if (usePluginStore.getState().plugins[pluginId]) continue;
+        try {
+            const bundle = await PluginBinaryStore.get(pluginId);
+            if (!bundle) continue;
+            const manifestData = unzipSync(new Uint8Array(bundle))['manifest.json'];
+            if (!manifestData) throw new Error('Missing manifest.json in plugin bundle');
+            const manifest: PluginManifest = JSON.parse(new TextDecoder().decode(manifestData));
+            const errors = validatePluginManifest(manifest);
+            if (errors.length > 0 || manifest.id !== pluginId) {
+                throw new Error(errors.join('; ') || 'Stored plugin ID does not match its manifest');
+            }
+
+            if (PluginSettingsStore.getEnabled(pluginId) === false) {
+                usePluginStore.getState().addPlugin(manifest, false);
+                continue;
+            }
+
+            const result = await loadPlugin(bundle, { persist: false });
+            if (!result.success) {
+                usePluginStore.getState().registerFailedPlugin(manifest, result.error);
+                console.warn(`[PluginLoader] Could not restore plugin '${pluginId}': ${result.error}`);
+            }
+        } catch (error) {
+            console.warn(`[PluginLoader] Could not restore plugin '${pluginId}':`, error);
+        }
     }
 }
 

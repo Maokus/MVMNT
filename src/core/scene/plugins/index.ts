@@ -4,6 +4,7 @@ export {
     unloadPlugin,
     disablePlugin,
     enablePlugin,
+    restoreInstalledPlugins,
     type PluginLoadResult,
     type PluginHostError,
     type PluginHostErrorCode,

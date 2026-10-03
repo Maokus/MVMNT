@@ -1,6 +1,6 @@
 import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
-import { loadPlugin } from '@core/scene/plugins';
+import { loadPlugin, restoreInstalledPlugins } from '@core/scene/plugins';
 import { stageDesktopProjectOpen } from '../desktop/pending-open';
 import { stagePendingRender } from '../desktop/pending-automation';
 import { writeStoredImportPayload } from '@utils/importPayloadStorage';
@@ -77,8 +77,21 @@ const AppLoadingScreen: React.FC<{ message?: string }> = ({ message = 'Loading M
 export function App() {
     const [isScreenSmall, setIsScreenSmall] = useState(false);
     const [isScreenWarningDismissed, setIsScreenWarningDismissed] = useState(false);
+    const [pluginsRestored, setPluginsRestored] = useState(false);
     const location = useLocation();
     const navigate = useNavigate();
+
+    useEffect(() => {
+        let mounted = true;
+        void restoreInstalledPlugins()
+            .catch((error) => console.error('[App] Could not restore installed plugins:', error))
+            .finally(() => {
+                if (mounted) setPluginsRestored(true);
+            });
+        return () => {
+            mounted = false;
+        };
+    }, []);
 
     useEffect(() => {
         const desktop = window.mvmntDesktop;
@@ -348,16 +361,20 @@ export function App() {
                 </div>
             ) : null}
             <Suspense fallback={<AppLoadingScreen />}>
-                <Routes>
-                    <Route path="/" element={<HomePage />} />
-                    <Route path="/workspace" element={<MidiVisualizer />} />
-                    <Route path="/animation-test" element={<AnimationTestPage />} />
-                    <Route path="/about" element={<AboutPage />} />
-                    <Route path="/changelog" element={<ChangelogPage />} />
-                    <Route path="/community" element={<CommunityPage />} />
-                    <Route path="/contribute" element={<ContributePage />} />
-                    <Route path="/privacy" element={<PrivacyPage />} />
-                </Routes>
+                {pluginsRestored ? (
+                    <Routes>
+                        <Route path="/" element={<HomePage />} />
+                        <Route path="/workspace" element={<MidiVisualizer />} />
+                        <Route path="/animation-test" element={<AnimationTestPage />} />
+                        <Route path="/about" element={<AboutPage />} />
+                        <Route path="/changelog" element={<ChangelogPage />} />
+                        <Route path="/community" element={<CommunityPage />} />
+                        <Route path="/contribute" element={<ContributePage />} />
+                        <Route path="/privacy" element={<PrivacyPage />} />
+                    </Routes>
+                ) : (
+                    <AppLoadingScreen message="Loading plugins…" />
+                )}
             </Suspense>
             <Suspense fallback={null}>
                 <DeveloperOverlayLazy />

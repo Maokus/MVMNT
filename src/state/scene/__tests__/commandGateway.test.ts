@@ -13,7 +13,7 @@ import { useTimelineStore } from '@state/timelineStore';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
 import { deriveElementOrder } from '@state/scene-graph';
-import { elementPropertyTarget, nodePropertyTarget } from '@automation/types';
+import { createKeyframe, elementPropertyTarget, nodePropertyTarget } from '@automation/types';
 import type { FontAsset } from '@state/scene/fonts';
 import { useDocumentRevisionStore } from '@state/documentRevisionStore';
 
@@ -281,6 +281,41 @@ describe('scene command gateway', () => {
         const store = useSceneStore.getState();
         expect(deriveElementOrder(store.graph)).toHaveLength(0);
         expect(store.elements['element-3']).toBeUndefined();
+    });
+
+    it('reorders animated siblings without changing their automation or transforms', () => {
+        const names = ['Text 1', 'Trackerlike MIDI Display 1', 'Chord Estimate Display 1'];
+        for (const elementId of names) {
+            expect(dispatchSceneCommand({ type: 'addElement', elementType: 'textOverlay', elementId }).success).toBe(
+                true
+            );
+        }
+        const state = useSceneStore.getState();
+        const nodeIds = names.map((name) => state.nodeIdByElementId[name]);
+        for (const nodeId of nodeIds) {
+            state.setAutomationChannel({
+                id: `channel:${nodeId}`,
+                target: nodePropertyTarget(nodeId, 'translationX'),
+                valueType: 'number',
+                keyframes: [createKeyframe(0, 100)],
+            });
+        }
+        const originalTransforms = nodeIds.map((id) => state.graph.nodesById[id].userNodeTransform);
+
+        const result = dispatchSceneCommand({
+            type: 'reparentNodes',
+            nodeIds: [nodeIds[2]],
+            newParentId: state.graph.rootId,
+            targetIndex: 0,
+        });
+
+        expect(result.success).toBe(true);
+        const reordered = useSceneStore.getState();
+        expect(deriveElementOrder(reordered.graph)).toEqual([names[2], names[0], names[1]]);
+        for (const [index, nodeId] of nodeIds.entries()) {
+            expect(reordered.automation.channels[`channel:${nodeId}`]).toBeDefined();
+            expect(reordered.graph.nodesById[nodeId].userNodeTransform).toEqual(originalTransforms[index]);
+        }
     });
 
     it('applies commands when running in store-only mode', () => {

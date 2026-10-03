@@ -148,6 +148,9 @@ describe('canonical scene snapshot contract', () => {
             valueType: 'number',
             keyframes: [createKeyframe(0, 1)],
         });
+        expect(
+            dispatchSceneCommand({ type: 'groupNodes', nodeIds: [nodeId], groupId: 'group:snapshot-contract' }).success
+        ).toBe(true);
         const expected = createSceneSnapshot(useSceneStore.getState());
 
         const result = dispatchSceneCommand({

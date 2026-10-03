@@ -3,6 +3,7 @@ import {
     cloneSceneGraph,
     cloneSubtrees,
     groupSceneNodes,
+    normalizeNodeSelection,
     removeSubtrees,
     reparentSceneNodes,
     reorderSceneNodes,
@@ -59,6 +60,24 @@ export function applySceneGraphCommand(
             store.replaceGraph(reorderSceneNodes(store.graph, command.parentId, command.nodeIds, command.targetIndex));
             return true;
         case 'reparentNodes': {
+            const selected = normalizeNodeSelection(store.graph, command.nodeIds);
+            const parent = store.graph.nodesById[command.newParentId];
+            if (
+                selected.length > 0 &&
+                parent &&
+                'children' in parent &&
+                selected.every((id) => store.graph.nodesById[id]?.parentId === command.newParentId)
+            ) {
+                const boundedIndex = Math.max(0, Math.min(parent.children.length, Math.floor(command.targetIndex)));
+                const selectedSet = new Set(selected);
+                const removedBeforeTarget = parent.children
+                    .slice(0, boundedIndex)
+                    .filter((id) => selectedSet.has(id)).length;
+                store.replaceGraph(
+                    reorderSceneNodes(store.graph, command.newParentId, selected, boundedIndex - removedBeforeTarget)
+                );
+                return true;
+            }
             const affectedAncestors = new Set<string>(command.nodeIds);
             for (const start of [...command.nodeIds, command.newParentId]) {
                 let id: string | null = start;
