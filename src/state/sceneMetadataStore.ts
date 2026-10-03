@@ -137,7 +137,6 @@ export const useSceneMetadataStore = createWithEqualityFn<SceneMetadataStore>((s
                     timeSpentSeconds: state.metadata.timeSpentSeconds + seconds,
                 },
             }));
-            markDocumentChanged('metadata');
         },
     };
 });

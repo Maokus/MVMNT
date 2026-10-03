@@ -5,6 +5,7 @@ import type { SceneSubtreeBundle, SceneSubtreeImportOptions } from './subtreeBun
 import type { FontAsset } from './fonts';
 import type { SceneMetadataState } from '@state/sceneMetadataStore';
 import type { ProjectAsset } from '@state/visualAssetRegistryStore';
+import type { ReparentMode } from './reparenting';
 
 export interface SceneClearSnapshot {
     scene: SceneImportPayload;
@@ -86,5 +87,12 @@ export type SceneCommand =
     | { type: 'deleteSubtrees'; nodeIds: string[] }
     | { type: 'duplicateSubtrees'; nodeIds: string[]; mappings: DuplicateMappings }
     | { type: 'reorderNodes'; parentId: string; nodeIds: string[]; targetIndex: number }
-    | { type: 'reparentNodes'; nodeIds: string[]; newParentId: string; targetIndex: number }
+    | {
+          type: 'reparentNodes';
+          nodeIds: string[];
+          newParentId: string;
+          targetIndex: number;
+          mode?: ReparentMode;
+          atTick?: number;
+      }
     | { type: 'transformNodes'; nodeIds: string[]; worldDelta: Matrix2D };

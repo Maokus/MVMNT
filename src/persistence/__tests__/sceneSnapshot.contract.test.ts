@@ -155,8 +155,8 @@ describe('canonical scene snapshot contract', () => {
 
         const result = dispatchSceneCommand({
             type: 'reparentNodes',
-            nodeIds: [nodeId],
-            newParentId: useSceneStore.getState().graph.rootId,
+            nodeIds: ['group:snapshot-contract'],
+            newParentId: 'group:snapshot-contract',
             targetIndex: 0,
         });
 

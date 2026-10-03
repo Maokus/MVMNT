@@ -7,7 +7,7 @@ import {
     type SceneCommandTelemetryEvent,
 } from '@state/scene';
 import { loadDefaultScene } from '@core/default-scene-loader';
-import { useSceneStore } from '@state/sceneStore';
+import { createSceneSnapshot, useSceneStore } from '@state/sceneStore';
 import { useSceneEditorStore } from '@state/sceneEditorStore';
 import { useTimelineStore } from '@state/timelineStore';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
@@ -16,6 +16,7 @@ import { deriveElementOrder } from '@state/scene-graph';
 import { createKeyframe, elementPropertyTarget, nodePropertyTarget } from '@automation/types';
 import type { FontAsset } from '@state/scene/fonts';
 import { useDocumentRevisionStore } from '@state/documentRevisionStore';
+import { evaluatedReparentMatrices } from '@state/scene/reparenting';
 
 function resetState() {
     useSceneStore.getState().clearScene();
@@ -315,6 +316,132 @@ describe('scene command gateway', () => {
         for (const [index, nodeId] of nodeIds.entries()) {
             expect(reordered.automation.channels[`channel:${nodeId}`]).toBeDefined();
             expect(reordered.graph.nodesById[nodeId].userNodeTransform).toEqual(originalTransforms[index]);
+        }
+    });
+
+    it('keeps an animated node at the captured playhead when moved under an animated parent', () => {
+        for (const elementId of ['child', 'target']) {
+            dispatchSceneCommand({ type: 'addElement', elementType: 'textOverlay', elementId });
+        }
+        const initial = useSceneStore.getState();
+        const child = initial.nodeIdByElementId.child;
+        const target = initial.nodeIdByElementId.target;
+        dispatchSceneCommand({ type: 'groupNodes', nodeIds: [child], groupId: 'group:old' });
+        dispatchSceneCommand({ type: 'groupNodes', nodeIds: [target], groupId: 'group:new' });
+        const state = useSceneStore.getState();
+        state.updateNodeTransform('group:old', { translationX: 20 });
+        state.setAutomationChannel({
+            id: 'new-parent-motion',
+            target: nodePropertyTarget('group:new', 'translationX'),
+            valueType: 'number',
+            keyframes: [createKeyframe(0, 100), createKeyframe(10, 200)],
+        });
+        state.updateNodeBindings('group:new', {
+            translationX: { type: 'keyframes', channelId: 'new-parent-motion' },
+        });
+        state.setAutomationChannel({
+            id: 'child-motion',
+            target: nodePropertyTarget(child, 'translationX'),
+            valueType: 'number',
+            keyframes: [createKeyframe(0, 5), createKeyframe(10, 15)],
+        });
+        state.updateNodeBindings(child, { translationX: { type: 'keyframes', channelId: 'child-motion' } });
+        const oldAtZero = evaluatedReparentMatrices(useSceneStore.getState(), 0).worlds.get(child)!;
+        const oldAtTen = evaluatedReparentMatrices(useSceneStore.getState(), 10).worlds.get(child)!;
+
+        const move = dispatchSceneCommand({
+            type: 'reparentNodes',
+            nodeIds: [child],
+            newParentId: 'group:new',
+            targetIndex: 0,
+        });
+
+        expect(move.success).toBe(true);
+        expect(move.patch?.redo[0]).toMatchObject({ mode: 'keepTransform', atTick: 0 });
+        const moved = useSceneStore.getState();
+        expect(evaluatedReparentMatrices(moved, 0).worlds.get(child)).toEqual(oldAtZero);
+        expect(evaluatedReparentMatrices(moved, 10).worlds.get(child)).not.toEqual(oldAtTen);
+        expect(moved.automation.channels['child-motion'].keyframes.map((keyframe) => keyframe.value)).toEqual([5, 15]);
+        const compensation = moved.graph.nodesById[child].parentCompensation;
+
+        expect(dispatchSceneCommand(move.patch!.undo[0]).success).toBe(true);
+        useTimelineStore.setState((current) => ({ timeline: { ...current.timeline, currentTick: 10 } }));
+        expect(dispatchSceneCommand(move.patch!.redo[0]).success).toBe(true);
+        expect(useSceneStore.getState().graph.nodesById[child].parentCompensation).toEqual(compensation);
+        const saved = createSceneSnapshot(useSceneStore.getState());
+        useSceneStore.getState().clearScene();
+        useSceneStore.getState().importScene(saved);
+        expect(useSceneStore.getState().graph.nodesById[child].parentCompensation).toEqual(compensation);
+        expect(useSceneStore.getState().automation.channels['child-motion']).toBeDefined();
+    });
+
+    it('attaches local animation directly to the new parent', () => {
+        for (const elementId of ['child', 'target']) {
+            dispatchSceneCommand({ type: 'addElement', elementType: 'textOverlay', elementId });
+        }
+        const initial = useSceneStore.getState();
+        const child = initial.nodeIdByElementId.child;
+        const target = initial.nodeIdByElementId.target;
+        dispatchSceneCommand({ type: 'groupNodes', nodeIds: [child], groupId: 'group:old' });
+        dispatchSceneCommand({ type: 'groupNodes', nodeIds: [target], groupId: 'group:new' });
+        const before = useSceneStore.getState();
+        const authored = before.graph.nodesById[child].userNodeTransform;
+        before.setAutomationChannel({
+            id: 'local-motion',
+            target: nodePropertyTarget(child, 'translationX'),
+            valueType: 'number',
+            keyframes: [createKeyframe(0, 5), createKeyframe(10, 15)],
+        });
+        before.updateNodeBindings(child, { translationX: { type: 'keyframes', channelId: 'local-motion' } });
+        before.updateNodeTransform('group:new', { translationX: 100 });
+        const oldWorld = evaluatedReparentMatrices(useSceneStore.getState(), 0).worlds.get(child);
+        const move = dispatchSceneCommand({
+            type: 'reparentNodes',
+            nodeIds: [child],
+            newParentId: 'group:new',
+            targetIndex: 0,
+            mode: 'keepLocal',
+        });
+        expect(move.success).toBe(true);
+        expect(useSceneStore.getState().graph.nodesById[child]).toMatchObject({
+            parentId: 'group:new',
+            parentCompensation: [1, 0, 0, 1, 0, 0],
+            userNodeTransform: authored,
+        });
+        expect(evaluatedReparentMatrices(useSceneStore.getState(), 0).worlds.get(child)).not.toEqual(oldWorld);
+        expect(
+            useSceneStore.getState().automation.channels['local-motion'].keyframes.map((keyframe) => keyframe.value)
+        ).toEqual([5, 15]);
+    });
+
+    it('preserves each selected root at the playhead in a multi-node reparent', () => {
+        for (const elementId of ['first', 'second', 'target']) {
+            dispatchSceneCommand({ type: 'addElement', elementType: 'textOverlay', elementId });
+        }
+        const initial = useSceneStore.getState();
+        const roots = [initial.nodeIdByElementId.first, initial.nodeIdByElementId.second];
+        dispatchSceneCommand({ type: 'groupNodes', nodeIds: roots, groupId: 'group:old' });
+        dispatchSceneCommand({
+            type: 'groupNodes',
+            nodeIds: [initial.nodeIdByElementId.target],
+            groupId: 'group:new',
+        });
+        useSceneStore.getState().updateNodeTransform('group:new', {
+            translationX: 80,
+            rotation: 0.2,
+        });
+        const before = evaluatedReparentMatrices(useSceneStore.getState(), 0).worlds;
+        const result = dispatchSceneCommand({
+            type: 'reparentNodes',
+            nodeIds: roots,
+            newParentId: 'group:new',
+            targetIndex: 1,
+        });
+        expect(result.success).toBe(true);
+        const after = evaluatedReparentMatrices(useSceneStore.getState(), 0).worlds;
+        for (const id of roots) {
+            before.get(id)!.forEach((value, index) => expect(after.get(id)![index]).toBeCloseTo(value, 9));
+            expect(useSceneStore.getState().graph.nodesById[id].parentId).toBe('group:new');
         }
     });
 

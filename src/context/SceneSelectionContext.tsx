@@ -9,6 +9,7 @@ import {
     dispatchSceneCommand,
 } from '@state/scene';
 import type { SceneCommand, SceneCommandOptions } from '@state/scene';
+import type { ReparentMode } from '@state/scene/reparenting';
 import { deriveElementOrder } from '@state/scene-graph';
 import { shallow } from 'zustand/shallow';
 import {
@@ -68,7 +69,11 @@ interface SceneSelectionActions {
     duplicateSelectedNodes: () => void;
     deleteSelectedNodes: () => void;
     reorderSelectedNodes: (parentId: string, targetIndex: number) => void;
-    reparentSelectedNodes: (newParentId: string, targetIndex: number) => void;
+    reparentSelectedNodes: (
+        newParentId: string,
+        targetIndex: number,
+        options?: { nodeIds?: string[]; mode?: ReparentMode; atTick?: number; graphRevision?: number }
+    ) => string | null;
     enterGroup: (nodeId: string) => void;
     exitGroup: () => void;
     clearSelection: () => void;
@@ -580,20 +585,32 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
     );
 
     const reparentSelectedNodes = useCallback(
-        (newParentId: string, targetIndex: number) => {
+        (
+            newParentId: string,
+            targetIndex: number,
+            options?: { nodeIds?: string[]; mode?: ReparentMode; atTick?: number; graphRevision?: number }
+        ) => {
+            if (options?.graphRevision != null && useSceneStore.getState().graph.revision !== options.graphRevision)
+                return 'The scene changed before the move. Try again.';
             const nodeIds = normalizeNodeSelection(
                 useSceneStore.getState().graph,
-                useSelectionStore.getState().selectedNodeIds
+                options?.nodeIds ?? useSelectionStore.getState().selectedNodeIds
             );
-            if (!nodeIds.length) return;
-            if (
-                runSceneCommand(
-                    { type: 'reparentNodes', nodeIds, newParentId, targetIndex },
-                    'SceneSelectionContext.reparentNodes'
-                )
-            ) {
-                visualizer?.invalidateRender?.();
-            }
+            if (!nodeIds.length) return 'No scene nodes are selected.';
+            const result = dispatchSceneCommand(
+                {
+                    type: 'reparentNodes',
+                    nodeIds,
+                    newParentId,
+                    targetIndex,
+                    mode: options?.mode,
+                    atTick: options?.atTick,
+                },
+                { source: 'SceneSelectionContext.reparentNodes' }
+            );
+            if (!result.success) return result.error?.message ?? 'Could not move scene nodes.';
+            visualizer?.invalidateRender?.();
+            return null;
         },
         [runSceneCommand, visualizer]
     );

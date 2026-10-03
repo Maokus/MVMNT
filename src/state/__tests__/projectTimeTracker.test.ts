@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getProjectTimeSpentSeconds, ProjectTimeTracker } from '../projectTimeTracker';
+import { useSceneMetadataStore } from '../sceneMetadataStore';
+import { useDocumentRevisionStore } from '../documentRevisionStore';
 
 describe('ProjectTimeTracker', () => {
     afterEach(() => vi.restoreAllMocks());
@@ -33,6 +35,25 @@ describe('ProjectTimeTracker', () => {
         vi.advanceTimersByTime(1500);
         expect(getProjectTimeSpentSeconds(120)).toBe(121.5);
         expect(addSeconds).not.toHaveBeenCalled();
+
+        tracker.stop();
+        vi.useRealTimers();
+    });
+
+    it('does not mark a clean scene as edited when foreground time is recorded', () => {
+        vi.useFakeTimers();
+        vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+        const metadata = useSceneMetadataStore.getState();
+        const revisions = useDocumentRevisionStore.getState();
+        metadata.hydrate({ id: 'opened-project', name: 'Opened project', timeSpentSeconds: 12 });
+        revisions.markClean();
+
+        const tracker = new ProjectTimeTracker((seconds) => metadata.addTimeSpentSeconds(seconds));
+        tracker.start();
+        vi.advanceTimersByTime(30_000);
+
+        expect(useSceneMetadataStore.getState().metadata.timeSpentSeconds).toBe(42);
+        expect(useDocumentRevisionStore.getState().revision).toBe(useDocumentRevisionStore.getState().cleanRevision);
 
         tracker.stop();
         vi.useRealTimers();

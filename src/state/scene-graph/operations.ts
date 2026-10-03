@@ -232,12 +232,13 @@ export function reorderSceneNodes(
     return next;
 }
 
-/** Move one or more normalized subtrees into a container while preserving each root's world transform. */
+/** Move normalized subtrees into a container; preserve static world transforms unless the caller supplies compensation. */
 export function reparentSceneNodes(
     graph: SceneGraphState,
     nodeIds: readonly string[],
     newParentId: string,
-    targetIndex: number
+    targetIndex: number,
+    options?: { preserveWorld?: boolean }
 ): SceneGraphState {
     const selected = normalizeNodeSelection(graph, nodeIds);
     if (!selected.length) throw new Error('Select at least one node to move');
@@ -255,9 +256,10 @@ export function reparentSceneNodes(
             (navigation.byNodeId.get(left)?.preorder ?? Number.MAX_SAFE_INTEGER) -
             (navigation.byNodeId.get(right)?.preorder ?? Number.MAX_SAFE_INTEGER)
     );
-    const worlds = worldMatrices(graph);
-    const newParentWorld = worlds.get(newParentId);
-    if (!newParentWorld) throw new Error('Drop target could not be resolved');
+    const preserveWorld = options?.preserveWorld !== false;
+    const worlds = preserveWorld ? worldMatrices(graph) : null;
+    const newParentWorld = worlds?.get(newParentId);
+    if (preserveWorld && !newParentWorld) throw new Error('Drop target could not be resolved');
     const selectedSet = new Set(ordered);
     const originalTargetIndex = Math.max(0, Math.min(newParent.children.length, Math.floor(targetIndex)));
     const removedBeforeTarget = newParent.children
@@ -273,14 +275,12 @@ export function reparentSceneNodes(
     target.children.splice(Math.max(0, Math.min(target.children.length, insertionIndex)), 0, ...ordered);
     for (const id of ordered) {
         const node = next.nodesById[id];
-        const world = worlds.get(id);
-        if (!node || !world) throw new Error(`Moved node '${id}' could not be resolved`);
+        const world = worlds?.get(id);
+        if (!node || (preserveWorld && !world)) throw new Error(`Moved node '${id}' could not be resolved`);
         node.parentId = newParentId;
-        node.parentCompensation = compensationForWorld(
-            newParentWorld,
-            world,
-            nodeTransformToMatrix(node.userNodeTransform)
-        );
+        node.parentCompensation = preserveWorld
+            ? compensationForWorld(newParentWorld!, world!, nodeTransformToMatrix(node.userNodeTransform))
+            : [1, 0, 0, 1, 0, 0];
     }
     next.revision += 1;
     return next;

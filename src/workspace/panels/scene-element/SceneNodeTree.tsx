@@ -31,6 +31,9 @@ import { executeCommand } from '@context/commands/commandRegistry';
 import { SCENE_COMMANDS } from '@context/commands/sceneCommands';
 import { activateCommandSurface } from '@context/commands/commandContext';
 import { isTextEditingTarget } from '@context/shortcuts/shortcutRegistry';
+import { useTimelineStore } from '@state/timelineStore';
+import { hasAnimatedReparentHierarchy, type ReparentMode } from '@state/scene/reparenting';
+import { CommandContextMenu } from '@workspace/components/CommandContextMenu';
 
 export type DropPosition = 'before' | 'inside' | 'after';
 
@@ -96,6 +99,15 @@ export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
     const toggleNodeExpanded = useSelectionStore((state) => state.toggleNodeExpanded);
     const setNodesExpanded = useSelectionStore((state) => state.setNodesExpanded);
     const [dropPosition, setDropPosition] = useState<DropPosition | null>(null);
+    const [dropError, setDropError] = useState<string | null>(null);
+    const [pendingReparent, setPendingReparent] = useState<{
+        parentId: string;
+        targetIndex: number;
+        nodeIds: string[];
+        atTick: number;
+        graphRevision: number;
+        position: { x: number; y: number };
+    } | null>(null);
     const [renameValue, setRenameValue] = useState<string | null>(null);
     const renameRef = useRef<HTMLInputElement>(null);
     const expandTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -198,8 +210,27 @@ export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
     const drop = (event: React.DragEvent) => {
         event.preventDefault();
         event.stopPropagation();
+        setDropError(null);
         const target = dropPosition ? resolveTreeDropTarget(node, siblingIds, dropPosition) : null;
-        if (target) reparentSelectedNodes(target.parentId, target.targetIndex);
+        if (target) {
+            const state = useSceneStore.getState();
+            const nodeIds = normalizeNodeSelection(state.graph, useSelectionStore.getState().selectedNodeIds);
+            const options = {
+                nodeIds,
+                atTick: useTimelineStore.getState().timeline.currentTick,
+                graphRevision: state.graph.revision,
+            };
+            const sameParent = nodeIds.every((id) => state.graph.nodesById[id]?.parentId === target.parentId);
+            if (!sameParent && hasAnimatedReparentHierarchy(state, nodeIds, target.parentId)) {
+                setPendingReparent({
+                    ...target,
+                    ...options,
+                    position: { x: event.clientX, y: event.clientY },
+                });
+            } else {
+                setDropError(reparentSelectedNodes(target.parentId, target.targetIndex, options) ?? null);
+            }
+        }
         if (expandTimerRef.current) clearTimeout(expandTimerRef.current);
         expandTimerRef.current = null;
         setDropPosition(null);
@@ -316,6 +347,35 @@ export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
                           />
                       ))
                 : null}
+            {dropError ? (
+                <div className="px-2 py-1 text-xs text-red-400" role="alert">
+                    {dropError}
+                </div>
+            ) : null}
+            {pendingReparent ? (
+                <CommandContextMenu
+                    position={pendingReparent.position}
+                    ariaLabel="Reparent transform mode"
+                    onClose={() => setPendingReparent(null)}
+                    entries={(
+                        [
+                            ['keepTransform', 'Keep transform at playhead'],
+                            ['keepLocal', 'Keep local animation'],
+                        ] as const
+                    ).map(([mode, label]) => ({
+                        label,
+                        onSelect: () =>
+                            setDropError(
+                                reparentSelectedNodes(pendingReparent.parentId, pendingReparent.targetIndex, {
+                                    nodeIds: pendingReparent.nodeIds,
+                                    mode: mode as ReparentMode,
+                                    atTick: pendingReparent.atTick,
+                                    graphRevision: pendingReparent.graphRevision,
+                                }) ?? null
+                            ),
+                    }))}
+                />
+            ) : null}
         </>
     );
 }

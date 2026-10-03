@@ -13,6 +13,7 @@ import {
 } from '@state/scene-graph';
 import { useSceneStore, type ElementBindings, type SceneStoreState } from '@state/sceneStore';
 import type { SceneCommand } from './commandTypes';
+import { compensationAtPlayhead, evaluatedReparentMatrices } from './reparenting';
 
 /** Applies graph-only commands and reports whether the command was handled. */
 export function applySceneGraphCommand(
@@ -78,24 +79,25 @@ export function applySceneGraphCommand(
                 );
                 return true;
             }
-            const affectedAncestors = new Set<string>(command.nodeIds);
-            for (const start of [...command.nodeIds, command.newParentId]) {
-                let id: string | null = start;
-                while (id) {
-                    affectedAncestors.add(id);
-                    id = store.graph.nodesById[id]?.parentId ?? null;
-                }
+            const mode = command.mode ?? 'keepTransform';
+            if (mode !== 'keepTransform' && mode !== 'keepLocal') throw new Error('Unknown reparent mode');
+            if (mode === 'keepTransform' && !Number.isFinite(command.atTick)) {
+                throw new Error('Reparent playhead tick is required');
             }
-            if (
-                Object.values(store.automation.channels).some(
-                    (channel) => channel.target.owner.kind === 'node' && affectedAncestors.has(channel.target.owner.id)
-                )
-            ) {
-                throw new Error('Animated hierarchy cannot be reparented without an explicit preservation mode');
+            const matrices = mode === 'keepTransform' ? evaluatedReparentMatrices(store, command.atTick!) : null;
+            const next = reparentSceneNodes(store.graph, command.nodeIds, command.newParentId, command.targetIndex, {
+                preserveWorld: false,
+            });
+            for (const id of selected) {
+                const node = next.nodesById[id];
+                if (mode === 'keepLocal') continue;
+                const oldWorld = matrices!.worlds.get(id);
+                const newParentWorld = matrices!.worlds.get(command.newParentId);
+                const userMatrix = matrices!.userMatrices.get(id);
+                if (!oldWorld || !newParentWorld || !userMatrix) throw new Error('Reparent transform is unavailable');
+                node.parentCompensation = compensationAtPlayhead(oldWorld, newParentWorld, userMatrix);
             }
-            store.replaceGraph(
-                reparentSceneNodes(store.graph, command.nodeIds, command.newParentId, command.targetIndex)
-            );
+            store.replaceGraph(next);
             return true;
         }
         case 'transformNodes':

@@ -61,10 +61,18 @@ function captureRollback(
 export function createSceneCommandGateway(dependencies: SceneCommandGatewayDependencies): SceneCommandGateway {
     return {
         dispatch(command, options) {
+            const resolvedCommand: SceneCommand =
+                command.type === 'reparentNodes'
+                    ? {
+                          ...command,
+                          mode: command.mode ?? 'keepTransform',
+                          atTick: command.atTick ?? useTimelineStore.getState().timeline.currentTick,
+                      }
+                    : command;
             const start = now();
             ensureMacroSync();
             const store = dependencies.store.getState();
-            const definition = sceneCommandDefinition(command);
+            const definition = sceneCommandDefinition(resolvedCommand);
             const rollbackSnapshot = captureRollback(definition.rollback, dependencies.store);
             const participantSnapshots =
                 definition.rollback === 'transaction'
@@ -72,15 +80,15 @@ export function createSceneCommandGateway(dependencies: SceneCommandGatewayDepen
                           .filter((participant) => definition.boundaries.includes(participant.boundary))
                           .map((participant) => ({ participant, snapshot: participant.capture() }))
                     : [];
-            const patch = buildSceneCommandPatch(store, command);
+            const patch = buildSceneCommandPatch(store, resolvedCommand);
 
             let result: SceneCommandResult;
             try {
                 runWithoutDocumentRevision(() =>
-                    applySceneStoreCommand(store, command, () => dependencies.store.getState())
+                    applySceneStoreCommand(store, resolvedCommand, () => dependencies.store.getState())
                 );
-                if (patch) dependencies.markDocumentChanged?.(command.type);
-                result = { success: true, durationMs: now() - start, command, patch };
+                if (patch) dependencies.markDocumentChanged?.(resolvedCommand.type);
+                result = { success: true, durationMs: now() - start, command: resolvedCommand, patch };
             } catch (error) {
                 const rollbackErrors: unknown[] = [];
                 if (rollbackSnapshot) {
@@ -101,7 +109,7 @@ export function createSceneCommandGateway(dependencies: SceneCommandGatewayDepen
                 result = {
                     success: false,
                     durationMs: now() - start,
-                    command,
+                    command: resolvedCommand,
                     error: rollbackErrors.length
                         ? new AggregateError([commandError, ...rollbackErrors], 'Scene command and rollback failed')
                         : commandError,
