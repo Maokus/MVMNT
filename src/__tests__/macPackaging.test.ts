@@ -120,6 +120,7 @@ describe('macOS packaging dependencies', () => {
 
         expect(testingWorkflow).toContain('name: Development Desktop Builds');
         expect(testingWorkflow).toMatch(/push:\s+branches:\s+- dev/);
+        expect(testingWorkflow).toContain("- 'release/**'");
         expect(testingWorkflow).toContain('-nightly.${build_date}.${GITHUB_RUN_NUMBER}');
         expect(testingWorkflow).toContain('MVMNT-Nightly-${{ needs.metadata.outputs.version }}');
         expect(repositoryWorkflow).toMatch(/push:\s+branches:\s+- experimental\s+- main/);
