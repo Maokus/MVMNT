@@ -10,13 +10,21 @@ MVMNT (pronounced _movement_) is a free and open source music visualisation soft
 
 For developers, it is a framework which handles the boilerplate so that you can focus on making and sharing custom visualisations.
 
-- [Installation](#installation)
+- [Download](#download)
+- [Development setup](#development-setup)
 - [Windows Node/Electron recovery](#windows-nodeelectron-recovery)
 - [Documentation](#documentation)
 - [Making Plugins](#making-plugins)
 - [License](#license)
 
-## Installation
+## Download
+
+Download the latest macOS or Windows desktop build from [GitHub Releases](https://github.com/Maokus/MVMNT/releases/latest).
+The macOS build is currently unsigned; see the [installation instructions](docs/versioning-and-releases.md#stable-releases).
+
+If you would like a Linux build, [contact me on Discord](https://maok.us/discord). I have not made one because I cannot test it.
+
+## Development setup
 
 MVMNT requires **Node.js 22.12 or newer** (within the Node 22 release line). Node 20 is unsupported. On Windows,
 install Node 22 from [nodejs.org](https://nodejs.org/) or switch with your Node version manager,

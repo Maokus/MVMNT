@@ -97,11 +97,11 @@ stable version and run `npm install` to synchronize the lockfile.
 
 1. Update `package.json` to the intended version and run `npm install`.
 2. Update the changelog and verify the application.
-3. Create a tag named exactly `v<package-version>`, for example `v0.16.0`.
+3. Merge the release candidate to `main`, then tag that commit exactly `v<package-version>`, for example `v0.16.0`.
 4. Push the tag. GitHub Actions verifies, packages, and creates a draft GitHub Release.
 5. Test the draft assets, edit the release notes if needed, and publish the release.
 
-The release workflow rejects tags that do not match `package.json`. Stable macOS builds produce a
+The release workflow rejects tags that do not match `package.json` or point outside `main`. Stable macOS builds produce a
 DMG containing the app and `readme.txt`; they are currently unsigned and must be installed manually.
 After copying the app to `/Applications`, run:
 

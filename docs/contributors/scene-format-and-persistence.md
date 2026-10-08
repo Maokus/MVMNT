@@ -3,7 +3,7 @@
 ## Current document contract
 
 `.mvt` is a ZIP package containing a JSON scene envelope plus binary assets. The current exported
-and validated scene schema is `9`, defined by `CURRENT_SCHEMA_VERSION` in
+and validated scene schema is `10`, defined by `CURRENT_SCHEMA_VERSION` in
 `src/persistence/validate.ts`. Internal migration helper names may use later historical numbers;
 those identifiers are implementation details and are not additional public export versions.
 
@@ -48,10 +48,9 @@ targets use structured node or element owners.
 
 ## Migration policy
 
-MVMNT 0.16 is pre-release, but fixture-tested scene migrations are retained while their maintenance
-cost remains reasonable. A persisted-field change requires export/import coverage and, where
-applicable, an undo or rollback test. If a scene version is intentionally dropped, remove its
-migration, fixture, tests, and documentation together.
+MVMNT 0.16 retains import support for schema versions 1 through 10. A persisted-field change requires
+a new export schema version, a migration with fixture-backed import coverage, and, where applicable,
+an undo or rollback test. Support for these versions remains in place throughout the 0.16 release line.
 
 The baseline fixture and migration suites under `src/persistence/__fixtures__/` and
 `src/persistence/__tests__/` are the compatibility authority.

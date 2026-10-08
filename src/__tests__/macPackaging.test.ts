@@ -111,8 +111,8 @@ describe('macOS packaging dependencies', () => {
 
     it('defines traceable testing artifacts and validates stable release tags', () => {
         const testingWorkflow = readFileSync(resolve(process.cwd(), '.github/workflows/testing-builds.yml'), 'utf8');
-        const experimentalWorkflow = readFileSync(
-            resolve(process.cwd(), '.github/workflows/experimental-validation.yml'),
+        const repositoryWorkflow = readFileSync(
+            resolve(process.cwd(), '.github/workflows/repository-validation.yml'),
             'utf8'
         );
         const releaseWorkflow = readFileSync(resolve(process.cwd(), '.github/workflows/desktop-release.yml'), 'utf8');
@@ -122,13 +122,16 @@ describe('macOS packaging dependencies', () => {
         expect(testingWorkflow).toMatch(/push:\s+branches:\s+- dev/);
         expect(testingWorkflow).toContain('-nightly.${build_date}.${GITHUB_RUN_NUMBER}');
         expect(testingWorkflow).toContain('MVMNT-Nightly-${{ needs.metadata.outputs.version }}');
-        expect(experimentalWorkflow).toMatch(/push:\s+branches:\s+- experimental/);
-        expect(experimentalWorkflow).toMatch(/pull_request:\s+branches:\s+- experimental/);
-        expect(experimentalWorkflow).toContain('npx prettier --check .');
-        expect(experimentalWorkflow).toContain('npm run test');
-        expect(experimentalWorkflow).toContain('npm run build');
-        expect(experimentalWorkflow).toContain('npm run compile');
+        expect(repositoryWorkflow).toMatch(/push:\s+branches:\s+- experimental\s+- main/);
+        expect(repositoryWorkflow).toMatch(/pull_request:\s+branches:\s+- experimental\s+- main/);
+        expect(repositoryWorkflow).toContain('npx prettier --check .');
+        expect(repositoryWorkflow).toContain('npm run test');
+        expect(repositoryWorkflow).toContain('npm run build');
+        expect(repositoryWorkflow).toContain('npm run compile');
+        expect(repositoryWorkflow).toContain('npm run docs:check');
         expect(releaseWorkflow).toContain('Verify tag matches package version');
+        expect(releaseWorkflow).toContain('Verify release commit is on main');
+        expect(releaseWorkflow).toContain('git merge-base --is-ancestor "$GITHUB_SHA" origin/main');
         expect(releaseWorkflow).toContain("MVMNT_SKIP_MAC_SIGNING: '1'");
         expect(releaseWorkflow).toContain('path: out/make/*.dmg');
         expect(testingWorkflow).toContain('artifact_path: out/make/*.dmg');

@@ -1,19 +1,21 @@
-name: Experimental validation
+name: Repository validation
 
 on:
     push:
         branches:
             - experimental
+            - main
     pull_request:
         branches:
             - experimental
+            - main
     workflow_dispatch:
 
 permissions:
     contents: read
 
 concurrency:
-    group: experimental-validation-${{ github.workflow }}-${{ github.ref }}
+    group: repository-validation-${{ github.workflow }}-${{ github.ref }}
     cancel-in-progress: true
 
 jobs:
@@ -30,3 +32,4 @@ jobs:
             - run: npm run test
             - run: npm run build
             - run: npm run compile
+            - run: npm run docs:check

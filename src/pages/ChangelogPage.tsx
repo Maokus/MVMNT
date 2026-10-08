@@ -25,9 +25,9 @@ const ChangelogPage: React.FC = () => {
                 <div className="space-y-10">
                     <ChangelogEntry
                         version="0.16.0"
-                        date="21-7-26"
+                        date="8-10-26"
                         notes={[
-                            'MVMNT IS A NATIVE APP NOW!',
+                            'MVMNT is now a desktop app for macOS and Windows',
                             [
                                 'Rendering speed ++',
                                 'Streams renders directly to disk',
@@ -37,7 +37,7 @@ const ChangelogPage: React.FC = () => {
                             ],
                             'Clip timeline improvements',
                             [
-                                'Track-clip seperation for both midi and audio (more than one clip per track!)',
+                                'Separate tracks and clips for both MIDI and audio, with multiple clips per track',
                                 'Clip selection and manipulation (standard copy, paste, whatnot)',
                                 'Clip resolver for same track selection semantics',
                                 'Improved midi and audio display',
@@ -48,6 +48,7 @@ const ChangelogPage: React.FC = () => {
                             'Scene Element Improvements',
                             [
                                 'Graph structure allows groups and recursive transforms!',
+                                'Improved element reordering and graph reparenting',
                                 'Multiselect: transform, edit properties in batches',
                                 'Pseudo-3d perspective transform',
                                 'New builtin elements: Vectorscope and spectrogram',
@@ -58,11 +59,10 @@ const ChangelogPage: React.FC = () => {
                             'API 2.0',
                             [
                                 'Removed API 1.0 support (all elements must be updated to API 2.0)',
-                                'Prepared the MVMNT plugin SDK and CLI helpers for publication',
-                                'Better documented seperation between system internals and plugin API should make vibecoding easier',
+                                'Plugin SDK 2 and CLI tools for custom elements',
+                                'Documented boundaries between application internals and the plugin API',
                                 'Keyframe calculus helpers',
                                 'Simulation system (experimental)',
-                                "Honestly I don't know how to write this changelog basically the whole thing changed...",
                             ],
                             'Other misc Features',
                             [
@@ -78,14 +78,15 @@ const ChangelogPage: React.FC = () => {
                                 'Automatic update checking',
                                 'Custom color picker with system level eyedropper',
                                 'Improved metadata creation logic',
+                                'Live scene time tracking in document metadata',
                             ],
                             'Audio optimisation',
                             [
                                 'Removed deprecated inline scene export, track-level audio placement, and legacy audio sampling paths',
                                 'Audio feature caches now write V4 channelLayout metadata (V3 scenes are migrated on import)',
-                                'Moved document audio to indexeddb (halve audio memory usage)',
+                                'Moved document audio to IndexedDB to reduce memory use',
                                 'Removed audio data from undo payloads (deleting an audio track should actually clear memory now)',
-                                'Decreased save and export peak memory usage (decreases browser crash and lockup chances)',
+                                'Reduced peak memory use during save and export',
                                 'Added progress indicators for save and load, and abort option',
                             ],
                         ]}

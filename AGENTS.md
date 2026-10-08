@@ -17,8 +17,8 @@ selection, persistence, and shortcut paths. Add a focused regression test for us
 ## Current Compatibility Status
 
 Read [`docs/current-state.md`](docs/current-state.md) before changing scene formats, plugin contracts, or
-compatibility code. MVMNT 0.16 and SDK 2 are pre-release: simplify their current designs freely, but preserve
-tested scene migrations unless their maintenance cost is disproportionate.
+compatibility code. MVMNT 0.16 scenes and SDK 2 are release contracts: preserve supported imports,
+tested scene migrations, and the published SDK surface when changing them.
 
 If `npm run test` fails because an optional Rollup native dependency is missing, run `npm install` and rerun `npm run test` before continuing.
 
