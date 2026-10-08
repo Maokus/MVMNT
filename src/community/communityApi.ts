@@ -223,13 +223,6 @@ export async function uploadItem(
     pluginUid?: string,
     pluginVersion?: string
 ) {
-    // Enforce global uniqueness of plugin IDs across all users (pre-check for fast UX feedback).
-    // The DB UNIQUE constraint is the authoritative enforcer for concurrent uploads.
-    if (pluginUid) {
-        const conflictId = await findPluginUidConflict(pluginUid);
-        if (conflictId) throwFriendlyPluginUidError(pluginUid);
-    }
-
     // Extract compat metadata from the uploaded file before inserting.
     let pluginApiVersion: string | null = null;
     let templateSchemaVersion: number | null = null;
@@ -237,11 +230,21 @@ export async function uploadItem(
 
     if (type === 'plugin') {
         const manifest = await parsePluginManifest(mainFile);
-        if (manifest?.apiVersion) pluginApiVersion = manifest.apiVersion;
+        if (!manifest?.apiVersion) throw new Error('Plugin file is missing a valid manifest and API version.');
+        pluginUid = manifest.id;
+        pluginVersion = manifest.version;
+        pluginApiVersion = manifest.apiVersion;
     } else if (type === 'template') {
         const meta = await parseTemplateMetadata(mainFile);
         if (meta?.schemaVersion != null) templateSchemaVersion = meta.schemaVersion;
         if (meta?.minAppVersion) minAppVersion = meta.minAppVersion;
+    }
+
+    // Enforce global uniqueness of plugin IDs across all users (pre-check for fast UX feedback).
+    // The DB UNIQUE constraint is the authoritative enforcer for concurrent uploads.
+    if (pluginUid) {
+        const conflictId = await findPluginUidConflict(pluginUid);
+        if (conflictId) throwFriendlyPluginUidError(pluginUid);
     }
 
     const itemId = crypto.randomUUID();
@@ -298,24 +301,41 @@ export async function updateItem(itemId: string, userId: string, payload: Update
     // Fetch current paths for potential replacement
     const { data: current, error: fetchErr } = await supabase
         .from('community_items')
-        .select('thumbnail_path, file_path, plugin_uid')
+        .select('type, thumbnail_path, file_path, plugin_uid')
         .eq('id', itemId)
         .eq('user_id', userId)
         .single();
     if (fetchErr) throw fetchErr;
 
+    let replacementPlugin: Awaited<ReturnType<typeof parsePluginManifest>> = null;
+    let replacementTemplate: Awaited<ReturnType<typeof parseTemplateMetadata>> = null;
+    if (payload.mainFile && current.type === 'plugin') {
+        replacementPlugin = await parsePluginManifest(payload.mainFile);
+        if (!replacementPlugin?.apiVersion) throw new Error('Plugin file is missing a valid manifest and API version.');
+    } else if (payload.mainFile && current.type === 'template') {
+        replacementTemplate = await parseTemplateMetadata(payload.mainFile);
+    }
+
+    const nextPluginUid = replacementPlugin?.id ?? payload.pluginUid;
     // Pre-check plugin_uid uniqueness before touching storage, to avoid orphaned uploads.
-    if (payload.pluginUid && payload.pluginUid !== current.plugin_uid) {
-        const conflictId = await findPluginUidConflict(payload.pluginUid, itemId);
-        if (conflictId) throwFriendlyPluginUidError(payload.pluginUid);
+    if (nextPluginUid && nextPluginUid !== current.plugin_uid) {
+        const conflictId = await findPluginUidConflict(nextPluginUid, itemId);
+        if (conflictId) throwFriendlyPluginUidError(nextPluginUid);
     }
 
     const updates: Record<string, unknown> = {};
 
     if (payload.title !== undefined) updates.title = payload.title;
     if (payload.description !== undefined) updates.description = payload.description || null;
-    if (payload.pluginUid !== undefined) updates.plugin_uid = payload.pluginUid;
+    if (nextPluginUid !== undefined) updates.plugin_uid = nextPluginUid;
     if (payload.version !== undefined) updates.version = payload.version;
+    if (replacementPlugin) {
+        updates.version = replacementPlugin.version;
+        updates.plugin_api_version = replacementPlugin.apiVersion;
+    } else if (payload.mainFile && current.type === 'template') {
+        updates.template_schema_version = replacementTemplate?.schemaVersion ?? null;
+        updates.min_app_version = replacementTemplate?.minAppVersion ?? null;
+    }
 
     if (payload.thumbnailFile) {
         // Remove old thumbnail and upload new one
@@ -350,7 +370,7 @@ export async function updateItem(itemId: string, userId: string, payload: Update
         .update(updates)
         .eq('id', itemId)
         .eq('user_id', userId);
-    if (updateErr) translateInsertError(updateErr, payload.pluginUid);
+    if (updateErr) translateInsertError(updateErr, nextPluginUid);
 }
 
 export async function downloadItem(item: CommunityItem, userId: string | null) {
