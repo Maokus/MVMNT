@@ -55,6 +55,8 @@ registry.
 `MVMNT_BUILD_CHANNEL` is the only channel authority. Omitting it produces a development build;
 supplying any value other than `development`, `nightly`, or `stable` fails the build. Feature and
 debug gating must use the injected `BUILD_INFO.channel`, not a separate Vite mode variable.
+Packaging commands (`package`, `make`, `make:mac`, `make:win`, and `publish`) default to `stable` when
+the channel is omitted. An explicit channel still overrides that default.
 
 - Development builds display `<version>-dev+<short-sha>` and never check for updates.
 - Stable builds display the package version exactly, such as `0.16.0`.

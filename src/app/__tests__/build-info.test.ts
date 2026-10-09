@@ -7,7 +7,7 @@ import {
     releaseLine,
     shouldEnableDevelopmentTools,
 } from '../../../electron/shared/build-info';
-import { resolveBuildChannel } from '../../../scripts/build-channel.mjs';
+import { resolveBuildChannel, resolvePackagedBuildChannel } from '../../../scripts/build-channel.mjs';
 
 describe('build information', () => {
     it('formats development, nightly, and stable versions consistently', () => {
@@ -45,6 +45,13 @@ describe('build information', () => {
         expect(shouldEnableDevelopmentTools('development', false)).toBe(false);
         expect(shouldEnableDevelopmentTools('nightly', true)).toBe(false);
         expect(shouldEnableDevelopmentTools('stable', true)).toBe(false);
+    });
+
+    it('defaults packaging to stable but preserves an explicit nightly channel', () => {
+        expect(resolvePackagedBuildChannel(undefined)).toBe('stable');
+        expect(resolvePackagedBuildChannel('nightly')).toBe('nightly');
+        expect(resolvePackagedBuildChannel('development')).toBe('development');
+        expect(() => resolvePackagedBuildChannel('beta')).toThrow('Invalid MVMNT_BUILD_CHANNEL: beta');
     });
 
     it('compares stable versions and rejects non-stable input', () => {

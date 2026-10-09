@@ -5,3 +5,7 @@ export function resolveBuildChannel(requestedChannel) {
     }
     throw new Error(`Invalid MVMNT_BUILD_CHANNEL: ${requestedChannel}`);
 }
+
+export function resolvePackagedBuildChannel(requestedChannel) {
+    return resolveBuildChannel(requestedChannel ?? 'stable');
+}
