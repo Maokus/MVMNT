@@ -553,7 +553,8 @@ export class MIDIVisualizerCore {
         };
         if (guides.length) {
             ctx.save();
-            ctx.setLineDash?.([]);
+
+            ctx.setLineDash([]);
             ctx.lineWidth = 1.5;
             ctx.strokeStyle = '#4C9AFF';
             ctx.globalAlpha = 0.9;
@@ -576,7 +577,7 @@ export class MIDIVisualizerCore {
             }
             if (snapSourceIds.size) {
                 ctx.save();
-                ctx.setLineDash?.([4, 2]);
+                ctx.setLineDash([4, 2]);
                 ctx.lineWidth = 1.5;
                 ctx.globalAlpha = 0.9;
                 for (const id of snapSourceIds) {
@@ -593,11 +594,10 @@ export class MIDIVisualizerCore {
         if (marqueeBounds) {
             ctx.fillStyle = 'rgba(17, 119, 187, 0.12)';
             ctx.strokeStyle = '#5cc8ff';
-            if ((marqueeBounds as any).direction === 'intersection')
-                ctx.setLineDash?.([5 * pixelScale, 3 * pixelScale]);
+            if ((marqueeBounds as any).direction === 'intersection') ctx.setLineDash([5 * pixelScale, 3 * pixelScale]);
             ctx.fillRect(marqueeBounds.x, marqueeBounds.y, marqueeBounds.width, marqueeBounds.height);
             ctx.strokeRect(marqueeBounds.x, marqueeBounds.y, marqueeBounds.width, marqueeBounds.height);
-            ctx.setLineDash?.([]);
+            ctx.setLineDash([]);
         }
         const nodeSelection = nodeIds.length ? this.getNodeSelectionAtTime(nodeIds, targetTime) : null;
         if (nodeSelection) {
@@ -664,7 +664,7 @@ export class MIDIVisualizerCore {
                     const anchorHandle = handles.find((h: any) => h.type === 'anchor' || h.type === 'pivot');
                     if (rotHandle && anchorHandle) {
                         ctx.save();
-                        ctx.setLineDash?.([]);
+                        ctx.setLineDash([]);
                         ctx.strokeStyle = 'rgba(92,200,255,0.75)';
                         ctx.lineWidth = Math.max(1, pixelScale);
                         ctx.beginPath();
@@ -675,7 +675,7 @@ export class MIDIVisualizerCore {
                     }
                     for (const h of handles) {
                         ctx.save();
-                        ctx.setLineDash?.([]);
+                        ctx.setLineDash([]);
                         let fill = '#f8fafc';
                         let stroke = '#0e639c';
                         if (h.type.startsWith('scale')) {

@@ -187,7 +187,12 @@ const SidePanelsInternal: React.FC = () => {
             const clickedInsideSidePanels = sidePanelsRef.current?.contains(event.target as Node);
             const canvasEl: HTMLCanvasElement | null =
                 canvasRef?.current || (document.getElementById('canvas') as HTMLCanvasElement | null);
-            const previewContainer = canvasEl?.closest('.canvas-container') || canvasEl?.closest('.preview-panel');
+
+            // const previewContainer = canvasEl?.closest('.canvas-container') || canvasEl?.closest('.preview-panel');
+            const previewContainer =
+                canvasEl?.closest('[data-preview-container]') ||
+                canvasEl?.closest('.canvas-container') ||
+                canvasEl?.closest('.preview-panel');
             const clickedInsideCanvas = !!(
                 (canvasEl && canvasEl.contains(event.target as Node)) ||
                 (previewContainer && previewContainer.contains(event.target as Node))

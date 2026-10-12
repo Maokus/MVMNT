@@ -53,8 +53,10 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
     const [isPanning, setIsPanning] = useState(false);
     const zoomRef = useRef(1);
     const panRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-    zoomRef.current = zoom;
-    panRef.current = pan;
+    // zoomRef.current = zoom;
+    // panRef.current = pan;
+    // rAF handle for coalescing per-pixel pan updates into one React state sync.
+    const panRafRef = useRef<number | null>(null);
 
     const isMiddlePanningRef = useRef(false);
     const panStartRef = useRef<{ clientX: number; clientY: number; panX: number; panY: number }>({
@@ -69,14 +71,40 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
     const pointerPositionRef = useRef({ x: 0, y: 0 });
 
     const visualizerInstance = (ctx as any).visualizer;
+    const setPreviewCursor = useCallback(
+        (cursor: string) => {
+            const vis = visualizerInstance as any;
+            if (vis?.canvas?.style) vis.canvas.style.cursor = cursor;
+            if (vis?.canvas?.parentElement?.style) vis.canvas.parentElement.style.cursor = cursor;
+            if (vis?.overlayCanvas?.style) vis.overlayCanvas.style.cursor = cursor;
+        },
+        [visualizerInstance]
+    );
+
+    const applyViewTransform = useCallback(
+        (nextZoom: number, nextPan: { x: number; y: number }) => {
+
+            if (panRafRef.current !== null) {
+                cancelAnimationFrame(panRafRef.current);
+                panRafRef.current = null;
+            }
+            zoomRef.current = nextZoom;
+            panRef.current = nextPan;
+            setZoom(nextZoom);
+            setPan(nextPan);
+            visualizerInstance?.invalidateRender?.();
+        },
+        [visualizerInstance]
+    );
 
     const resetViewTransform = useCallback(() => {
-        setZoom(1);
-        zoomRef.current = 1;
-        setPan({ x: 0, y: 0 });
-        panRef.current = { x: 0, y: 0 };
-        visualizerInstance?.invalidateRender?.();
-    }, [visualizerInstance]);
+        // setZoom(1);
+        // zoomRef.current = 1;
+        // setPan({ x: 0, y: 0 });
+        // panRef.current = { x: 0, y: 0 };
+        // visualizerInstance?.invalidateRender?.();
+        applyViewTransform(1, { x: 0, y: 0 });
+    }, [applyViewTransform]);
 
     const handleUnselect = useCallback(() => {
         selectElement(null);
@@ -151,18 +179,33 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
             const nextPanX = mx - (mx - currentPan.x) * (nextZoom / currentZoom);
             const nextPanY = my - (my - currentPan.y) * (nextZoom / currentZoom);
 
-            zoomRef.current = nextZoom;
-            panRef.current = { x: nextPanX, y: nextPanY };
-            setZoom(nextZoom);
-            setPan({ x: nextPanX, y: nextPanY });
-            visualizerInstance?.invalidateRender?.();
+            // zoomRef.current = nextZoom;
+            // panRef.current = { x: nextPanX, y: nextPanY };
+            // setZoom(nextZoom);
+            // setPan({ x: nextPanX, y: nextPanY });
+            // visualizerInstance?.invalidateRender?.();
+            applyViewTransform(nextZoom, { x: nextPanX, y: nextPanY });
         };
 
         el.addEventListener('wheel', handleWheel, { passive: false });
         return () => {
             el.removeEventListener('wheel', handleWheel);
         };
-    }, [interactive, visualizerInstance]);
+    }, [interactive, applyViewTransform]);
+
+    const syncOverlaySize = useCallback(() => {
+        const overlay = overlayCanvasRef.current;
+        const el = containerRef.current;
+        if (!overlay || !el) return;
+        const dpr = window.devicePixelRatio || 1;
+        const targetW = Math.round(el.clientWidth * dpr);
+        const targetH = Math.round(el.clientHeight * dpr);
+        if (overlay.width !== targetW || overlay.height !== targetH) {
+            overlay.width = targetW;
+            overlay.height = targetH;
+            visualizerInstance?.invalidateRender?.();
+        }
+    }, [visualizerInstance]);
 
     useEffect(() => {
         const el = containerRef.current;
@@ -190,17 +233,18 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
             const next = { w: Math.floor(drawW), h: Math.floor(drawH) };
             setDisplaySize((prev) => (prev.w === next.w && prev.h === next.h ? prev : next));
 
-            const overlay = overlayCanvasRef.current;
-            if (overlay && el) {
-                const dpr = window.devicePixelRatio || 1;
-                const targetW = Math.round(el.clientWidth * dpr);
-                const targetH = Math.round(el.clientHeight * dpr);
-                if (overlay.width !== targetW || overlay.height !== targetH) {
-                    overlay.width = targetW;
-                    overlay.height = targetH;
-                    visualizerInstance?.invalidateRender?.();
-                }
-            }
+            // const overlay = overlayCanvasRef.current;
+            // if (overlay && el) {
+            //     const dpr = window.devicePixelRatio || 1;
+            //     const targetW = Math.round(el.clientWidth * dpr);
+            //     const targetH = Math.round(el.clientHeight * dpr);
+            //     if (overlay.width !== targetW || overlay.height !== targetH) {
+            //         overlay.width = targetW;
+            //         overlay.height = targetH;
+            //         visualizerInstance?.invalidateRender?.();
+            //     }
+            // }
+            syncOverlaySize();
         };
         compute();
         const ro = new ResizeObserver(() => compute());
@@ -210,16 +254,20 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
             ro.disconnect();
             window.removeEventListener('resize', compute);
         };
-    }, [width, height, visualizerInstance]);
+    }, [width, height, syncOverlaySize]);
 
     useEffect(() => {
         if (!visualizerInstance?.setOverlayCanvas) return;
+
+        // const overlay = overlayCanvasRef.current;
+        // if (overlay && containerRef.current) {
+        //     const dpr = window.devicePixelRatio || 1;
+        //     overlay.width = Math.round(containerRef.current.clientWidth * dpr);
+        //     overlay.height = Math.round(containerRef.current.clientHeight * dpr);
+        // }
+        // visualizerInstance.setOverlayCanvas(overlay);
+        syncOverlaySize();
         const overlay = overlayCanvasRef.current;
-        if (overlay && containerRef.current) {
-            const dpr = window.devicePixelRatio || 1;
-            overlay.width = Math.round(containerRef.current.clientWidth * dpr);
-            overlay.height = Math.round(containerRef.current.clientHeight * dpr);
-        }
         visualizerInstance.setOverlayCanvas(overlay);
         return () => {
             visualizerInstance.setOverlayCanvas?.(null);
@@ -290,7 +338,9 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
         };
     }, [handleCanvasMouseMoveWindow, handleCanvasMouseUpWindow]);
 
-    // mouse3
+    // Middle-pan: paint each pixel synchronously via direct style write, but sync
+    // React state at most once per frame. Pan feel stays 1:1 while renders drop
+    // from per-event to per-frame.
     const handleMiddleMouseMoveWindow = useCallback(
         (event: MouseEvent) => {
             if (!isMiddlePanningRef.current) return;
@@ -298,10 +348,23 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
             const dy = event.clientY - panStartRef.current.clientY;
             const nextPan = { x: panStartRef.current.panX + dx, y: panStartRef.current.panY + dy };
             panRef.current = nextPan;
-            setPan(nextPan);
-            visualizerInstance?.invalidateRender?.();
+            const canvas =
+                canvasRef.current ??
+                (visualizerInstance as any)?.canvas ??
+                containerRef.current?.querySelector('#canvas');
+            if (canvas) {
+                const z = zoomRef.current;
+                (canvas as HTMLElement).style.transform = `translate(${nextPan.x}px, ${nextPan.y}px) scale(${z})`;
+            }
+            if (panRafRef.current === null) {
+                panRafRef.current = requestAnimationFrame(() => {
+                    panRafRef.current = null;
+                    setPan({ ...panRef.current });
+                    visualizerInstance?.invalidateRender?.();
+                });
+            }
         },
-        [visualizerInstance]
+        [visualizerInstance, canvasRef]
     );
 
     const handleMiddleMouseUpWindow = useCallback(
@@ -309,18 +372,30 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
             if (event.button === 1 || (event.buttons & 4) === 0) {
                 isMiddlePanningRef.current = false;
                 setIsPanning(false);
-                if (visualizerInstance?.canvas?.style) visualizerInstance.canvas.style.cursor = '';
-                if (visualizerInstance?.overlayCanvas?.style) visualizerInstance.overlayCanvas.style.cursor = '';
+                // Flush the latest pan synchronously so state never lags the gesture.
+                if (panRafRef.current !== null) {
+                    cancelAnimationFrame(panRafRef.current);
+                    panRafRef.current = null;
+                }
+                setPan({ ...panRef.current });
+                // if (visualizerInstance?.canvas?.style) visualizerInstance.canvas.style.cursor = '';
+                // if (visualizerInstance?.overlayCanvas?.style) visualizerInstance.overlayCanvas.style.cursor = '';
+                // if (containerRef.current?.style) containerRef.current.style.cursor = '';
+                setPreviewCursor('default');
                 if (containerRef.current?.style) containerRef.current.style.cursor = '';
                 window.removeEventListener('mousemove', handleMiddleMouseMoveWindow);
                 window.removeEventListener('mouseup', handleMiddleMouseUpWindow);
             }
         },
-        [handleMiddleMouseMoveWindow, visualizerInstance]
+        [handleMiddleMouseMoveWindow, setPreviewCursor]
     );
 
     useEffect(() => {
         return () => {
+            if (panRafRef.current !== null) {
+                cancelAnimationFrame(panRafRef.current);
+                panRafRef.current = null;
+            }
             window.removeEventListener('mousemove', handleMiddleMouseMoveWindow);
             window.removeEventListener('mouseup', handleMiddleMouseUpWindow);
         };
@@ -332,13 +407,18 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
     };
 
     const handleCanvasMouseDown = (e: React.MouseEvent) => {
+        // if (e.button === 2) {
+        //     e.preventDefault();
+        //     handleUnselect();
+        //     return;
+        // }
         if (e.button === 2) {
             e.preventDefault();
-            handleUnselect();
             return;
         }
         if (e.button === 1) {
             e.preventDefault();
+            if (draggingRef.current) return; // left-drag already active; don't start pan underneath
             const now = performance.now();
             if (now - lastMiddleClickTimeRef.current < 300) {
                 resetViewTransform();
@@ -348,8 +428,11 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
             lastMiddleClickTimeRef.current = now;
             isMiddlePanningRef.current = true;
             setIsPanning(true);
-            if (visualizerInstance?.canvas?.style) visualizerInstance.canvas.style.cursor = 'grabbing';
-            if (visualizerInstance?.overlayCanvas?.style) visualizerInstance.overlayCanvas.style.cursor = 'grabbing';
+
+            // if (visualizerInstance?.canvas?.style) visualizerInstance.canvas.style.cursor = 'grabbing';
+            // if (visualizerInstance?.overlayCanvas?.style) visualizerInstance.overlayCanvas.style.cursor = 'grabbing';
+            // if (containerRef.current?.style) containerRef.current.style.cursor = 'grabbing';
+            setPreviewCursor('grabbing');
             if (containerRef.current?.style) containerRef.current.style.cursor = 'grabbing';
             panStartRef.current = {
                 clientX: e.clientX,
@@ -362,6 +445,7 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
             return;
         }
         if (e.button !== 0) return;
+        if (isMiddlePanningRef.current) return; // middle-pan active; don't start element drag underneath
         e.preventDefault();
         draggingRef.current = true;
         window.addEventListener('mousemove', handleCanvasMouseMoveWindow);
@@ -435,7 +519,8 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
         <div
             className="preview-panel"
             data-command-surface="preview"
-            onContextMenu={interactive ? handleContextMenu : undefined}
+
+            // onContextMenu={interactive ? handleContextMenu : undefined}
             onPointerDownCapture={() => activateCommandSurface('preview')}
             onFocusCapture={() => activateCommandSurface('preview')}
             onPointerEnter={(event) => {
@@ -448,6 +533,7 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
             <div
                 className="canvas-container relative select-none"
                 ref={containerRef}
+                data-preview-container="true"
                 style={{ cursor: isPanning ? 'grabbing' : undefined }}
                 onContextMenu={interactive ? handleContextMenu : undefined}
                 onMouseDown={
@@ -502,7 +588,8 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
                     onMouseDown={interactive ? handleCanvasMouseDown : undefined}
                     onMouseMove={interactive ? handleCanvasMouseMove : undefined}
                     onMouseUp={interactive ? handleCanvasMouseUp : undefined}
-                    onContextMenu={interactive ? handleContextMenu : undefined}
+
+                    // onContextMenu={interactive ? handleContextMenu : undefined}
                     onDragOver={interactive ? handleDragOver : undefined}
                     onDrop={interactive ? handleDrop : undefined}
                 ></canvas>

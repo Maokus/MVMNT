@@ -403,7 +403,16 @@ function attemptHandleHit(vis: any, x: number, y: number): boolean {
     return false;
 }
 
-function performElementHitTest(vis: any, x: number, y: number, deps: InteractionDeps, toggle = false) {
+function performElementHitTest(vis: any, x: number, y: number, deps: InteractionDeps, _toggle = false) {
+    // const selectedElementIds = new Set(selectedSubtreeElementIds());
+    // const selectedHit = toggle
+    //     ? null
+    //     : elementHitTest(
+    //           boundsList.filter((candidate: { id: string }) => selectedElementIds.has(candidate.id)),
+    //           x,
+    //           y
+    //       );
+    // const hit = selectedHit ?? elementHitTest(boundsList, x, y);
     const { selectElement } = deps;
     const boundsList = vis.getElementBoundsAtTime(vis.getCurrentTime?.() ?? 0);
     const hit = elementHitTest(boundsList, x, y);
@@ -420,7 +429,7 @@ function performElementHitTest(vis: any, x: number, y: number, deps: Interaction
             (selectedNodeId) =>
                 selectedNodeId === ownerNodeId || isNodeAncestor(scene.graph, selectedNodeId, ownerNodeId)
         );
-        if (toggle && deps.selectNode) deps.selectNode(ownerNodeId, { toggle: true });
+        if (_toggle && deps.selectNode) deps.selectNode(ownerNodeId, { toggle: true });
         else if (!hitBelongsToSelection) selectElement(hit.id);
         const nodeIds = useSelectionStore.getState().selectedNodeIds;
         const selection = nodeIds.length ? vis.getNodeSelectionAtTime?.(nodeIds, vis.getCurrentTime?.() ?? 0) : null;
@@ -438,7 +447,13 @@ function performElementHitTest(vis: any, x: number, y: number, deps: Interaction
             corners: hit.corners || null,
             snapTargets: buildSnapTargets(
                 vis,
-                selectedSubtreeElementIds().length ? selectedSubtreeElementIds() : hit.id
+
+                // selectedSubtreeElementIds().length ? selectedSubtreeElementIds() : hit.id
+                //
+                (() => {
+                    const selectedIds = selectedSubtreeElementIds();
+                    return selectedIds.length ? selectedIds : hit.id;
+                })()
             ),
             snapTolerance: DEFAULT_SNAP_TOLERANCE,
             dragElementId: hit.id,
@@ -577,7 +592,7 @@ function processDrag(
     return false;
 }
 
-function updateCursor(vis: any, cursor: string) {
+export function updateCursor(vis: any, cursor: string) {
     if (vis?.canvas?.style) vis.canvas.style.cursor = cursor;
     if (vis?.canvas?.parentElement?.style) vis.canvas.parentElement.style.cursor = cursor;
     if (vis?.overlayCanvas?.style) vis.overlayCanvas.style.cursor = cursor;
@@ -664,15 +679,15 @@ function focusTextPropertyInput() {
 type CanvasMouseEvent = MouseEvent | ReactMouseEvent;
 
 export function onCanvasMouseDown(e: CanvasMouseEvent, deps: InteractionDeps) {
-    
+    // const button = e.button ?? 0;
+    // if (button === 2) {
+    //     deps.selectElement(null);
+    //     return;
+    // }
+    // if (button !== 0) return;
     const button = e.button ?? 0;
-    if (button === 2) {
-        deps.selectElement(null);
-        return;
-    }
     if (button !== 0) return;
 
-    
     const { canvasRef, visualizer: vis } = deps;
     const canvas = canvasRef.current;
     if (!canvas || !vis) return;

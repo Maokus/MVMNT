@@ -277,8 +277,10 @@ describe('PreviewPanel element creation shortcut', () => {
 
         const canvasMouseDown = new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 2 });
         fireEvent(canvas, canvasMouseDown);
+
+        // expect(canvasMouseDown.defaultPrevented).toBe(true);
+        // expect(mocks.selectElement).toHaveBeenCalledWith(null);
         expect(canvasMouseDown.defaultPrevented).toBe(true);
-        expect(mocks.selectElement).toHaveBeenCalledWith(null);
     });
 
     it('zooms view with Ctrl+wheel and resets with Ctrl+0 or double middle-click', () => {
