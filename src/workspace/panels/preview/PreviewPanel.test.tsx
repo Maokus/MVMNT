@@ -225,4 +225,35 @@ describe('PreviewPanel element creation shortcut', () => {
         act(() => vi.advanceTimersByTime(500));
         expect(screen.queryByRole('status')).not.toBeInTheDocument();
     });
+
+    it('mounts the interaction overlay canvas, registers it with the visualizer, and dispatches container and canvas pointerdown with preventDefault', () => {
+        const setOverlayCanvas = vi.fn();
+        const readyStatus = { status: 'ready' as const, affected: [] };
+        mocks.visualizer = {
+            setOverlayCanvas,
+            getSimulationReadiness: () => readyStatus,
+            subscribeSimulationStatus: () => () => {},
+        };
+
+        const { container, unmount } = render(<PreviewPanel />);
+        const overlay = container.querySelector('.interaction-overlay-canvas');
+        expect(overlay).toBeInTheDocument();
+        expect(setOverlayCanvas).toHaveBeenCalledWith(overlay);
+
+        const canvas = container.querySelector<HTMLCanvasElement>('#canvas')!;
+        expect(canvas).toBeInTheDocument();
+        expect(canvas.style.pointerEvents).toBe('auto');
+
+        const canvasMouseDown = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+        fireEvent(canvas, canvasMouseDown);
+        expect(canvasMouseDown.defaultPrevented).toBe(true);
+
+        const canvasContainer = container.querySelector('.canvas-container')!;
+        const containerMouseDown = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+        fireEvent(canvasContainer, containerMouseDown);
+        expect(containerMouseDown.defaultPrevented).toBe(true);
+
+        unmount();
+        expect(setOverlayCanvas).toHaveBeenCalledWith(null);
+    });
 });

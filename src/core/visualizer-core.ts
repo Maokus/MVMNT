@@ -18,6 +18,8 @@ export class MIDIVisualizerCore {
     private static activeInstances = 0;
     canvas: HTMLCanvasElement;
     ctx: CanvasRenderingContext2D;
+    overlayCanvas: HTMLCanvasElement | null = null;
+    overlayCtx: CanvasRenderingContext2D | null = null;
     events: any[] = [];
     duration = 0;
     isPlaying = false;
@@ -75,6 +77,16 @@ export class MIDIVisualizerCore {
             window.addEventListener('mvmnt-scene-import-complete', this._handleSceneRuntimeUpdated as EventListener);
         }
         (window as any).vis = this; // debug helper
+    }
+    setOverlayCanvas(canvas: HTMLCanvasElement | null) {
+        if (this.overlayCanvas && this.overlayCtx && this.overlayCanvas !== canvas) {
+            try {
+                this.overlayCtx.clearRect(0, 0, this.overlayCanvas.width, this.overlayCanvas.height);
+            } catch {}
+        }
+        this.overlayCanvas = canvas;
+        this.overlayCtx = canvas ? canvas.getContext('2d') : null;
+        this.invalidateRender();
     }
     updateSceneElementTimingManager() {
         void loadDefaultScene('MIDIVisualizerCore.updateSceneElementTimingManager').then((loaded) => {
@@ -484,6 +496,11 @@ export class MIDIVisualizerCore {
         } = this._interactionState;
         const nodeIds = Array.isArray(selectedNodeIds) ? selectedNodeIds : [];
         const guides = Array.isArray(snapGuides) ? (snapGuides as SnapGuide[]) : [];
+
+        if (this.overlayCanvas && this.overlayCtx) {
+            this.overlayCtx.clearRect(0, 0, this.overlayCanvas.width, this.overlayCanvas.height);
+        }
+
         if (
             !hoverElementId &&
             !selectedElementId &&
@@ -493,8 +510,30 @@ export class MIDIVisualizerCore {
             !marqueeBounds
         )
             return;
-        const ctx = this.ctx;
+        const useOverlay = Boolean(this.overlayCanvas && this.overlayCtx);
+        const ctx = useOverlay ? this.overlayCtx! : this.ctx;
         ctx.save();
+        let boundMinX = 0;
+        let boundMaxX = this.canvas.width;
+        let boundMinY = 0;
+        let boundMaxY = this.canvas.height;
+        if (useOverlay) {
+            const overlayRect = this.overlayCanvas!.getBoundingClientRect();
+            const canvasRect = this.canvas.getBoundingClientRect();
+            if (overlayRect.width > 0 && overlayRect.height > 0 && canvasRect.width > 0 && canvasRect.height > 0) {
+                const dprX = this.overlayCanvas!.width / overlayRect.width;
+                const dprY = this.overlayCanvas!.height / overlayRect.height;
+                const scaleX = (canvasRect.width / this.canvas.width) * dprX;
+                const scaleY = (canvasRect.height / this.canvas.height) * dprY;
+                const offsetX = (canvasRect.left - overlayRect.left) * dprX;
+                const offsetY = (canvasRect.top - overlayRect.top) * dprY;
+                ctx.setTransform(scaleX, 0, 0, scaleY, offsetX, offsetY);
+                boundMinX = ((overlayRect.left - canvasRect.left) / canvasRect.width) * this.canvas.width;
+                boundMaxX = boundMinX + (overlayRect.width / canvasRect.width) * this.canvas.width;
+                boundMinY = ((overlayRect.top - canvasRect.top) / canvasRect.height) * this.canvas.height;
+                boundMaxY = boundMinY + (overlayRect.height / canvasRect.height) * this.canvas.height;
+            }
+        }
         const boundsList = this.getElementBoundsAtTime(targetTime);
         const draw = (id: string, strokeStyle: string) => {
             if (!id) return;
@@ -514,18 +553,18 @@ export class MIDIVisualizerCore {
         };
         if (guides.length) {
             ctx.save();
-            ctx.setLineDash([]);
+            ctx.setLineDash?.([]);
             ctx.lineWidth = 1.5;
             ctx.strokeStyle = '#4C9AFF';
             ctx.globalAlpha = 0.9;
             for (const guide of guides) {
                 ctx.beginPath();
                 if (guide.orientation === 'vertical') {
-                    ctx.moveTo(guide.position, 0);
-                    ctx.lineTo(guide.position, this.canvas.height);
+                    ctx.moveTo(guide.position, boundMinY);
+                    ctx.lineTo(guide.position, boundMaxY);
                 } else {
-                    ctx.moveTo(0, guide.position);
-                    ctx.lineTo(this.canvas.width, guide.position);
+                    ctx.moveTo(boundMinX, guide.position);
+                    ctx.lineTo(boundMaxX, guide.position);
                 }
                 ctx.stroke();
             }
@@ -537,7 +576,7 @@ export class MIDIVisualizerCore {
             }
             if (snapSourceIds.size) {
                 ctx.save();
-                ctx.setLineDash([4, 2]);
+                ctx.setLineDash?.([4, 2]);
                 ctx.lineWidth = 1.5;
                 ctx.globalAlpha = 0.9;
                 for (const id of snapSourceIds) {
@@ -550,14 +589,15 @@ export class MIDIVisualizerCore {
         const rect = this.canvas.getBoundingClientRect();
         const pixelScale = rect.width > 0 ? this.canvas.width / rect.width : 1;
         ctx.lineWidth = Math.max(1, pixelScale);
-        ctx.setLineDash([]);
+        ctx.setLineDash?.([]);
         if (marqueeBounds) {
             ctx.fillStyle = 'rgba(17, 119, 187, 0.12)';
             ctx.strokeStyle = '#5cc8ff';
-            if ((marqueeBounds as any).direction === 'intersection') ctx.setLineDash([5 * pixelScale, 3 * pixelScale]);
+            if ((marqueeBounds as any).direction === 'intersection')
+                ctx.setLineDash?.([5 * pixelScale, 3 * pixelScale]);
             ctx.fillRect(marqueeBounds.x, marqueeBounds.y, marqueeBounds.width, marqueeBounds.height);
             ctx.strokeRect(marqueeBounds.x, marqueeBounds.y, marqueeBounds.width, marqueeBounds.height);
-            ctx.setLineDash([]);
+            ctx.setLineDash?.([]);
         }
         const nodeSelection = nodeIds.length ? this.getNodeSelectionAtTime(nodeIds, targetTime) : null;
         if (nodeSelection) {
@@ -585,7 +625,10 @@ export class MIDIVisualizerCore {
                 }
                 ctx.restore();
             }
+            ctx.save();
             ctx.strokeStyle = '#5cc8ff';
+            ctx.shadowColor = 'rgba(92, 200, 255, 0.45)';
+            ctx.shadowBlur = 4 * pixelScale;
             if (nodeSelection.corners?.length === 4) {
                 ctx.beginPath();
                 ctx.moveTo(nodeSelection.corners[0].x, nodeSelection.corners[0].y);
@@ -601,7 +644,14 @@ export class MIDIVisualizerCore {
                     nodeSelection.bounds.height
                 );
             }
-        } else if (selectedElementId && selectedElementId !== draggingElementId) draw(selectedElementId, '#5cc8ff');
+            ctx.restore();
+        } else if (selectedElementId) {
+            ctx.save();
+            ctx.shadowColor = 'rgba(92, 200, 255, 0.45)';
+            ctx.shadowBlur = 4 * pixelScale;
+            draw(selectedElementId, '#5cc8ff');
+            ctx.restore();
+        }
         if (hoverElementId && hoverElementId !== draggingElementId && hoverElementId !== selectedElementId)
             draw(hoverElementId, 'rgba(255,255,255,0.78)');
         if (selectedElementId || nodeIds.length) {
@@ -614,7 +664,7 @@ export class MIDIVisualizerCore {
                     const anchorHandle = handles.find((h: any) => h.type === 'anchor' || h.type === 'pivot');
                     if (rotHandle && anchorHandle) {
                         ctx.save();
-                        ctx.setLineDash([]);
+                        ctx.setLineDash?.([]);
                         ctx.strokeStyle = 'rgba(92,200,255,0.75)';
                         ctx.lineWidth = Math.max(1, pixelScale);
                         ctx.beginPath();
@@ -625,7 +675,7 @@ export class MIDIVisualizerCore {
                     }
                     for (const h of handles) {
                         ctx.save();
-                        ctx.setLineDash([]);
+                        ctx.setLineDash?.([]);
                         let fill = '#f8fafc';
                         let stroke = '#0e639c';
                         if (h.type.startsWith('scale')) {
@@ -942,6 +992,8 @@ export class MIDIVisualizerCore {
         this.runtimeAdapter = null;
         this._interactionBoundsCache.clear();
         this._interactionHandlesCache.clear();
+        this.overlayCanvas = null;
+        this.overlayCtx = null;
         this.modularRenderer.dispose();
         if (typeof window !== 'undefined') {
             try {

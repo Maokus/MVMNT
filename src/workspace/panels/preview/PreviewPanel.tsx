@@ -44,6 +44,9 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
     const height = exportSettings.height;
     // Sizing state for display (CSS) size of canvas maintaining aspect ratio
     const containerRef = useRef<HTMLDivElement | null>(null);
+
+    const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
+    
     const [displaySize, setDisplaySize] = useState<{ w: number; h: number }>({ w: width, h: height });
     const [createElementPopupPosition, setCreateElementPopupPosition] = useState<{ x: number; y: number } | null>(null);
     const pointerPositionRef = useRef({ x: 0, y: 0 });
@@ -66,6 +69,10 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
             return true;
         },
     });
+
+    // thin wrapper handlers 
+
+    const visualizerInstance = (ctx as any).visualizer;
 
     useEffect(() => {
         const el = containerRef.current;
@@ -92,6 +99,18 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
             // Avoid needless state updates (round to integer pixels for crispness)
             const next = { w: Math.floor(drawW), h: Math.floor(drawH) };
             setDisplaySize((prev) => (prev.w === next.w && prev.h === next.h ? prev : next));
+
+            const overlay = overlayCanvasRef.current;
+            if (overlay && el) {
+                const dpr = window.devicePixelRatio || 1;
+                const targetW = Math.round(el.clientWidth * dpr);
+                const targetH = Math.round(el.clientHeight * dpr);
+                if (overlay.width !== targetW || overlay.height !== targetH) {
+                    overlay.width = targetW;
+                    overlay.height = targetH;
+                    visualizerInstance?.invalidateRender?.();
+                }
+            }
         };
         compute();
         const ro = new ResizeObserver(() => compute());
@@ -101,10 +120,22 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
             ro.disconnect();
             window.removeEventListener('resize', compute);
         };
-    }, [width, height]);
+    }, [width, height, visualizerInstance]);
 
-    // Thin wrapper handlers delegating to extracted utilities
-    const visualizerInstance = (ctx as any).visualizer;
+    useEffect(() => {
+        if (!visualizerInstance?.setOverlayCanvas) return;
+        const overlay = overlayCanvasRef.current;
+        if (overlay && containerRef.current) {
+            const dpr = window.devicePixelRatio || 1;
+            overlay.width = Math.round(containerRef.current.clientWidth * dpr);
+            overlay.height = Math.round(containerRef.current.clientHeight * dpr);
+        }
+        visualizerInstance.setOverlayCanvas(overlay);
+        return () => {
+            visualizerInstance.setOverlayCanvas?.(null);
+        };
+    }, [visualizerInstance]);
+
     const simulationReadiness = useSyncExternalStore(
         useCallback(
             (listener: () => void) => visualizerInstance?.subscribeSimulationStatus?.(listener) ?? (() => {}),
@@ -170,6 +201,7 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
     }, [handleCanvasMouseMoveWindow, handleCanvasMouseUpWindow]);
 
     const handleCanvasMouseDown = (e: React.MouseEvent) => {
+        e.preventDefault();
         draggingRef.current = true;
         window.addEventListener('mousemove', handleCanvasMouseMoveWindow);
         window.addEventListener('mouseup', handleCanvasMouseUpWindow);
@@ -185,14 +217,14 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
     };
     const handleCanvasMouseLeave = (e: React.MouseEvent) => onCanvasMouseLeave(e, handlerDeps);
 
-    const handleDragOver = (e: React.DragEvent<HTMLCanvasElement>) => {
+    const handleDragOver = (e: React.DragEvent<HTMLElement>) => {
         if (e.dataTransfer.types.includes(DRAG_ASSET_TYPE)) {
             e.preventDefault();
             e.dataTransfer.dropEffect = 'copy';
         }
     };
 
-    const handleDrop = (e: React.DragEvent<HTMLCanvasElement>) => {
+    const handleDrop = (e: React.DragEvent<HTMLElement>) => {
         const assetId = e.dataTransfer.getData(DRAG_ASSET_TYPE);
         if (!assetId) return;
         e.preventDefault();
@@ -248,11 +280,38 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
                 pointerPositionRef.current = { x: event.clientX, y: event.clientY };
             }}
         >
-            <div className="canvas-container" ref={containerRef}>
+            <div
+                className="canvas-container relative select-none"
+                ref={containerRef}
+                onMouseDown={
+                    interactive
+                        ? (e) => {
+                              if (e.target !== canvasRef.current) handleCanvasMouseDown(e);
+                          }
+                        : undefined
+                }
+                onMouseMove={
+                    interactive
+                        ? (e) => {
+                              if (e.target !== canvasRef.current) handleCanvasMouseMove(e);
+                          }
+                        : undefined
+                }
+                onMouseUp={
+                    interactive
+                        ? (e) => {
+                              if (e.target !== canvasRef.current) handleCanvasMouseUp(e);
+                          }
+                        : undefined
+                }
+                onMouseLeave={interactive ? handleCanvasMouseLeave : undefined}
+                onDragOver={interactive ? handleDragOver : undefined}
+                onDrop={interactive ? handleDrop : undefined}
+            >
                 {visibleSimulationReadiness && (
                     <div
                         role="status"
-                        className="absolute top-2 left-2 z-10 rounded bg-black/70 px-2 py-1 text-xs text-white"
+                        className="pointer-events-none absolute top-2 left-2 z-10 rounded bg-black/70 px-2 py-1 text-xs text-white select-none"
                     >
                         {simulationStatusText(visibleSimulationReadiness)}
                     </div>
@@ -273,9 +332,12 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
                     onMouseDown={interactive ? handleCanvasMouseDown : undefined}
                     onMouseMove={interactive ? handleCanvasMouseMove : undefined}
                     onMouseUp={interactive ? handleCanvasMouseUp : undefined}
-                    onMouseLeave={interactive ? handleCanvasMouseLeave : undefined}
                     onDragOver={interactive ? handleDragOver : undefined}
                     onDrop={interactive ? handleDrop : undefined}
+                ></canvas>
+                <canvas
+                    ref={overlayCanvasRef}
+                    className="interaction-overlay-canvas pointer-events-none absolute inset-0 w-full h-full"
                 ></canvas>
             </div>
 

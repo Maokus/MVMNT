@@ -406,15 +406,7 @@ function attemptHandleHit(vis: any, x: number, y: number): boolean {
 function performElementHitTest(vis: any, x: number, y: number, deps: InteractionDeps, toggle = false) {
     const { selectElement } = deps;
     const boundsList = vis.getElementBoundsAtTime(vis.getCurrentTime?.() ?? 0);
-    const selectedElementIds = new Set(selectedSubtreeElementIds());
-    const selectedHit = toggle
-        ? null
-        : elementHitTest(
-              boundsList.filter((candidate: { id: string }) => selectedElementIds.has(candidate.id)),
-              x,
-              y
-          );
-    const hit = selectedHit ?? elementHitTest(boundsList, x, y);
+    const hit = elementHitTest(boundsList, x, y);
     if (hit) {
         const scene = useSceneStore.getState();
         const ownerNodeId = hit.nodeId ?? scene.nodeIdByElementId[hit.id];
@@ -585,6 +577,12 @@ function processDrag(
     return false;
 }
 
+function updateCursor(vis: any, cursor: string) {
+    if (vis?.canvas?.style) vis.canvas.style.cursor = cursor;
+    if (vis?.canvas?.parentElement?.style) vis.canvas.parentElement.style.cursor = cursor;
+    if (vis?.overlayCanvas?.style) vis.overlayCanvas.style.cursor = cursor;
+}
+
 function updateHover(vis: any, x: number, y: number) {
     const selectedId = vis._interactionState?.selectedElementId || null;
     const nodeIds = useSelectionStore.getState().selectedNodeIds;
@@ -603,9 +601,8 @@ function updateHover(vis: any, x: number, y: number) {
                 pivot: 'crosshair',
                 anchor: 'crosshair',
             };
-            if (vis.canvas)
-                vis.canvas.style.cursor =
-                    resizeCursorForHandle(handleHover.type, handles) ?? cursors[handleHover.type] ?? 'move';
+            const cursor = resizeCursorForHandle(handleHover.type, handles) ?? cursors[handleHover.type] ?? 'move';
+            updateCursor(vis, cursor);
             if (vis._interactionState.activeHandle !== handleHover.id)
                 vis.setInteractionState({ activeHandle: handleHover.id });
             return; // don't update element hover while over handle
@@ -615,7 +612,7 @@ function updateHover(vis: any, x: number, y: number) {
     }
     const boundsList = vis.getElementBoundsAtTime(vis.getCurrentTime?.() ?? 0);
     const hoverId = elementHoverId(boundsList, x, y);
-    if (vis.canvas) vis.canvas.style.cursor = hoverId ? 'move' : 'default';
+    updateCursor(vis, hoverId ? 'move' : 'default');
     if (hoverId !== vis._interactionState?.hoverElementId) vis.setInteractionState({ hoverElementId: hoverId });
 }
 
@@ -787,6 +784,7 @@ export function onCanvasMouseUp(_e: CanvasMouseEvent, deps: InteractionDeps) {
         vis._marqueeMeta = null;
         vis.setInteractionState({ marqueeBounds: null });
     } else finalizeDrag(vis, deps);
+    updateCursor(vis, 'default');
 }
 
 export function onCanvasMouseLeave(_e: CanvasMouseEvent, deps: InteractionDeps) {
@@ -798,4 +796,5 @@ export function onCanvasMouseLeave(_e: CanvasMouseEvent, deps: InteractionDeps) 
     }
     finalizeDrag(vis, deps);
     vis.setInteractionState({ hoverElementId: null, activeHandle: null, snapGuides: [] });
+    updateCursor(vis, 'default');
 }
