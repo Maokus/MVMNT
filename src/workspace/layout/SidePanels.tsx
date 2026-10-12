@@ -188,7 +188,6 @@ const SidePanelsInternal: React.FC = () => {
             const canvasEl: HTMLCanvasElement | null =
                 canvasRef?.current || (document.getElementById('canvas') as HTMLCanvasElement | null);
 
-            // const previewContainer = canvasEl?.closest('.canvas-container') || canvasEl?.closest('.preview-panel');
             const previewContainer =
                 canvasEl?.closest('[data-preview-container]') ||
                 canvasEl?.closest('.canvas-container') ||

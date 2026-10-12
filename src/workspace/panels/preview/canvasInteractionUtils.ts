@@ -404,15 +404,6 @@ function attemptHandleHit(vis: any, x: number, y: number): boolean {
 }
 
 function performElementHitTest(vis: any, x: number, y: number, deps: InteractionDeps, _toggle = false) {
-    // const selectedElementIds = new Set(selectedSubtreeElementIds());
-    // const selectedHit = toggle
-    //     ? null
-    //     : elementHitTest(
-    //           boundsList.filter((candidate: { id: string }) => selectedElementIds.has(candidate.id)),
-    //           x,
-    //           y
-    //       );
-    // const hit = selectedHit ?? elementHitTest(boundsList, x, y);
     const { selectElement } = deps;
     const boundsList = vis.getElementBoundsAtTime(vis.getCurrentTime?.() ?? 0);
     const hit = elementHitTest(boundsList, x, y);
@@ -447,9 +438,6 @@ function performElementHitTest(vis: any, x: number, y: number, deps: Interaction
             corners: hit.corners || null,
             snapTargets: buildSnapTargets(
                 vis,
-
-                // selectedSubtreeElementIds().length ? selectedSubtreeElementIds() : hit.id
-                //
                 (() => {
                     const selectedIds = selectedSubtreeElementIds();
                     return selectedIds.length ? selectedIds : hit.id;
@@ -679,12 +667,6 @@ function focusTextPropertyInput() {
 type CanvasMouseEvent = MouseEvent | ReactMouseEvent;
 
 export function onCanvasMouseDown(e: CanvasMouseEvent, deps: InteractionDeps) {
-    // const button = e.button ?? 0;
-    // if (button === 2) {
-    //     deps.selectElement(null);
-    //     return;
-    // }
-    // if (button !== 0) return;
     const button = e.button ?? 0;
     if (button !== 0) return;
 
