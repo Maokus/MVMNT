@@ -7,6 +7,7 @@ import PreviewPanel from './PreviewPanel';
 
 const mocks = vi.hoisted(() => ({
     addElement: vi.fn(),
+    selectElement: vi.fn(),
     canvasRef: { current: null as HTMLCanvasElement | null },
     visualizer: null as any,
 }));
@@ -21,7 +22,7 @@ vi.mock('@context/VisualizerContext', () => ({
 
 vi.mock('@context/SceneSelectionContext', () => ({
     useSceneSelection: () => ({
-        selectElement: vi.fn(),
+        selectElement: mocks.selectElement,
         selectNode: vi.fn(),
         updateElementConfig: vi.fn(),
         incrementPropertyPanelRefresh: vi.fn(),
@@ -54,6 +55,7 @@ const pointerEvent = (type: string, clientX: number, clientY: number) => {
 describe('PreviewPanel element creation shortcut', () => {
     beforeEach(() => {
         mocks.addElement.mockReset();
+        mocks.selectElement.mockReset();
         mocks.visualizer = null;
         globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver;
         useTimelineStore.setState((state) => ({
@@ -255,5 +257,111 @@ describe('PreviewPanel element creation shortcut', () => {
 
         unmount();
         expect(setOverlayCanvas).toHaveBeenCalledWith(null);
+    });
+
+    it('unselects everything and suppresses context menu on right-click anywhere in preview', () => {
+        mocks.visualizer = {
+            setInteractionState: vi.fn(),
+            invalidateRender: vi.fn(),
+        };
+        const { container } = render(<PreviewPanel />);
+        const canvas = container.querySelector<HTMLCanvasElement>('#canvas')!;
+        const contextMenuEvent = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+        fireEvent(canvas, contextMenuEvent);
+
+        expect(contextMenuEvent.defaultPrevented).toBe(true);
+        expect(mocks.selectElement).toHaveBeenCalledWith(null);
+        expect(mocks.visualizer.setInteractionState).toHaveBeenCalledWith(
+            expect.objectContaining({ selectedElementId: null, selectedNodeIds: [] })
+        );
+
+        const canvasMouseDown = new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 2 });
+        fireEvent(canvas, canvasMouseDown);
+        expect(canvasMouseDown.defaultPrevented).toBe(true);
+        expect(mocks.selectElement).toHaveBeenCalledWith(null);
+    });
+
+    it('zooms view with Ctrl+wheel and resets with Ctrl+0 or double middle-click', () => {
+        mocks.visualizer = {
+            setInteractionState: vi.fn(),
+            invalidateRender: vi.fn(),
+        };
+        const { container } = render(<PreviewPanel />);
+        const preview = container.querySelector('.preview-panel')!;
+        const canvasContainer = container.querySelector('.canvas-container')!;
+        const canvas = container.querySelector<HTMLCanvasElement>('#canvas')!;
+
+        expect(canvas.style.transform).toBe('translate(0px, 0px) scale(1)');
+
+        vi.spyOn(canvasContainer, 'getBoundingClientRect').mockReturnValue({
+            left: 100,
+            top: 50,
+            width: 800,
+            height: 600,
+            right: 900,
+            bottom: 650,
+            x: 100,
+            y: 50,
+            toJSON: () => {},
+        });
+
+        const wheelZoomOut = new WheelEvent('wheel', {
+            bubbles: true,
+            cancelable: true,
+            ctrlKey: true,
+            deltaY: 100,
+            clientX: 500,
+            clientY: 350,
+        });
+        act(() => {
+            fireEvent(canvasContainer, wheelZoomOut);
+        });
+        expect(wheelZoomOut.defaultPrevented).toBe(true);
+        expect(canvas.style.transform).not.toBe('translate(0px, 0px) scale(1)');
+        expect(canvas.style.transform).toContain('scale(');
+
+        fireEvent(preview, pointerEvent('pointerover', 500, 350));
+        fireEvent.pointerDown(preview);
+        act(() => {
+            fireEvent.keyDown(window, { key: '0', ctrlKey: true });
+        });
+        expect(canvas.style.transform).toBe('translate(0px, 0px) scale(1)');
+
+        const middleMouseDown = new MouseEvent('mousedown', {
+            bubbles: true,
+            cancelable: true,
+            button: 1,
+            clientX: 200,
+            clientY: 200,
+        });
+        act(() => {
+            fireEvent(canvasContainer, middleMouseDown);
+        });
+        expect(middleMouseDown.defaultPrevented).toBe(true);
+
+        const mouseMove = new MouseEvent('mousemove', { bubbles: true, clientX: 250, clientY: 280 });
+        act(() => {
+            window.dispatchEvent(mouseMove);
+        });
+        expect(canvas.style.transform).toBe('translate(50px, 80px) scale(1)');
+
+        const mouseUp = new MouseEvent('mouseup', { bubbles: true, button: 1 });
+        act(() => {
+            window.dispatchEvent(mouseUp);
+        });
+
+        act(() => {
+            fireEvent(
+                canvasContainer,
+                new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 1, clientX: 200, clientY: 200 })
+            );
+        });
+        act(() => {
+            fireEvent(
+                canvasContainer,
+                new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 1, clientX: 200, clientY: 200 })
+            );
+        });
+        expect(canvas.style.transform).toBe('translate(0px, 0px) scale(1)');
     });
 });

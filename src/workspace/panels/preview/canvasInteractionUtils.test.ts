@@ -257,6 +257,7 @@ describe('preview aggregate move gestures', () => {
             { x: 10, y: 10, width: 40, height: 40 }
         );
 
+        // omgbruh
 
         onCanvasMouseDown(canvasMouseEvent(30, 30), harness.deps);
         expect(harness.selectElement).toHaveBeenCalledWith('above');

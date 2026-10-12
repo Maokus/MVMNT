@@ -664,6 +664,15 @@ function focusTextPropertyInput() {
 type CanvasMouseEvent = MouseEvent | ReactMouseEvent;
 
 export function onCanvasMouseDown(e: CanvasMouseEvent, deps: InteractionDeps) {
+    
+    const button = e.button ?? 0;
+    if (button === 2) {
+        deps.selectElement(null);
+        return;
+    }
+    if (button !== 0) return;
+
+    
     const { canvasRef, visualizer: vis } = deps;
     const canvas = canvasRef.current;
     if (!canvas || !vis) return;
