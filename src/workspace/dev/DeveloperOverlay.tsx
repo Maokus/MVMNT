@@ -122,7 +122,7 @@ export const DeveloperOverlay: React.FC = () => {
         id: 'focused-control.developer-overlay',
         domain: 'focused-control',
         enabled,
-        matches: (event) => event.key === '?' || (event.key === '/' && event.shiftKey),
+        matches: (event) => event.ctrlKey && event.shiftKey && !event.metaKey && !event.altKey && event.code === 'KeyD',
         handle: (event) => {
             event.preventDefault();
             setVisible((prev) => !prev);

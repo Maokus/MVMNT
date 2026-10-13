@@ -31,6 +31,7 @@ export function findHandleUnderPoint(handles: any[], x: number, y: number) {
 // Compute world mouse point in canvas coordinate space accounting for CSS scaling.
 export function getCanvasWorldPoint(canvas: HTMLCanvasElement, clientX: number, clientY: number) {
     const rect = canvas.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return { x: 0, y: 0 };
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
     const x = (clientX - rect.left) * scaleX;

@@ -875,7 +875,20 @@ function buildApplicationMenu(): Menu {
         ...(isMac ? [{ role: 'appMenu' } as MenuItemConstructorOptions] : []),
         fileMenu,
         { role: 'editMenu' },
-        { role: 'viewMenu' },
+        {
+            label: 'View',
+            submenu: [
+                { role: 'reload' },
+                { role: 'forceReload' },
+                { role: 'toggleDevTools' },
+                { type: 'separator' },
+                { role: 'resetZoom', accelerator: 'CmdOrCtrl+Alt+0' },
+                { role: 'zoomIn' },
+                { role: 'zoomOut' },
+                { type: 'separator' },
+                { role: 'togglefullscreen' },
+            ],
+        },
         { role: 'windowMenu' },
         {
             role: 'help',

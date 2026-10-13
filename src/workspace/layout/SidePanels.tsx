@@ -183,14 +183,21 @@ const SidePanelsInternal: React.FC = () => {
             if (preserveSelection) {
                 return;
             }
-            // Clear selection only if click is outside BOTH side panels and the canvas
+            // Clear selection only if click is outside BOTH side panels and the canvas/preview
             const clickedInsideSidePanels = sidePanelsRef.current?.contains(event.target as Node);
             const canvasEl: HTMLCanvasElement | null =
                 canvasRef?.current || (document.getElementById('canvas') as HTMLCanvasElement | null);
-            const clickedInsideCanvas = !!(canvasEl && canvasEl.contains(event.target as Node));
+
+            const previewContainer =
+                canvasEl?.closest('[data-preview-container]') ||
+                canvasEl?.closest('.canvas-container') ||
+                canvasEl?.closest('.preview-panel');
+            const clickedInsideCanvas = !!(
+                (canvasEl && canvasEl.contains(event.target as Node)) ||
+                (previewContainer && previewContainer.contains(event.target as Node))
+            );
             if (!clickedInsideSidePanels && !clickedInsideCanvas) {
                 if (selectedElementId) {
-                    console.log('Clicked outside side panels and canvas, clearing selection');
                     clearSelection();
                 }
             }

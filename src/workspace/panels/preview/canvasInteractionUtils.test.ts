@@ -241,13 +241,12 @@ describe('preview aggregate move gestures', () => {
         expect(useSceneStore.getState().graph.nodesById['group:selected'].userNodeTransform).toEqual(groupBefore);
     });
 
-    it('drags the selected element through an overlapping element above it', () => {
+    it('selects the topmost overlapping element when clicking over it', () => {
         dispatchSceneCommand({ type: 'addElement', elementType: 'textOverlay', elementId: 'selected' });
         dispatchSceneCommand({ type: 'addElement', elementType: 'textOverlay', elementId: 'above' });
         const scene = useSceneStore.getState();
         const selectedNodeId = scene.nodeIdByElementId.selected;
         const aboveNodeId = scene.nodeIdByElementId.above;
-        const selectedBefore = { ...scene.graph.nodesById[selectedNodeId].userNodeTransform };
         const aboveBefore = { ...scene.graph.nodesById[aboveNodeId].userNodeTransform };
         useSelectionStore.getState().selectSceneNodes([selectedNodeId], selectedNodeId);
         const harness = createInteractionHarness(
@@ -259,16 +258,15 @@ describe('preview aggregate move gestures', () => {
         );
 
         onCanvasMouseDown(canvasMouseEvent(30, 30), harness.deps);
-        expect(harness.selectElement).not.toHaveBeenCalled();
-        expect(harness.visualizer._dragMeta.dragElementId).toBe('selected');
+        expect(harness.selectElement).toHaveBeenCalledWith('above');
+        expect(harness.visualizer._dragMeta.dragElementId).toBe('above');
         onCanvasMouseMove(canvasMouseEvent(40, 35, { ctrlKey: true }), harness.deps);
         onCanvasMouseUp(canvasMouseEvent(40, 35), harness.deps);
 
-        expect(useSceneStore.getState().graph.nodesById[selectedNodeId].userNodeTransform).toMatchObject({
-            translationX: selectedBefore.translationX + 10,
-            translationY: selectedBefore.translationY + 5,
+        expect(useSceneStore.getState().graph.nodesById[aboveNodeId].userNodeTransform).toMatchObject({
+            translationX: aboveBefore.translationX + 10,
+            translationY: aboveBefore.translationY + 5,
         });
-        expect(useSceneStore.getState().graph.nodesById[aboveNodeId].userNodeTransform).toEqual(aboveBefore);
     });
 
     it('retains ordinary replacement, Shift-toggle, and empty-canvas marquee behavior', () => {
