@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetGlobalShortcutsForTest } from '@context/shortcuts/shortcutRegistry';
 import { useTimelineStore } from '@state/timelineStore';
+import { DRAG_ASSET_TYPE } from '../asset-manager/AssetManagerPanel';
 import PreviewPanel from './PreviewPanel';
 
 const mocks = vi.hoisted(() => ({
@@ -362,5 +363,62 @@ describe('PreviewPanel element creation shortcut', () => {
             );
         });
         expect(canvas.style.transform).toBe('translate(0px, 0px) scale(1)');
+    });
+
+    it('pans the preview with two-axis trackpad scrolling', () => {
+        const { container } = render(<PreviewPanel />);
+        const canvas = container.querySelector<HTMLCanvasElement>('#canvas')!;
+
+        const firstScroll = new WheelEvent('wheel', {
+            bubbles: true,
+            cancelable: true,
+            deltaX: 30,
+            deltaY: -20,
+        });
+        act(() => fireEvent(canvas, firstScroll));
+        expect(firstScroll.defaultPrevented).toBe(true);
+        expect(canvas.style.transform).toBe('translate(-30px, 20px) scale(1)');
+
+        const secondScroll = new WheelEvent('wheel', {
+            bubbles: true,
+            cancelable: true,
+            deltaX: -10,
+            deltaY: 5,
+        });
+        act(() => fireEvent(canvas, secondScroll));
+        expect(canvas.style.transform).toBe('translate(-20px, 15px) scale(1)');
+    });
+
+    it('adds a dropped asset only once when the drop starts on the canvas', () => {
+        const { container } = render(<PreviewPanel />);
+        const canvas = container.querySelector<HTMLCanvasElement>('#canvas')!;
+        vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+            left: 0,
+            top: 0,
+            width: 1920,
+            height: 1080,
+            right: 1920,
+            bottom: 1080,
+            x: 0,
+            y: 0,
+            toJSON: () => {},
+        });
+
+        const drop = new Event('drop', { bubbles: true, cancelable: true });
+        Object.defineProperties(drop, {
+            clientX: { value: 100 },
+            clientY: { value: 200 },
+            dataTransfer: {
+                value: { getData: (type: string) => (type === DRAG_ASSET_TYPE ? 'asset-for-drop-test' : '') },
+            },
+        });
+        fireEvent(canvas, drop);
+
+        expect(mocks.addElement).toHaveBeenCalledOnce();
+        expect(mocks.addElement).toHaveBeenCalledWith('image', {
+            imageSource: 'asset-for-drop-test',
+            offsetX: 100,
+            offsetY: 200,
+        });
     });
 });
