@@ -195,9 +195,8 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
         enabled: interactive,
         matches: (event) =>
             isCommandSurfaceActive('preview', event) &&
-            (event.ctrlKey || event.metaKey) &&
-            !event.shiftKey &&
             !event.altKey &&
+            event.shiftKey !== (event.ctrlKey || event.metaKey) &&
             (event.key === '0' || event.code === 'Digit0' || event.code === 'Numpad0') &&
             !isTextEditingTarget(event.target),
         handle: (event) => {

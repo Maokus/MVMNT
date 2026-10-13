@@ -7,53 +7,70 @@ const sections = [
         rows: [
             ['Shift + 1', 'Fit canvas and visible artwork'],
             ['Shift + 2', 'Fit selected elements'],
+            ['Shift + 0', 'Reset zoom and pan'],
             ['⌘/Ctrl + 0', 'Reset zoom and pan'],
             ['⌘/Ctrl + scroll', 'Zoom around pointer'],
             ['Two-finger scroll', 'Pan preview'],
             ['Middle-button drag', 'Pan preview'],
             ['Double middle-click', 'Reset zoom and pan'],
             ['Shift + A', 'Add element'],
-            ['I', 'Add keyframe to selected element'],
-            ['Alt + drag', 'Duplicate selected element'],
-            ['Shift + rotate', 'Snap rotation'],
-            ['⌘/Ctrl + drag', 'Bypass snapping'],
+            ['I', 'Insert keyframe for selected node (also in properties)'],
+            ['Alt + drag element', 'Duplicate dragged selection'],
+            ['Alt + drag scale handle', 'Scale around the pivot'],
+            ['Shift + drag rotation handle', 'Snap rotation to 15°'],
+            ['⌘/Ctrl + drag element', 'Bypass move snapping'],
+            ['Arrow keys', 'Nudge selected elements by 1'],
+            ['Shift + arrows', 'Nudge selected elements by 10'],
+            ['Right-click', 'Clear preview selection'],
         ],
     },
     {
         title: 'Timeline',
         rows: [
             ['← / →', 'Move one beat'],
-            ['⌘/Ctrl + ← / →', 'Move one tick'],
+            ['⌘/Ctrl + ← / →', 'Move playhead one tick (any editor)'],
             ['Shift + 1', 'Fit all timeline content'],
             ['Shift + 2', 'Fit timeline selection'],
             ['F', 'Frame selection, or center on playhead'],
-            ['J / K', 'Previous / next automation keyframe'],
-            ['+ / −', 'Zoom timeline'],
+            ['J / K', 'Previous / next keyframe (automation pane)'],
+            ['= / + / −', 'Zoom timeline'],
             ['S', 'Toggle snapping'],
-            ['⌘/Ctrl + C / V / X', 'Copy / paste / cut selected clips'],
-            ['⌘/Ctrl + C / V', 'Copy / paste automation keyframes'],
-            ['⌘/Ctrl + D', 'Duplicate selected clips'],
+            ['⌘/Ctrl + A', 'Select all clips (clip pane)'],
+            ['⌘/Ctrl + C / V / X', 'Copy / paste / cut clips (clip pane)'],
+            ['⌘/Ctrl + D', 'Duplicate clips (clip pane)'],
+            ['⌘/Ctrl + C / V', 'Copy / paste keyframes (automation pane)'],
+            ['⌘/Ctrl + D', 'Duplicate selected keyframes (automation pane)'],
             ['Space', 'Play / pause'],
+            ['Space + drag', 'Pan timeline'],
+            ['Middle-button drag', 'Pan timeline'],
+            ['Horizontal scroll', 'Pan timeline'],
+            ['⌘/Ctrl + scroll', 'Zoom timeline around pointer'],
         ],
     },
     {
-        title: 'Scene and project',
+        title: 'Scene editing',
         rows: [
             ['⌘/Ctrl + G', 'Group selected elements'],
             ['⌘/Ctrl + Shift + G', 'Ungroup selected elements'],
             ['⌘/Ctrl + D', 'Duplicate selected elements'],
-            ['Arrow keys', 'Nudge selected elements'],
-            ['Shift + arrows', 'Nudge selected elements by 10'],
-            ['Delete', 'Delete selection'],
+            ['Delete / Backspace', 'Delete selection in the active editor'],
             ['⌘/Ctrl + A', 'Select all in scene tree'],
-            ['Esc', 'Clear selection'],
+            ['Esc', 'Clear scene selection (tree or preview)'],
+        ],
+    },
+    {
+        title: 'Project and help',
+        rows: [
             ['⌘/Ctrl + Z', 'Undo'],
             ['⌘/Ctrl + Shift + Z', 'Redo'],
+            ['⌘/Ctrl + Y', 'Redo'],
             ['⌘/Ctrl + S', 'Save'],
             ['⌘/Ctrl + Shift + S', 'Save as'],
             ['⌘/Ctrl + O', 'Open'],
             ['⌘/Ctrl + N', 'New scene'],
             ['⌘/Ctrl + ,', 'Scene settings'],
+            ['?', 'Open controls'],
+            ['Ctrl + Shift + D', 'Toggle developer overlay (when enabled)'],
         ],
     },
 ];
@@ -96,7 +113,9 @@ export function ControlsModal({ onClose }: { onClose: () => void }) {
                             <h2 id="controls-title" className="m-0 text-xl font-semibold">
                                 Controls
                             </h2>
-                            <p className="m-0 mt-1 text-xs text-neutral-400">Shortcuts apply to the focused panel.</p>
+                            <p className="m-0 mt-1 text-xs text-neutral-400">
+                                Panel shortcuts follow focus; project shortcuts work throughout the editor.
+                            </p>
                         </div>
                         <button
                             type="button"
@@ -115,7 +134,10 @@ export function ControlsModal({ onClose }: { onClose: () => void }) {
                                 </h3>
                                 <dl className="m-0 space-y-2">
                                     {section.rows.map(([keys, label]) => (
-                                        <div key={keys} className="flex items-start justify-between gap-3 text-xs">
+                                        <div
+                                            key={`${keys}:${label}`}
+                                            className="flex items-start justify-between gap-3 text-xs"
+                                        >
                                             <dt className="text-neutral-300">{label}</dt>
                                             <dd className="m-0 shrink-0 rounded border border-neutral-600 bg-neutral-800 px-1.5 py-0.5 font-mono text-[11px] text-white">
                                                 {keys}

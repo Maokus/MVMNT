@@ -400,6 +400,31 @@ describe('PreviewPanel element creation shortcut', () => {
         input.remove();
     });
 
+    it('resets the preview with Shift+0 only while the preview is active', () => {
+        const { container } = render(<PreviewPanel />);
+        const preview = container.querySelector<HTMLElement>('.preview-panel')!;
+        const canvas = container.querySelector<HTMLCanvasElement>('#canvas')!;
+        const otherPanel = document.createElement('div');
+        otherPanel.tabIndex = 0;
+        otherPanel.dataset.commandSurface = 'timeline-clips';
+        document.body.appendChild(otherPanel);
+
+        act(() =>
+            fireEvent(canvas, new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaX: 25, deltaY: 15 }))
+        );
+        expect(canvas.style.transform).toBe('translate(-25px, -15px) scale(1)');
+        otherPanel.focus();
+        act(() => fireEvent.keyDown(otherPanel, { key: ')', code: 'Digit0', shiftKey: true }));
+        expect(canvas.style.transform).toBe('translate(-25px, -15px) scale(1)');
+
+        fireEvent.pointerDown(preview);
+        act(() => fireEvent.keyDown(preview, { key: ')', code: 'Digit0', shiftKey: true, ctrlKey: true }));
+        expect(canvas.style.transform).toBe('translate(-25px, -15px) scale(1)');
+        act(() => fireEvent.keyDown(preview, { key: ')', code: 'Digit0', shiftKey: true }));
+        expect(canvas.style.transform).toBe('translate(0px, 0px) scale(1)');
+        otherPanel.remove();
+    });
+
     it('fits visible off-canvas artwork and then frames selected nodes', () => {
         mocks.selectedNodeIds = ['node-1'];
         mocks.visualizer = {

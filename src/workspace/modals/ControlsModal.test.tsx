@@ -41,4 +41,15 @@ describe('ControlsModal', () => {
         expect(opener).toHaveFocus();
         unregister();
     });
+
+    it('labels preview reset, scaling, and pane-specific shortcuts', () => {
+        render(<Harness />);
+        fireEvent.click(screen.getByRole('button', { name: 'controls' }));
+        const dialog = screen.getByRole('dialog', { name: 'Controls' });
+        expect(dialog).toHaveTextContent('Shift + 0');
+        expect(dialog).toHaveTextContent('Alt + drag scale handle');
+        expect(dialog).toHaveTextContent('Copy / paste / cut clips (clip pane)');
+        expect(dialog).toHaveTextContent('Previous / next keyframe (automation pane)');
+        expect(dialog).toHaveTextContent('Ctrl + Shift + D');
+    });
 });
