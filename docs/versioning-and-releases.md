@@ -55,7 +55,7 @@ registry.
 `MVMNT_BUILD_CHANNEL` is the only channel authority. Omitting it produces a development build;
 supplying any value other than `development`, `nightly`, or `stable` fails the build. Feature and
 debug gating must use the injected `BUILD_INFO.channel`, not a separate Vite mode variable.
-Packaging commands (`package`, `make`, `make:mac`, `make:win`, and `publish`) default to `stable` when
+Packaging commands (`package`, `make`, `make:mac`, `make:win`, `make:linux`, and `publish`) default to `stable` when
 the channel is omitted. An explicit channel still overrides that default.
 
 - Development builds display `<version>-dev+<short-sha>` and never check for updates.
@@ -76,7 +76,7 @@ those platform fields do not accept SemVer prerelease labels.
 
 ## Development builds
 
-Every push to `dev` or a `release/**` branch creates unsigned macOS universal and Windows x64 artifacts. The workflow
+Every push to `dev` or a `release/**` branch creates unsigned macOS universal, Windows x64, and Linux x64 artifacts. The workflow
 derives a unique version such as `0.16.0-nightly.20260812.123`; the artifact name also includes the
 short commit SHA.
 
@@ -92,6 +92,10 @@ The macOS DMG includes `readme.txt` with installation steps. After copying the u
 xattr -dr com.apple.quarantine "/Applications/MVMNT Nightly.app"
 ```
 
+Linux builds include a Debian package for Debian-based distributions and a portable ZIP archive.
+The maintainer cannot currently test Linux builds, so they may be less stable than the macOS and
+Windows builds.
+
 Before starting nightlies for a new release line, update the root package version to the next intended
 stable version and run `npm install` to synchronize the lockfile.
 
@@ -103,7 +107,8 @@ stable version and run `npm install` to synchronize the lockfile.
 4. Push the tag. GitHub Actions verifies, packages, and creates a draft GitHub Release.
 5. Test the draft assets, edit the release notes if needed, and publish the release.
 
-The release workflow rejects tags that do not match `package.json` or point outside `main`. Stable macOS builds produce a
+The release workflow rejects tags that do not match `package.json` or point outside `main`. It also creates Linux x64
+Debian packages and portable ZIP archives. Stable macOS builds produce a
 DMG containing the app and `readme.txt`; they are currently unsigned and must be installed manually.
 After copying the app to `/Applications`, run:
 
@@ -113,7 +118,7 @@ xattr -dr com.apple.quarantine "/Applications/MVMNT.app"
 
 ## Update notification
 
-Packaged stable macOS and Windows builds check GitHub's latest published release once per application
+Packaged stable macOS, Windows, and Linux builds check GitHub's latest published release once per application
 session when Home opens. If a newer stable SemVer tag exists, Home links to the GitHub Releases page.
 MVMNT never downloads or installs the update automatically. Failures are logged and do not interrupt
 startup.

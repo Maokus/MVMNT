@@ -161,6 +161,11 @@
         @apply flex-[2] border-r flex flex-col min-w-0 h-full;
         background-color: var(--twc-panel);
         border-color: var(--twc-border);
+        outline: none;
+    }
+
+    .preview-panel:focus-visible {
+        box-shadow: inset 0 0 0 1px #5cc8ff;
     }
 
     .canvas-container {

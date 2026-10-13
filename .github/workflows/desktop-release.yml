@@ -113,8 +113,38 @@ jobs:
                   name: windows-release
                   path: out/make/**/*
 
+    linux:
+        needs: verify
+        runs-on: ubuntu-latest
+        env:
+            VITE_PUBLIC_POSTHOG_PROJECT_TOKEN: ${{ vars.POSTHOG_EU_PROJECT_TOKEN }}
+            VITE_PUBLIC_POSTHOG_HOST: https://eu.i.posthog.com
+            POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
+            POSTHOG_PROJECT_ID: ${{ vars.POSTHOG_PROJECT_ID }}
+        steps:
+            - uses: actions/checkout@v7
+            - uses: actions/setup-node@v7
+              with:
+                  node-version: 22
+                  cache: npm
+            - name: Verify packaged analytics configuration
+              run: node scripts/verify-analytics-build.cjs
+            - run: npm install
+            - name: Install Linux packaging tools
+              run: sudo apt-get update && sudo apt-get install -y fakeroot dpkg xvfb
+            - run: npm run build
+            - run: xvfb-run -a npm run test:electron
+            - run: npm run make:linux
+            - uses: actions/upload-artifact@v7
+              with:
+                  name: linux-release
+                  path: |
+                      out/make/**/*.deb
+                      out/make/**/*.zip
+                  if-no-files-found: error
+
     release:
-        needs: [macos, windows]
+        needs: [macos, windows, linux]
         runs-on: ubuntu-latest
         steps:
             - uses: actions/download-artifact@v8

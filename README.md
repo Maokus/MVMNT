@@ -19,10 +19,10 @@ For developers, it is a framework which handles the boilerplate so that you can 
 
 ## Download
 
-Download the latest macOS or Windows desktop build from [GitHub Releases](https://github.com/Maokus/MVMNT/releases/latest).
+Download the latest macOS, Windows, or Linux desktop build from [GitHub Releases](https://github.com/Maokus/MVMNT/releases/latest).
 The macOS build is currently unsigned; see the [installation instructions](docs/versioning-and-releases.md#stable-releases).
 
-If you would like a Linux build, [contact me on Discord](https://maok.us/discord). I have not made one because I cannot test it.
+I don't currently have a way to test the Linux builds, so they may be less stable than the macOS and Windows builds.
 
 ## Development setup
 

@@ -192,7 +192,7 @@ export const DeveloperOverlay: React.FC = () => {
         >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                 <strong style={{ letterSpacing: 0.5 }}>Development Overlay</strong>
-                <span style={{ fontSize: 10, opacity: 0.75 }}>Press ? to toggle</span>
+                <span style={{ fontSize: 10, opacity: 0.75 }}>Press Ctrl+Shift+D to toggle</span>
             </div>
 
             <TransportSection

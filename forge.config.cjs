@@ -135,6 +135,25 @@ module.exports = {
             },
             platforms: ['darwin'],
         },
+        {
+            name: '@electron-forge/maker-deb',
+            config: {
+                options: {
+                    name: isNightly ? 'mvmnt-nightly' : 'mvmnt',
+                    bin: executableName,
+                    productName,
+                    maintainer: 'Maokus',
+                    homepage: 'https://github.com/Maokus/MVMNT',
+                    categories: ['Graphics', 'Video'],
+                    icon: path.resolve(__dirname, 'src/assets/Logo_Transparent.png'),
+                },
+            },
+            platforms: ['linux'],
+        },
+        {
+            name: '@electron-forge/maker-zip',
+            platforms: ['linux'],
+        },
     ],
     publishers: [
         {

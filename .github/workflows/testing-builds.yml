@@ -83,6 +83,13 @@ jobs:
                       command: npm run make:win
                       artifact_suffix: windows-x64
                       artifact_path: out/make/**/*
+                    - name: Linux
+                      runner: ubuntu-latest
+                      command: npm run make:linux
+                      artifact_suffix: linux-x64
+                      artifact_path: |
+                          out/make/**/*.deb
+                          out/make/**/*.zip
         steps:
             - uses: actions/checkout@v7
             - uses: actions/setup-node@v7
@@ -93,6 +100,9 @@ jobs:
               run: node scripts/verify-analytics-build.cjs
             - run: npm version "${{ needs.metadata.outputs.version }}" --no-git-tag-version --workspaces=false
             - run: npm install
+            - name: Install Linux packaging tools
+              if: runner.os == 'Linux'
+              run: sudo apt-get update && sudo apt-get install -y fakeroot dpkg
             - run: ${{ matrix.command }}
               env:
                   # Testing artifacts are intentionally unsigned.

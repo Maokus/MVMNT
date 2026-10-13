@@ -38,8 +38,10 @@
     "devDependencies": {
         "@arethetypeswrong/cli": "^0.18.5",
         "@electron-forge/cli": "^7.11.2",
+        "@electron-forge/maker-deb": "^7.11.2",
         "@electron-forge/maker-dmg": "^7.11.2",
         "@electron-forge/maker-squirrel": "^7.11.2",
+        "@electron-forge/maker-zip": "^7.11.2",
         "@electron-forge/publisher-github": "^7.11.2",
         "@posthog/rollup-plugin": "^1.4.9",
         "@testing-library/dom": "^10.4.0",
@@ -82,6 +84,7 @@
         "make": "node scripts/run-packaged-build.mjs make",
         "make:mac": "node scripts/run-packaged-build.mjs make:mac",
         "make:win": "node scripts/run-packaged-build.mjs make:win",
+        "make:linux": "node scripts/run-packaged-build.mjs make:linux",
         "publish": "node scripts/run-packaged-build.mjs publish",
         "pretest": "npm run build:plugin-sdk",
         "test": "vitest run",

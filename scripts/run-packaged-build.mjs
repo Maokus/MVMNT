@@ -11,6 +11,7 @@ const forgeArgs = {
     make: ['make'],
     'make:mac': ['make', '--platform=darwin', '--arch=universal'],
     'make:win': ['make', '--platform=win32', '--arch=x64'],
+    'make:linux': ['make', '--platform=linux', '--arch=x64'],
     publish: ['publish'],
 }[operation];
 

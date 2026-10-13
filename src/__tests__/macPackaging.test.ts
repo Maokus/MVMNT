@@ -162,7 +162,7 @@ describe('macOS packaging dependencies', () => {
             expect(workflow).toContain('POSTHOG_PROJECT_ID: ${{ vars.POSTHOG_PROJECT_ID }}');
         }
         expect(testingWorkflow.match(/run: node scripts\/verify-analytics-build\.cjs/g)).toHaveLength(1);
-        expect(releaseWorkflow.match(/run: node scripts\/verify-analytics-build\.cjs/g)).toHaveLength(2);
+        expect(releaseWorkflow.match(/run: node scripts\/verify-analytics-build\.cjs/g)).toHaveLength(3);
     });
 
     it('rejects packaged builds with no analytics token or a non-EU host', () => {
