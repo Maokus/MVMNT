@@ -1,20 +1,16 @@
 import { useState, useRef, useEffect } from 'react';
 import type { PointerEventHandler } from 'react';
 import { useTimelineStore } from '@state/timelineStore';
-import { zoomAround, isEditableTarget } from '../utils/timelineNavUtils';
-import { useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
-import { isCommandSurfaceActive } from '@context/commands/commandContext';
+import { zoomAround } from '../utils/timelineNavUtils';
 
 /**
  * Handles all pointer and touch gesture interactions on the timeline right pane:
  * - Middle-button drag to pan
- * - Space + left-drag to pan
  * - Pinch-to-zoom (touch)
  * - Ctrl/Cmd + wheel to zoom around cursor
  * - Horizontal wheel scroll to pan
  * - Scroll-left sync: translates native scroll into tick view shifts
  * - Safari gesture prevention
- * - Space key tracking (to coordinate with play/pause)
  *
  * Returns refs and event handlers to attach to the DOM.
  */
@@ -28,27 +24,8 @@ export function useTimelinePointerControls() {
     const rightDragRef = useRef<{ active: boolean; startClientX: number; startView: { s: number; e: number } } | null>(
         null
     );
-    const spaceDownRef = useRef(false);
-    const didSpaceDragRef = useRef(false);
-    const spaceDragRef = useRef<{ startClientX: number; startView: { s: number; e: number } } | null>(null);
     const activePointersRef = useRef<Map<number, { clientX: number; clientY: number }>>(new Map());
     const pinchRef = useRef<{ dist: number; startView: { s: number; e: number }; pivotTick: number } | null>(null);
-
-    useGlobalShortcut({
-        id: 'focused-control.timeline-space-drag',
-        domain: 'focused-control',
-        matches: (event) =>
-            event.code === 'Space' &&
-            !event.repeat &&
-            isCommandSurfaceActive(['timeline-clips', 'timeline-automation'], event) &&
-            !isEditableTarget(document.activeElement),
-        handle: (event) => {
-            spaceDownRef.current = true;
-            didSpaceDragRef.current = false;
-            event.preventDefault();
-            return true;
-        },
-    });
 
     const onRightPointerDown: PointerEventHandler<HTMLDivElement> = (e) => {
         activePointersRef.current.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
@@ -79,16 +56,6 @@ export function useTimelinePointerControls() {
             pinchRef.current = { dist, startView: { s: view.startTick, e: view.endTick }, pivotTick };
             return;
         }
-
-        // Left button + Space held — space-drag pan
-        if (e.button === 0) {
-            if (spaceDownRef.current) {
-                (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-                spaceDragRef.current = { startClientX: e.clientX, startView: { s: view.startTick, e: view.endTick } };
-                didSpaceDragRef.current = true;
-                e.preventDefault();
-            }
-        }
     };
 
     const onRightPointerMove: PointerEventHandler<HTMLDivElement> = (e) => {
@@ -103,18 +70,6 @@ export function useTimelinePointerControls() {
             const range = Math.max(1, drag.startView.e - drag.startView.s);
             const shift = Math.round(((e.clientX - drag.startClientX) / width) * range);
             setTimelineViewTicks(drag.startView.s - shift, drag.startView.e - shift);
-            return;
-        }
-
-        // Space-drag pan
-        const spaceDrag = spaceDragRef.current;
-        if (spaceDrag) {
-            const container = lanesScrollRef.current;
-            if (!container) return;
-            const width = Math.max(1, container.getBoundingClientRect().width);
-            const range = Math.max(1, spaceDrag.startView.e - spaceDrag.startView.s);
-            const shift = Math.round((-(e.clientX - spaceDrag.startClientX) / width) * range);
-            setTimelineViewTicks(spaceDrag.startView.s + shift, spaceDrag.startView.e + shift);
             return;
         }
 
@@ -136,12 +91,6 @@ export function useTimelinePointerControls() {
 
         if (rightDragRef.current?.active) {
             rightDragRef.current = null;
-            try {
-                (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-            } catch {}
-        }
-        if (spaceDragRef.current) {
-            spaceDragRef.current = null;
             try {
                 (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
             } catch {}
@@ -181,22 +130,6 @@ export function useTimelinePointerControls() {
         rightPaneEl.addEventListener('wheel', handleWheel, { passive: false });
         return () => rightPaneEl.removeEventListener('wheel', handleWheel);
     }, [rightPaneEl]);
-
-    // Space key tracking — allows space-drag pan while preventing conflict with play/pause
-    useEffect(() => {
-        const onKeyUp = (e: KeyboardEvent) => {
-            if (e.code !== 'Space' || !spaceDownRef.current) return;
-            e.preventDefault();
-            if (!didSpaceDragRef.current) useTimelineStore.getState().togglePlay();
-            spaceDownRef.current = false;
-            didSpaceDragRef.current = false;
-            spaceDragRef.current = null;
-        };
-        window.addEventListener('keyup', onKeyUp);
-        return () => {
-            window.removeEventListener('keyup', onKeyUp);
-        };
-    }, []);
 
     // Scroll sync: translate native scroll into tick view shifts (prevents page scroll)
     // rightPaneEl mounting signals that lanesScrollRef.current is also set

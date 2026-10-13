@@ -41,7 +41,6 @@ const sections = [
             ['⌘/Ctrl + C / V', 'Copy / paste keyframes (automation pane)'],
             ['⌘/Ctrl + D', 'Duplicate selected keyframes (automation pane)'],
             ['Space', 'Play / pause'],
-            ['Space + drag', 'Pan timeline'],
             ['Middle-button drag', 'Pan timeline'],
             ['Horizontal scroll', 'Pan timeline'],
             ['⌘/Ctrl + scroll', 'Zoom timeline around pointer'],

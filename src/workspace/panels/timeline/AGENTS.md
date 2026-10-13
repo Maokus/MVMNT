@@ -67,6 +67,6 @@ React contexts scoped to the timeline panel.
 
 - All tick-based math uses **canonical PPQ** (`CANONICAL_PPQ` from `@core/timing/ppq`). Never hardcode raw tick values.
 - View state (`startTick` / `endTick`) lives in `timelineStore.timelineView`. Event callbacks must read it via `useTimelineStore.getState()` — not from React state — to avoid stale closures.
-- The gesture system (pinch, middle-drag, space-drag, wheel zoom) is entirely in `useTimelinePointerControls`. Add new gestures there.
+- The gesture system (pinch, middle-drag, wheel zoom) is entirely in `useTimelinePointerControls`. Add new gestures there.
 - Import logic flows: file input / drop → `useMidiImport` or `useAudioImport` → modal prompts via `useImportModals` → store actions (`addMidiTrack` / `addAudioTrack`).
 - The `void timeline;` line in `TimelinePanel` is intentional: it subscribes to general timeline state without passing the value anywhere, ensuring the component re-renders when the store changes.

@@ -51,5 +51,7 @@ describe('ControlsModal', () => {
         expect(dialog).toHaveTextContent('Copy / paste / cut clips (clip pane)');
         expect(dialog).toHaveTextContent('Previous / next keyframe (automation pane)');
         expect(dialog).toHaveTextContent('Ctrl + Shift + D');
+        expect(dialog).toHaveTextContent('Space');
+        expect(dialog).not.toHaveTextContent('Space + drag');
     });
 });

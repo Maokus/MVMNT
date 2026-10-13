@@ -35,7 +35,6 @@ Returns: `isDragActive`, and five `onPanel*` event handlers to spread onto the p
 All pointer and touch gesture handling for the right (lanes) pane:
 
 - Middle-button drag → pan
-- Space + left-drag → pan
 - Two-finger pinch → zoom
 - Ctrl/Cmd + wheel → zoom around cursor
 - Horizontal wheel → pan (consumed to prevent browser back-navigation)
@@ -66,8 +65,7 @@ View preset callbacks and global keyboard shortcuts.
 | `Delete` / `Backspace` | Remove selected tracks                     |
 
 All shortcuts skip when focus is in a text-editable element and run only while the corresponding
-timeline surface is active. A Space tap toggles playback; holding Space and starting a lane drag
-pans without also toggling playback.
+timeline surface is active. Space toggles playback through `useTransportBridge` on keydown.
 
 ### useAutoFollow.ts
 
