@@ -11,6 +11,7 @@ import { isTextEditingTarget, useGlobalShortcut } from '@context/shortcuts/short
 import { activateCommandSurface, isCommandSurfaceActive } from '@context/commands/commandContext';
 import type { SceneSimulationReadiness } from '@state/scene/runtimeAdapter';
 import { SIMULATION_PENDING_NOTICE_GRACE_MS } from '@core/scene/runtime/simulation-runner';
+import { framePreviewBounds, unionPreviewBounds, type PreviewBounds } from './previewFraming';
 
 interface PreviewPanelProps {
     interactive?: boolean;
@@ -38,8 +39,14 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
     const ctx = useVisualizer();
     const { canvasRef, exportSettings } = ctx;
     const view = useTimelineStore((s) => s.timelineView);
-    const { selectElement, selectNode, updateElementConfig, incrementPropertyPanelRefresh, addElement } =
-        useSceneSelection();
+    const {
+        selectElement,
+        selectNode,
+        selectedNodeIds,
+        updateElementConfig,
+        incrementPropertyPanelRefresh,
+        addElement,
+    } = useSceneSelection();
     const width = exportSettings.width;
     const height = exportSettings.height;
     // Sizing state for display (CSS) size of canvas maintaining aspect ratio
@@ -87,16 +94,50 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
             }
             zoomRef.current = nextZoom;
             panRef.current = nextPan;
+            const canvas = canvasRef.current;
+            if (canvas) canvas.style.transform = `translate(${nextPan.x}px, ${nextPan.y}px) scale(${nextZoom})`;
             setZoom(nextZoom);
             setPan(nextPan);
             visualizerInstance?.invalidateRender?.();
         },
-        [visualizerInstance]
+        [canvasRef, visualizerInstance]
     );
 
     const resetViewTransform = useCallback(() => {
         applyViewTransform(1, { x: 0, y: 0 });
     }, [applyViewTransform]);
+
+    const frameBounds = useCallback(
+        (bounds: PreviewBounds | null) => {
+            const container = containerRef.current;
+            if (!bounds || !container) return;
+            const next = framePreviewBounds(bounds, { width, height }, displaySize, {
+                width: container.clientWidth,
+                height: container.clientHeight,
+            });
+            if (next) applyViewTransform(next.zoom, next.pan);
+        },
+        [applyViewTransform, displaySize, width, height]
+    );
+
+    const fitAllContent = useCallback(() => {
+        const time = visualizerInstance?.getCurrentTime?.() ?? 0;
+        const artwork = visualizerInstance?.getElementBoundsAtTime?.(time) ?? [];
+        frameBounds(
+            unionPreviewBounds([
+                { x: 0, y: 0, width, height },
+                ...artwork
+                    .filter((record: { effectiveVisible?: boolean }) => record.effectiveVisible !== false)
+                    .map((record: { bounds: PreviewBounds }) => record.bounds),
+            ])
+        );
+    }, [visualizerInstance, frameBounds, width, height]);
+
+    const fitSelectedContent = useCallback(() => {
+        if (!selectedNodeIds.length) return;
+        const time = visualizerInstance?.getCurrentTime?.() ?? 0;
+        frameBounds(visualizerInstance?.getNodeSelectionAtTime?.(selectedNodeIds, time)?.bounds ?? null);
+    }, [selectedNodeIds, visualizerInstance, frameBounds]);
 
     const updatePan = useCallback(
         (nextPan: { x: number; y: number }) => {
@@ -162,6 +203,26 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
         handle: (event) => {
             event.preventDefault();
             resetViewTransform();
+            return true;
+        },
+    });
+
+    useGlobalShortcut({
+        id: 'preview.fit-content',
+        domain: 'focused-control',
+        enabled: interactive,
+        matches: (event) =>
+            isCommandSurfaceActive('preview', event) &&
+            event.shiftKey &&
+            !event.altKey &&
+            !event.ctrlKey &&
+            !event.metaKey &&
+            !isTextEditingTarget(event.target) &&
+            (event.code === 'Digit1' || event.code === 'Digit2'),
+        handle: (event) => {
+            event.preventDefault();
+            if (event.code === 'Digit1') fitAllContent();
+            else fitSelectedContent();
             return true;
         },
     });
@@ -494,7 +555,11 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
         <div
             className="preview-panel"
             data-command-surface="preview"
-            onPointerDownCapture={() => activateCommandSurface('preview')}
+            tabIndex={interactive ? 0 : undefined}
+            onPointerDownCapture={(event) => {
+                activateCommandSurface('preview');
+                if (interactive && !isTextEditingTarget(event.target)) event.currentTarget.focus();
+            }}
             onFocusCapture={() => activateCommandSurface('preview')}
             onPointerEnter={(event) => {
                 pointerPositionRef.current = { x: event.clientX, y: event.clientY };

@@ -4,11 +4,12 @@ import { useScene } from '@context/SceneContext';
 import logo from '@assets/Logo_Transparent.png';
 import { FaSave, FaFileExport, FaFolderOpen, FaMagic, FaPen, FaEllipsisV, FaCog } from 'react-icons/fa';
 import SceneSettingsModal from '@workspace/modals/SceneSettingsModal';
+import { ControlsModal } from '@workspace/modals/ControlsModal';
 import { BrowseTemplatesButton } from '@workspace/templates/BrowseTemplatesButton';
 import { easyModeTemplates } from '@workspace/templates/easyModeTemplates';
 import { useTemplateApply } from '@workspace/templates/useTemplateApply';
 import type { TemplateDefinition } from '@workspace/templates/types';
-import { matchesShortcut, useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
+import { isTextEditingTarget, matchesShortcut, useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
 import { BUILD_INFO } from '@app/build-info';
 import { CommandContextMenu } from '@workspace/components/CommandContextMenu';
 import { useDocumentSaveStatusStore } from '@state/documentSaveStatusStore';
@@ -69,6 +70,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
     const [showSceneMenu, setShowSceneMenu] = useState(false);
     const sceneMenuButtonRef = useRef<HTMLButtonElement>(null);
     const [showSettingsModal, setShowSettingsModal] = useState(false);
+    const [showControlsModal, setShowControlsModal] = useState(false);
     const templates = useMemo(() => easyModeTemplates, []);
     const hasTemplates = templates.length > 0;
     const applyTemplate = useTemplateApply();
@@ -85,6 +87,24 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
             event.preventDefault();
             setShowSceneMenu(false);
             setShowSettingsModal(true);
+            return true;
+        },
+    });
+
+    useGlobalShortcut({
+        id: 'document.controls',
+        domain: 'document',
+        enabled: !showControlsModal,
+        matches: (event) =>
+            !isTextEditingTarget(event.target) &&
+            !event.ctrlKey &&
+            !event.metaKey &&
+            !event.altKey &&
+            (event.key === '?' || (event.code === 'Slash' && event.shiftKey)),
+        handle: (event) => {
+            event.preventDefault();
+            setShowSceneMenu(false);
+            setShowControlsModal(true);
             return true;
         },
     });
@@ -165,6 +185,14 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                             title="Show onboarding / help"
                         >
                             help
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setShowControlsModal(true)}
+                            className="rounded px-1.5 py-1 text-neutral-300 hover:bg-white/10 hover:text-white"
+                            title="Show keyboard and mouse controls (?)"
+                        >
+                            controls
                         </button>
                         <Link
                             to="/community"
@@ -304,6 +332,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                 </div>
             </div>
             {showSettingsModal && <SceneSettingsModal onClose={() => setShowSettingsModal(false)} />}
+            {showControlsModal && <ControlsModal onClose={() => setShowControlsModal(false)} />}
         </>
     );
 };

@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
     selectElement: vi.fn(),
     canvasRef: { current: null as HTMLCanvasElement | null },
     visualizer: null as any,
+    selectedNodeIds: [] as string[],
 }));
 
 vi.mock('@context/VisualizerContext', () => ({
@@ -28,6 +29,7 @@ vi.mock('@context/SceneSelectionContext', () => ({
         updateElementConfig: vi.fn(),
         incrementPropertyPanelRefresh: vi.fn(),
         addElement: mocks.addElement,
+        selectedNodeIds: mocks.selectedNodeIds,
     }),
 }));
 
@@ -58,6 +60,7 @@ describe('PreviewPanel element creation shortcut', () => {
         mocks.addElement.mockReset();
         mocks.selectElement.mockReset();
         mocks.visualizer = null;
+        mocks.selectedNodeIds = [];
         globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver;
         useTimelineStore.setState((state) => ({
             transport: { ...state.transport, isPlaying: false },
@@ -363,6 +366,65 @@ describe('PreviewPanel element creation shortcut', () => {
             );
         });
         expect(canvas.style.transform).toBe('translate(0px, 0px) scale(1)');
+    });
+
+    it('uses the preview after focus leaves a field and resets pan and zoom with Command+0', () => {
+        const { container } = render(<PreviewPanel />);
+        const preview = container.querySelector<HTMLElement>('.preview-panel')!;
+        const canvas = container.querySelector<HTMLCanvasElement>('#canvas')!;
+        const input = document.createElement('input');
+        document.body.appendChild(input);
+        input.focus();
+        act(() =>
+            fireEvent(
+                canvas,
+                new WheelEvent('wheel', {
+                    bubbles: true,
+                    cancelable: true,
+                    ctrlKey: true,
+                    deltaY: -100,
+                    clientX: 40,
+                    clientY: 40,
+                })
+            )
+        );
+        act(() =>
+            fireEvent(canvas, new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaX: 20, deltaY: 10 }))
+        );
+        expect(canvas.style.transform).not.toBe('translate(0px, 0px) scale(1)');
+
+        fireEvent.pointerDown(preview);
+        expect(document.activeElement).toBe(preview);
+        act(() => fireEvent.keyDown(window, { key: '0', code: 'Digit0', metaKey: true }));
+        expect(canvas.style.transform).toBe('translate(0px, 0px) scale(1)');
+        input.remove();
+    });
+
+    it('fits visible off-canvas artwork and then frames selected nodes', () => {
+        mocks.selectedNodeIds = ['node-1'];
+        mocks.visualizer = {
+            getCurrentTime: () => 2,
+            getElementBoundsAtTime: vi.fn(() => [
+                { bounds: { x: 2200, y: 0, width: 400, height: 400 }, effectiveVisible: true },
+                { bounds: { x: -9000, y: 0, width: 100, height: 100 }, effectiveVisible: false },
+            ]),
+            getNodeSelectionAtTime: vi.fn(() => ({ bounds: { x: 2200, y: 0, width: 400, height: 400 } })),
+        };
+        const { container } = render(<PreviewPanel />);
+        const preview = container.querySelector<HTMLElement>('.preview-panel')!;
+        const canvasContainer = container.querySelector<HTMLElement>('.canvas-container')!;
+        const canvas = container.querySelector<HTMLCanvasElement>('#canvas')!;
+        Object.defineProperties(canvasContainer, { clientWidth: { value: 1000 }, clientHeight: { value: 600 } });
+        act(() => window.dispatchEvent(new Event('resize')));
+        fireEvent.pointerDown(preview);
+
+        act(() => fireEvent.keyDown(window, { key: '!', code: 'Digit1', shiftKey: true }));
+        expect(mocks.visualizer.getElementBoundsAtTime).toHaveBeenCalledWith(2);
+        expect(canvas.style.transform).toContain('scale(');
+        const fitAll = canvas.style.transform;
+        act(() => fireEvent.keyDown(window, { key: '@', code: 'Digit2', shiftKey: true }));
+        expect(mocks.visualizer.getNodeSelectionAtTime).toHaveBeenCalledWith(['node-1'], 2);
+        expect(canvas.style.transform).not.toBe(fitAll);
     });
 
     it('pans the preview with two-axis trackpad scrolling', () => {
