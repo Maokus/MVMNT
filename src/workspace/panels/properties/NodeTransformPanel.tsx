@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
     channelForTarget,
     elementPropertyTarget,
@@ -31,7 +31,6 @@ import { dispatchPropertyEdits, propertyEditMergeKey, effectiveValueForTarget } 
 import { elementPropertyDescriptors, hostPropertyDescriptors } from '@state/scene/propertyCatalog';
 import { resolveAutomationValueType } from './KeyframeControl';
 import { AggregateTransformSession } from './aggregateTransformSession';
-import { hoveredPropertyRef } from './hoveredPropertyRef';
 import { CommandContextMenu } from '@workspace/components/CommandContextMenu';
 import { readFiniteTransformInput, unwrapTransformInputValue } from './nodeTransformInput';
 import { resolveNodeTransformValue } from './nodeTransformValue';

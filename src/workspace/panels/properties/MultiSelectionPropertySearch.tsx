@@ -1,4 +1,3 @@
-import React from 'react';
 import { FaSearch, FaTimes } from 'react-icons/fa';
 
 export function MultiSelectionPropertySearch({
