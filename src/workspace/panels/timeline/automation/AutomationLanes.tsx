@@ -671,7 +671,7 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
     return (
         <div
             ref={containerRef}
-            className="automation-lanes relative border-t border-neutral-700"
+            className="automation-lanes relative border-t border-neutral-800"
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}

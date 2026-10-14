@@ -122,7 +122,7 @@ const ScenePluginsTab: React.FC = () => {
                 </p>
             </div>
 
-            <section className="rounded-lg border border-neutral-800 bg-neutral-900/70 p-4">
+            <section className="rounded border border-neutral-800 bg-neutral-900/70 p-4">
                 <h4 className="m-0 text-[12px] font-semibold text-white">Import Plugin</h4>
                 <p className="mt-2 text-[12px] text-neutral-300">
                     Select a{' '}
@@ -190,7 +190,7 @@ const ScenePluginsTab: React.FC = () => {
                 )}
             </section>
 
-            <section className="rounded-lg border border-neutral-800 bg-neutral-900/70 p-4">
+            <section className="rounded border border-neutral-800 bg-neutral-900/70 p-4">
                 <h4 className="m-0 text-[12px] font-semibold text-white">Installed Plugins</h4>
 
                 {pluginList.length === 0 ? (
@@ -204,12 +204,12 @@ const ScenePluginsTab: React.FC = () => {
                             return (
                                 <div
                                     key={plugin.manifest.id}
-                                    className={`rounded-lg border p-3 transition ${
+                                    className={`rounded border p-3 transition ${
                                         hasError
                                             ? 'border-rose-500/40 bg-rose-900/20'
                                             : plugin.enabled
                                               ? 'border-emerald-500/40 bg-emerald-900/20'
-                                              : 'border-neutral-700 bg-neutral-800/50'
+                                              : 'border-neutral-800 bg-neutral-800/50'
                                     }`}
                                 >
                                     <div className="flex items-start justify-between gap-3">

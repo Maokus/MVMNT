@@ -149,7 +149,7 @@ const TrackEditorRow: React.FC<TrackEditorRowProps> = ({ trackId, isDragOver, dr
                             return (
                                 <input
                                     aria-label="Track gain (dB)"
-                                    className="w-8 rounded border border-neutral-700 bg-neutral-800/60 px-1 text-neutral-200 focus:border-blue-400 focus:outline-none"
+                                    className="w-8 rounded border border-neutral-800 bg-neutral-800 px-1 text-neutral-200 focus:border-blue-400 focus:outline-none"
                                     type="text"
                                     defaultValue={display}
                                     style={{ height: pillHeight, minHeight: pillHeight, fontSize: smallFontSize }}

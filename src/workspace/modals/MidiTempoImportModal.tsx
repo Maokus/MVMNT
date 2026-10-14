@@ -23,7 +23,7 @@ export function MidiTempoImportModal({
             shortcutId="modal.midi-tempo-import.escape"
             label="Import Tempo Changes"
             onCancel={() => onChoice('skip')}
-            cardClassName="relative w-[min(90vw,440px)] max-h-[90vh] overflow-y-auto rounded-lg border border-neutral-700 bg-neutral-900/95 p-6 text-sm text-neutral-200 shadow-2xl"
+            cardClassName="relative w-[min(90vw,440px)] max-h-[90vh] overflow-y-auto rounded border border-neutral-800 bg-neutral-900 p-6 text-sm text-neutral-200 "
         >
             <h2 className="m-0 text-lg font-semibold text-white">Import Tempo Changes</h2>
             <p className="mt-3 text-[13px] leading-relaxed text-neutral-300">
@@ -35,7 +35,7 @@ export function MidiTempoImportModal({
                 <button
                     type="button"
                     onClick={() => onChoice('skip')}
-                    className="rounded border border-transparent px-3 py-1.5 text-neutral-300 transition-colors hover:bg-white/10 hover:text-white"
+                    className="rounded border border-transparent px-3 py-1.5 text-neutral-300 transition-colors hover:bg-neutral-800 hover:text-white"
                 >
                     Skip
                 </button>

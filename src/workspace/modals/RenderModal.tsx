@@ -308,7 +308,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
             label="Render / Export"
             onCancel={onClose}
             outerClassName="fixed inset-0 flex items-center justify-center z-[9700]"
-            cardClassName="border rounded-lg w-[560px] max-w-[92vw] max-h-[90vh] overflow-y-auto p-5 [background-color:var(--twc-menubar)] [border-color:var(--twc-border)] shadow-2xl relative"
+            cardClassName="border rounded w-[560px] max-w-[92vw] max-h-[90vh] overflow-y-auto p-5 [background-color:var(--twc-menubar)] [border-color:var(--twc-border)]  relative"
         >
             <h2 className="m-0 text-xl font-semibold mb-2">Render / Export</h2>
             <p className="m-0 mb-4 text-sm opacity-80">
@@ -679,7 +679,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
             </details>
 
             {/* File size estimate */}
-            <div className="mt-4 p-3 bg-neutral-900/50 border border-neutral-700 rounded text-sm">
+            <div className="mt-4 p-3 bg-neutral-900 border border-neutral-800 rounded text-sm">
                 <div className="flex items-center justify-between">
                     <span className="text-neutral-400">Estimated file size:</span>
                     <span className="font-medium text-neutral-200">

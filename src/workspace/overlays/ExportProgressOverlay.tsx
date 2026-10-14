@@ -50,7 +50,7 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
     return (
         <>
             <div className="fixed bottom-4 right-4 z-[10000] w-[420px] max-w-[calc(100vw-2rem)]">
-                <div className="border rounded-lg p-4 text-left shadow-2xl [background-color:var(--twc-menubar)] [border-color:var(--twc-border)]">
+                <div className="border rounded p-4 text-left  [background-color:var(--twc-menubar)] [border-color:var(--twc-border)]">
                     <div className={`flex items-center justify-between${isCollapsed ? ' mb-2' : ' mb-3'}`}>
                         <div className="flex min-w-0 items-center gap-2">
                             {!active && !isCollapsed && (
@@ -130,7 +130,7 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
                             </div>
                         ))}
                     {!isCollapsed && visibleJobs.length > 0 && (
-                        <div className="mt-3 pt-3 border-t border-neutral-700 space-y-1">
+                        <div className="mt-3 pt-3 border-t border-neutral-800 space-y-1">
                             {visibleJobs.map((job) => (
                                 <div key={job.id} className="min-w-0 text-xs">
                                     <div className="flex items-center justify-between gap-2">

@@ -13,7 +13,7 @@ const SmallScreenWarning: React.FC<SmallScreenWarningProps> = ({ onProceed }) =>
             role="dialog"
             aria-modal="true"
         >
-            <div className="border rounded-lg max-w-[560px] w-[92vw] p-6 [background-color:var(--twc-menubar)] [border-color:var(--twc-border)] shadow-2xl">
+            <div className="border rounded max-w-[560px] w-[92vw] p-6 [background-color:var(--twc-menubar)] [border-color:var(--twc-border)] ">
                 <h2 className="m-0 text-xl font-semibold mb-2">Best viewed on a larger screen</h2>
                 <p className="opacity-80 text-sm leading-relaxed">
                     This app is intended for desktop use and works best at widths of 1200px or more. Some layouts may

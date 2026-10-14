@@ -45,7 +45,7 @@ export function OnboardingOverlay({ onClose, onStart, busy, error, restarting }:
                     aria-labelledby="onboarding-title"
                     aria-describedby="onboarding-description"
                     aria-busy={busy}
-                    className="w-[380px] max-w-[90vw] rounded-lg border border-neutral-700 bg-neutral-900/95 p-5 text-sm text-neutral-200 shadow-2xl"
+                    className="w-[380px] max-w-[90vw] rounded border border-neutral-800 bg-neutral-900 p-5 text-sm text-neutral-200 "
                 >
                     <h2 id="onboarding-title" className="m-0 text-lg font-semibold text-white">
                         Would you like to try the tutorial?

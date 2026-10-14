@@ -108,9 +108,9 @@ export function ControlsModal({ onClose }: { onClose: () => void }) {
                     role="dialog"
                     aria-modal="true"
                     aria-labelledby="controls-title"
-                    className="flex max-h-[85vh] w-[760px] max-w-[95vw] flex-col rounded-xl border border-neutral-700 bg-neutral-900 text-neutral-100 shadow-2xl"
+                    className="flex max-h-[85vh] w-[760px] max-w-[95vw] flex-col rounded border border-neutral-800 bg-neutral-900 text-neutral-100 "
                 >
-                    <div className="flex items-center justify-between border-b border-neutral-700 px-5 py-4">
+                    <div className="flex items-center justify-between border-b border-neutral-800 px-5 py-4">
                         <div>
                             <h2 id="controls-title" className="m-0 text-xl font-semibold">
                                 Controls
@@ -123,7 +123,7 @@ export function ControlsModal({ onClose }: { onClose: () => void }) {
                             type="button"
                             onClick={onClose}
                             aria-label="Close controls"
-                            className="rounded border border-transparent px-2 py-1 text-lg text-neutral-300 hover:bg-white/10 focus:outline-none focus:border-neutral-400"
+                            className="rounded border border-transparent px-2 py-1 text-lg text-neutral-300 hover:bg-neutral-800 focus:outline-none focus:border-neutral-400"
                         >
                             ×
                         </button>
@@ -150,7 +150,7 @@ export function ControlsModal({ onClose }: { onClose: () => void }) {
                             </div>
                         ))}
                     </div>
-                    <p className="m-0 border-t border-neutral-700 px-5 py-3 text-xs text-neutral-400">
+                    <p className="m-0 border-t border-neutral-800 px-5 py-3 text-xs text-neutral-400">
                         Press ? to open this guide and Esc to close it.
                     </p>
                 </section>

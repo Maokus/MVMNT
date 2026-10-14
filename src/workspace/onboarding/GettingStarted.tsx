@@ -57,7 +57,7 @@ export function GettingStarted({
     return (
         <section
             aria-label="Tutorial"
-            className="m-2 flex-none rounded-xl border border-indigo-400/30 bg-neutral-900 text-neutral-100"
+            className="m-2 flex-none rounded border border-indigo-400/30 bg-neutral-900 text-neutral-100"
         >
             <div className="flex items-center justify-between gap-2 px-3 py-2">
                 <button
@@ -86,7 +86,7 @@ export function GettingStarted({
             {!collapsed && (
                 <div
                     id="getting-started-steps"
-                    className="max-h-[35dvh] overflow-y-auto border-t border-neutral-700/60 px-3 py-3"
+                    className="max-h-[35dvh] overflow-y-auto border-t border-neutral-800/60 px-3 py-3"
                 >
                     {complete ? (
                         <>

@@ -114,7 +114,7 @@ const ElementDropdown: React.FC<ElementDropdownProps> = ({ onAddElement, onClose
     return (
         <div
             ref={dropdownRef}
-            className={`relative z-[1000] overflow-visible rounded border border-control2 bg-menubar shadow-lg ${className ?? ''}`}
+            className={`relative z-[1000] overflow-visible rounded border border-control2 bg-menubar  ${className ?? ''}`}
             style={style}
             onMouseLeave={scheduleClose}
             onMouseEnter={clearCloseTimeout}
@@ -130,7 +130,7 @@ const ElementDropdown: React.FC<ElementDropdownProps> = ({ onAddElement, onClose
                             className={`flex items-center gap-2 px-3 py-2 text-left text-[13px] transition-colors ${
                                 openCategory === category
                                     ? 'bg-neutral-800/80 text-white'
-                                    : 'text-neutral-300 hover:bg-neutral-800/70 hover:text-white'
+                                    : 'text-neutral-300 hover:bg-neutral-800 hover:text-white'
                             }`}
                         >
                             <FaChevronLeft className="text-xs opacity-70" />
@@ -163,7 +163,7 @@ const ElementDropdown: React.FC<ElementDropdownProps> = ({ onAddElement, onClose
                                         type="button"
                                         key={type.type}
                                         onClick={() => handleItemClick(type.type)}
-                                        className="flex w-full items-center justify-between gap-2 rounded px-3 py-2 text-left text-[13px] text-neutral-200 transition-colors hover:bg-neutral-800/70 hover:text-white"
+                                        className="flex w-full items-center justify-between gap-2 rounded px-3 py-2 text-left text-[13px] text-neutral-200 transition-colors hover:bg-neutral-800 hover:text-white"
                                         title={type.description}
                                     >
                                         <span>{type.name}</span>

@@ -393,11 +393,11 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
             label="Scene Settings"
             onCancel={onClose}
             outerClassName="fixed inset-0 z-[9800] flex items-center justify-center"
-            cardClassName="relative flex h-full max-h-[90vh] w-[700px] max-w-[95vw] flex-col overflow-hidden rounded-lg border border-neutral-700 bg-neutral-900/95 p-5 text-sm text-neutral-200 shadow-2xl"
+            cardClassName="relative flex h-full max-h-[90vh] w-[700px] max-w-[95vw] flex-col overflow-hidden rounded border border-neutral-800 bg-neutral-900 p-5 text-sm text-neutral-200 "
         >
             <button
                 type="button"
-                className="absolute right-3 top-3 rounded-full border border-transparent p-1 text-neutral-400 transition-colors hover:bg-white/10 hover:text-white"
+                className="absolute right-3 top-3 rounded-full border border-transparent p-1 text-neutral-400 transition-colors hover:bg-neutral-800 hover:text-white"
                 onClick={onClose}
                 aria-label="Close scene settings"
             >
@@ -416,7 +416,7 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                         className={`rounded px-3 py-1 text-[12px] transition-colors ${
                             activeTab === tab.id
                                 ? 'bg-sky-600/20 text-sky-200'
-                                : 'text-neutral-400 hover:bg-neutral-800/60 hover:text-neutral-100'
+                                : 'text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100'
                         }`}
                     >
                         {tab.label}
@@ -486,7 +486,7 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                                 <select
                                     value={scalingMode}
                                     onChange={(e) => setScalingMode(e.target.value as ResizeScalingMode)}
-                                    className="w-full rounded border border-neutral-700 bg-neutral-800/60 px-2 py-[5px] text-[12px] text-neutral-100 focus:border-sky-500 focus:outline-none"
+                                    className="w-full rounded border border-neutral-800 bg-neutral-800 px-2 py-[5px] text-[12px] text-neutral-100 focus:border-sky-500 focus:outline-none"
                                 >
                                     {SCALING_MODE_OPTIONS.map((opt) => (
                                         <option key={opt.id} value={opt.id}>
@@ -594,7 +594,7 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                             />
                             Enable Development Overlay
                         </label>
-                        <div className="mt-2 rounded border border-neutral-700 bg-neutral-800/40 p-3">
+                        <div className="mt-2 rounded border border-neutral-800 bg-neutral-800/40 p-3">
                             <div className="flex items-center justify-between gap-3">
                                 <div>
                                     <h4 className="m-0 text-[12px] font-medium text-neutral-100">
@@ -630,7 +630,7 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                                           : 'Scan'}
                                 </button>
                             </div>
-                            <div className="mt-3 border-t border-neutral-700 pt-3">
+                            <div className="mt-3 border-t border-neutral-800 pt-3">
                                 <div className="flex items-center justify-between gap-3 text-[11px] text-neutral-300">
                                     <span>Scanning ports {devPluginConnection.portRange}</span>
                                     <label className="flex cursor-pointer items-center gap-2">
@@ -685,7 +685,7 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                                         (e.currentTarget as HTMLInputElement).blur();
                                     }
                                 }}
-                                className="w-full rounded border border-neutral-700 bg-neutral-800/60 px-2 py-1 text-neutral-100 focus:border-sky-500 focus:outline-none"
+                                className="w-full rounded border border-neutral-800 bg-neutral-800 px-2 py-1 text-neutral-100 focus:border-sky-500 focus:outline-none"
                             />
                         </label>
                         <label className="flex flex-col gap-1 text-[12px]">
@@ -701,7 +701,7 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                                         (e.currentTarget as HTMLInputElement).blur();
                                     }
                                 }}
-                                className="w-full rounded border border-neutral-700 bg-neutral-800/60 px-2 py-1 text-neutral-100 focus:border-sky-500 focus:outline-none"
+                                className="w-full rounded border border-neutral-800 bg-neutral-800 px-2 py-1 text-neutral-100 focus:border-sky-500 focus:outline-none"
                             />
                         </label>
                         <label className="flex flex-col gap-1 text-[12px]">
@@ -711,7 +711,7 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                                 onChange={(e) => setLocalDescription(e.target.value)}
                                 onBlur={commitDescription}
                                 rows={3}
-                                className="w-full resize-none rounded border border-neutral-700 bg-neutral-800/60 px-2 py-2 text-neutral-100 focus:border-sky-500 focus:outline-none"
+                                className="w-full resize-none rounded border border-neutral-800 bg-neutral-800 px-2 py-2 text-neutral-100 focus:border-sky-500 focus:outline-none"
                             />
                         </label>
                         <label className="flex flex-col gap-1 text-[12px]">
@@ -727,7 +727,7 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                                         (e.currentTarget as HTMLInputElement).blur();
                                     }
                                 }}
-                                className="w-full rounded border border-neutral-700 bg-neutral-800/60 px-2 py-1 text-neutral-100 focus:border-sky-500 focus:outline-none"
+                                className="w-full rounded border border-neutral-800 bg-neutral-800 px-2 py-1 text-neutral-100 focus:border-sky-500 focus:outline-none"
                             />
                         </label>
                         <div className="grid grid-cols-1 gap-3 text-[11px] text-neutral-400 sm:grid-cols-2">

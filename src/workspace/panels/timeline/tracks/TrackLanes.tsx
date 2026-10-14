@@ -415,7 +415,7 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
             )}
 
             {activeTab === 'automation' && (
-                <div className="relative border-t border-neutral-700">
+                <div className="relative border-t border-neutral-800">
                     <div className="border-b border-neutral-800" style={{ height: AUTOMATION_HEADER_HEIGHT }} />
                     {tempoEnabled && tempoLaneVisible && (
                         <div style={{ height: TEMPO_LANE_HEIGHT }}>

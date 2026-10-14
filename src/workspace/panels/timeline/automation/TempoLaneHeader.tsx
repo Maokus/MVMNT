@@ -37,7 +37,7 @@ const TempoRangeControls: React.FC = () => {
                     aria-label="Minimum visible BPM"
                     type="text"
                     inputMode="decimal"
-                    className="w-12 rounded border border-neutral-700 bg-neutral-950 px-1 text-right text-neutral-200 read-only:text-neutral-500"
+                    className="w-12 rounded border border-neutral-800 bg-neutral-950 px-1 text-right text-neutral-200 read-only:text-neutral-500"
                     value={autoRange ? formatBpm(range.min) : minText}
                     readOnly={autoRange}
                     onChange={(event) => setMinText(event.target.value)}
@@ -55,7 +55,7 @@ const TempoRangeControls: React.FC = () => {
                     aria-label="Maximum visible BPM"
                     type="text"
                     inputMode="decimal"
-                    className="w-12 rounded border border-neutral-700 bg-neutral-950 px-1 text-right text-neutral-200 read-only:text-neutral-500"
+                    className="w-12 rounded border border-neutral-800 bg-neutral-950 px-1 text-right text-neutral-200 read-only:text-neutral-500"
                     value={autoRange ? formatBpm(range.max) : maxText}
                     readOnly={autoRange}
                     onChange={(event) => setMaxText(event.target.value)}
@@ -69,7 +69,7 @@ const TempoRangeControls: React.FC = () => {
                     type="button"
                     aria-label="Auto fit BPM range"
                     aria-pressed={autoRange}
-                    className={`rounded border px-1.5 ${autoRange ? 'border-amber-500/50 bg-amber-600/20 text-amber-300' : 'border-neutral-700 text-neutral-400 hover:text-neutral-200'}`}
+                    className={`rounded border px-1.5 ${autoRange ? 'border-amber-500/50 bg-amber-600/20 text-amber-300' : 'border-neutral-800 text-neutral-400 hover:text-neutral-200'}`}
                     onClick={() => {
                         if (autoRange) setManualRange(range);
                         else setAutoRange(true);
@@ -116,10 +116,10 @@ const TempoLaneHeader: React.FC = () => {
     }, [keyframes.length, resetTempoAutomationChanges]);
 
     return (
-        <div className="border-t border-neutral-700">
+        <div className="border-t border-neutral-800">
             {/* Header row */}
             <div
-                className="flex items-center justify-between gap-1 px-2 border-b border-neutral-800 bg-neutral-900/60 text-neutral-300"
+                className="flex items-center justify-between gap-1 px-2 border-b border-neutral-800 bg-neutral-900 text-neutral-300"
                 style={{ height: AUTOMATION_HEADER_HEIGHT }}
             >
                 <div className="min-w-0">
@@ -131,7 +131,7 @@ const TempoLaneHeader: React.FC = () => {
                 <div className="flex items-center gap-1">
                     {enabled && (
                         <button
-                            className="text-[9px] px-1.5 py-0.5 rounded border border-neutral-700 text-neutral-500 hover:text-neutral-300 hover:bg-neutral-800 transition-colors"
+                            className="text-[9px] px-1.5 py-0.5 rounded border border-neutral-800 text-neutral-500 hover:text-neutral-300 hover:bg-neutral-800 transition-colors"
                             onClick={toggleVisible}
                             title={laneVisible ? 'Hide tempo lane' : 'Show tempo lane'}
                         >
@@ -140,7 +140,7 @@ const TempoLaneHeader: React.FC = () => {
                     )}
                     {enabled && keyframes.length > 1 && (
                         <button
-                            className="text-[9px] px-1.5 py-0.5 rounded border border-neutral-700 text-neutral-500 hover:text-red-300 hover:bg-red-900/30 transition-colors"
+                            className="text-[9px] px-1.5 py-0.5 rounded border border-neutral-800 text-neutral-500 hover:text-red-300 hover:bg-red-900/30 transition-colors"
                             onClick={resetChanges}
                             title="Remove all tempo changes after Bar 1"
                         >
@@ -151,7 +151,7 @@ const TempoLaneHeader: React.FC = () => {
                         className={`text-[9px] px-1.5 py-0.5 rounded border transition-colors ${
                             enabled
                                 ? 'border-amber-500/50 bg-amber-600/30 text-amber-300 hover:bg-amber-600/50'
-                                : 'border-neutral-700 text-neutral-500 hover:text-neutral-300 hover:bg-neutral-800'
+                                : 'border-neutral-800 text-neutral-500 hover:text-neutral-300 hover:bg-neutral-800'
                         }`}
                         onClick={toggleEnabled}
                         title={enabled ? 'Disable tempo automation (keeps this tempo map)' : 'Enable tempo automation'}

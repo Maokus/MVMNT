@@ -155,7 +155,7 @@ const SceneFontManager: React.FC = () => {
     return (
         <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="inline-flex overflow-hidden rounded border border-neutral-700 bg-neutral-900/60 text-[10px] font-semibold uppercase tracking-wide text-neutral-300">
+                <div className="inline-flex overflow-hidden rounded border border-neutral-800 bg-neutral-900 text-[10px] font-semibold uppercase tracking-wide text-neutral-300">
                     {(['project', 'google', 'built-in', 'device'] as Section[]).map((item) => (
                         <button
                             key={item}
@@ -179,7 +179,7 @@ const SceneFontManager: React.FC = () => {
             {operationError && <p className="text-[11px] text-rose-400">{operationError}</p>}
 
             {section === 'project' && (
-                <div className="space-y-2 rounded border border-neutral-700 bg-neutral-900/40 p-3">
+                <div className="space-y-2 rounded border border-neutral-800 bg-neutral-900/40 p-3">
                     <div className="flex items-center justify-between text-xs text-neutral-400">
                         <span>Project Fonts · embedded in this file</span>
                         <span>{formatBytes(fonts.totalBytes)}</span>
@@ -231,7 +231,7 @@ const SceneFontManager: React.FC = () => {
                                                     [asset.id]: event.target.value,
                                                 }))
                                             }
-                                            className="rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-[11px] text-neutral-200"
+                                            className="rounded border border-neutral-800 bg-neutral-900 px-2 py-1 text-[11px] text-neutral-200"
                                         >
                                             <option value="">Choose replacement…</option>
                                             <option value="built-in">Inter · Built-in</option>
@@ -260,7 +260,7 @@ const SceneFontManager: React.FC = () => {
             )}
 
             {section === 'google' && (
-                <div className="space-y-3 rounded border border-neutral-700 bg-neutral-900/40 p-3">
+                <div className="space-y-3 rounded border border-neutral-800 bg-neutral-900/40 p-3">
                     <p className="text-xs text-neutral-400">
                         Selecting a family downloads every available weight and style and embeds it in the project.
                     </p>
@@ -295,7 +295,7 @@ const SceneFontManager: React.FC = () => {
             )}
 
             {section === 'built-in' && (
-                <div className="rounded border border-neutral-700 bg-neutral-900/40 p-3">
+                <div className="rounded border border-neutral-800 bg-neutral-900/40 p-3">
                     <div className="text-sm font-semibold text-neutral-100" style={{ fontFamily: 'Inter' }}>
                         Inter
                     </div>

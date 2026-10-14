@@ -21,7 +21,7 @@ export const TemplateLoadingOverlay: React.FC = () => {
             role="status"
             aria-live="polite"
         >
-            <div className="pointer-events-auto relative flex w-[min(90vw,24rem)] flex-col items-center gap-4 overflow-hidden rounded-lg border border-neutral-700 bg-neutral-900 px-7 py-6 text-center text-neutral-100 shadow-2xl">
+            <div className="pointer-events-auto relative flex w-[min(90vw,24rem)] flex-col items-center gap-4 overflow-hidden rounded border border-neutral-800 bg-neutral-900 px-7 py-6 text-center text-neutral-100 ">
                 <LoadingSpinner size={44} />
                 <div className="relative space-y-1">
                     <p className="text-sm font-semibold tracking-tight text-neutral-100">{message}</p>

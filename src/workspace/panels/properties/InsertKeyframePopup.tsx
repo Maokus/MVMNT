@@ -304,11 +304,11 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({ position, nod
 
             {/* Popup */}
             <div
-                className="fixed z-[1000] bg-[#252526] border border-neutral-700 rounded shadow-2xl overflow-hidden"
+                className="fixed z-[1000] bg-[#252526] border border-neutral-800 rounded  overflow-hidden"
                 style={{ left: x, top: y, width: POPUP_WIDTH }}
                 onMouseDown={(e) => e.stopPropagation()}
             >
-                <div className="px-3 pt-2.5 pb-2 border-b border-neutral-700/80">
+                <div className="px-3 pt-2.5 pb-2 border-b border-neutral-800/80">
                     <p className="text-[10px] font-semibold text-neutral-400 mb-1.5 uppercase tracking-wider select-none">
                         Insert Keyframe
                     </p>

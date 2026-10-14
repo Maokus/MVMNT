@@ -306,7 +306,7 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
             {selected && (
                 <div
                     key={selected.tick}
-                    className="absolute right-2 top-1 flex items-center gap-1 rounded border border-neutral-700 bg-neutral-900/95 px-1.5 py-1 text-[9px] shadow-lg"
+                    className="absolute right-2 top-1 flex items-center gap-1 rounded border border-neutral-800 bg-neutral-900 px-1.5 py-1 text-[9px] "
                     onPointerDown={(event) => event.stopPropagation()}
                 >
                     <span className="text-amber-300">

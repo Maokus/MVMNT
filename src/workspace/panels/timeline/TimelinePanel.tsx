@@ -123,10 +123,10 @@ const TimelinePanel: React.FC = () => {
                                 autoKeying ? 'Auto-keying: On (click to disable)' : 'Auto-keying: Off (click to enable)'
                             }
                             onClick={() => setAutoKeying(!autoKeying)}
-                            className={`px-2 py-1 rounded border border-neutral-700 flex items-center justify-center transition-colors mr-2 ${
+                            className={`px-2 py-1 rounded border border-neutral-800 flex items-center justify-center transition-colors mr-2 ${
                                 autoKeying
                                     ? 'bg-red-600/70 text-white border-red-400/70'
-                                    : 'bg-neutral-900/60 text-neutral-200 hover:bg-neutral-800/60'
+                                    : 'bg-neutral-900 text-neutral-200 hover:bg-neutral-800'
                             }`}
                         >
                             <FaCircle className="text-[12px]" />
@@ -185,7 +185,7 @@ const TimelinePanel: React.FC = () => {
                 )}
                 {audioImportProgress.active && (
                     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/45">
-                        <div className="w-[min(420px,calc(100%-32px))] rounded border border-neutral-700 bg-neutral-950 p-4 shadow-2xl">
+                        <div className="w-[min(420px,calc(100%-32px))] rounded border border-neutral-800 bg-neutral-950 p-4 ">
                             <div className="flex items-start justify-between gap-4">
                                 <div>
                                     <div className="text-sm font-semibold text-neutral-100">Importing audio</div>

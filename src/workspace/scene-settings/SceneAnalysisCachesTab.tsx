@@ -351,7 +351,7 @@ const SceneAnalysisCachesTab: React.FC = () => {
                         return (
                             <div
                                 key={row.sourceId}
-                                className="rounded border border-neutral-800 bg-neutral-900/60 p-3 text-[12px] text-neutral-300"
+                                className="rounded border border-neutral-800 bg-neutral-900 p-3 text-[12px] text-neutral-300"
                             >
                                 <div className="flex flex-wrap items-center justify-between gap-3">
                                     <div>
@@ -494,7 +494,7 @@ const SceneAnalysisCachesTab: React.FC = () => {
                                                     return (
                                                         <div
                                                             key={`${row.sourceId}-${feature.key}`}
-                                                            className="flex flex-wrap items-center justify-between gap-2 rounded border border-neutral-800/60 bg-neutral-900/60 px-2 py-1"
+                                                            className="flex flex-wrap items-center justify-between gap-2 rounded border border-neutral-800/60 bg-neutral-900 px-2 py-1"
                                                         >
                                                             <div className="flex flex-col">
                                                                 <span className="text-[11px] font-medium text-neutral-100">

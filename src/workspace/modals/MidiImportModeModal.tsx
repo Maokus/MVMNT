@@ -28,7 +28,7 @@ export function MidiImportModeModal({
             shortcutId="modal.midi-import-mode.escape"
             label="Import MIDI Tracks"
             onCancel={onCancel}
-            cardClassName="relative w-[min(90vw,520px)] max-h-[90vh] overflow-y-auto rounded-lg border border-neutral-700 bg-neutral-900/95 p-6 text-sm text-neutral-200 shadow-2xl"
+            cardClassName="relative w-[min(90vw,520px)] max-h-[90vh] overflow-y-auto rounded border border-neutral-800 bg-neutral-900 p-6 text-sm text-neutral-200 "
         >
             <h2 className="m-0 text-lg font-semibold text-white">Import MIDI Tracks</h2>
             <p className="mt-3 text-[13px] leading-relaxed text-neutral-300">
@@ -36,7 +36,7 @@ export function MidiImportModeModal({
                 <span className="font-semibold text-white">{playableCount}</span> playable MIDI tracks. Choose how you
                 would like to import them.
             </p>
-            <ul className="mt-4 flex flex-col gap-2 rounded border border-neutral-700/70 bg-neutral-800/40 p-3 text-[12px] text-neutral-200">
+            <ul className="mt-4 flex flex-col gap-2 rounded border border-neutral-800/70 bg-neutral-800/40 p-3 text-[12px] text-neutral-200">
                 {tracks.map((track, index) => {
                     const label = track.name?.trim().length ? track.name.trim() : `Track ${index + 1}`;
                     const channels = track.channels.length
@@ -46,7 +46,7 @@ export function MidiImportModeModal({
                     return (
                         <li
                             key={`${track.trackIndex}-${label}`}
-                            className="flex flex-col gap-1 rounded bg-neutral-900/60 px-3 py-2"
+                            className="flex flex-col gap-1 rounded bg-neutral-900 px-3 py-2"
                         >
                             <span className="text-[13px] font-medium text-white">{label}</span>
                             <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-neutral-300">
@@ -61,7 +61,7 @@ export function MidiImportModeModal({
                 <button
                     type="button"
                     onClick={onCancel}
-                    className="rounded border border-transparent px-3 py-1.5 text-neutral-300 transition-colors hover:bg-white/10 hover:text-white"
+                    className="rounded border border-transparent px-3 py-1.5 text-neutral-300 transition-colors hover:bg-neutral-800 hover:text-white"
                 >
                     Cancel
                 </button>

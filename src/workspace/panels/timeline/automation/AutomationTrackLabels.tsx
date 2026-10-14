@@ -422,10 +422,10 @@ const AutomationTrackLabels: React.FC = () => {
     };
 
     return (
-        <div className="automation-labels border-t border-neutral-700">
+        <div className="automation-labels border-t border-neutral-800">
             {/* Section header */}
             <div
-                className="flex items-center px-2 border-b border-neutral-800 bg-neutral-900/60 text-neutral-500"
+                className="flex items-center px-2 border-b border-neutral-800 bg-neutral-900 text-neutral-500"
                 style={{ height: AUTOMATION_HEADER_HEIGHT }}
             >
                 <span className="text-[10px] font-semibold uppercase tracking-wider flex-1">Automation</span>

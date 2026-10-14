@@ -206,7 +206,7 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
                     setOpen((current) => !current);
                     setWeightOpen(false);
                 }}
-                className="flex min-w-0 flex-1 items-center justify-between rounded border border-neutral-700 bg-neutral-800/70 px-3 py-2 text-left text-xs text-neutral-100 disabled:opacity-60"
+                className="flex min-w-0 flex-1 items-center justify-between rounded border border-neutral-800 bg-neutral-800 px-3 py-2 text-left text-xs text-neutral-100 disabled:opacity-60"
                 style={{ fontFamily: `'${parsed.family || 'Inter'}', sans-serif` }}
             >
                 <span className="truncate">{parsed.missing ? `Missing: ${parsed.family}` : parsed.family}</span>
@@ -220,7 +220,7 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
                     setWeightOpen((current) => !current);
                     setOpen(false);
                 }}
-                className="w-[108px] rounded border border-neutral-700 bg-neutral-800/70 px-3 py-2 text-left text-xs text-neutral-100 disabled:opacity-60"
+                className="w-[108px] rounded border border-neutral-800 bg-neutral-800 px-3 py-2 text-left text-xs text-neutral-100 disabled:opacity-60"
             >
                 {parsed.weight || '400'}
                 {parsed.italic ? ' Italic' : ''}
@@ -232,7 +232,7 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
                         ref={familyFloating.refs.setFloating}
                         style={familyFloating.floatingStyles}
                         data-preserve-selection="true"
-                        className="z-[1000] flex max-h-[420px] w-[360px] flex-col overflow-hidden rounded border border-neutral-700 bg-neutral-950 text-xs shadow-2xl"
+                        className="z-[1000] flex max-h-[420px] w-[360px] flex-col overflow-hidden rounded border border-neutral-800 bg-neutral-950 text-xs "
                     >
                         <label className="relative border-b border-neutral-800 p-3">
                             <FaSearch className="absolute left-6 top-[22px] text-neutral-500" />
@@ -310,7 +310,7 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
                         ref={weightFloating.refs.setFloating}
                         style={weightFloating.floatingStyles}
                         data-preserve-selection="true"
-                        className="z-[1000] max-h-[280px] w-[140px] overflow-y-auto rounded border border-neutral-700 bg-neutral-950 p-1 shadow-xl"
+                        className="z-[1000] max-h-[280px] w-[140px] overflow-y-auto rounded border border-neutral-800 bg-neutral-950 p-1 shadow-xl"
                     >
                         {availableVariants.map((variant) => (
                             <button
@@ -330,7 +330,7 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
                 <FloatingPortal>
                     <div
                         data-preserve-selection="true"
-                        className="fixed left-1/2 top-1/2 z-[1100] w-[360px] -translate-x-1/2 -translate-y-1/2 rounded border border-sky-700 bg-neutral-950 p-3 text-xs text-neutral-200 shadow-2xl"
+                        className="fixed left-1/2 top-1/2 z-[1100] w-[360px] -translate-x-1/2 -translate-y-1/2 rounded border border-sky-700 bg-neutral-950 p-3 text-xs text-neutral-200 "
                     >
                         <div className="flex items-center justify-between gap-3">
                             <span>

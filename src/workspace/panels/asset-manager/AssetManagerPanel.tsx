@@ -56,7 +56,7 @@ const AssetCard: React.FC<{
 
     return (
         <div
-            className="flex flex-col rounded border border-neutral-700 bg-neutral-800 overflow-hidden hover:border-neutral-500 transition-colors cursor-grab active:cursor-grabbing"
+            className="flex flex-col rounded border border-neutral-800 bg-neutral-800 overflow-hidden hover:border-neutral-500 transition-colors cursor-grab active:cursor-grabbing"
             draggable
             onDragStart={handleDragStart}
         >
@@ -207,7 +207,7 @@ const AssetManagerPanel: React.FC = () => {
                         ref={refs.setFloating}
                         style={floatingStyles}
                         {...getFloatingProps()}
-                        className="z-50 min-w-[180px] rounded border border-neutral-700 bg-neutral-900 shadow-lg py-2 px-3"
+                        className="z-50 min-w-[180px] rounded border border-neutral-800 bg-neutral-900  py-2 px-3"
                     >
                         <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide mb-2">
                             Filters

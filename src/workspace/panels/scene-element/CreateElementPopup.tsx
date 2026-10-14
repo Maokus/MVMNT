@@ -69,13 +69,13 @@ const CreateElementPopup: React.FC<CreateElementPopupProps> = ({ position, onAdd
         <FloatingPortal>
             <div className="fixed inset-0 z-[999]" onMouseDown={onClose} data-testid="create-element-backdrop" />
             <div
-                className="fixed z-[1000] overflow-hidden rounded border border-neutral-700 bg-[#252526] shadow-2xl"
+                className="fixed z-[1000] overflow-hidden rounded border border-neutral-800 bg-[#252526] "
                 style={{ left: x, top: y, width: POPUP_WIDTH }}
                 onMouseDown={(event) => event.stopPropagation()}
                 role="dialog"
                 aria-label="Add Element"
             >
-                <div className="border-b border-neutral-700/80 px-3 pb-2 pt-2.5">
+                <div className="border-b border-neutral-800/80 px-3 pb-2 pt-2.5">
                     <p className="mb-1.5 select-none text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
                         Add Element
                     </p>

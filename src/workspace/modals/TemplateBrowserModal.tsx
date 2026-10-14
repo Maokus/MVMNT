@@ -60,7 +60,7 @@ export const TemplateBrowserModal: React.FC<TemplateBrowserModalProps> = ({ temp
             label="Browse templates"
             onCancel={onClose}
             outerClassName="fixed inset-0 z-50 flex items-center justify-center px-4 py-6"
-            cardClassName="relative w-full max-w-3xl rounded-lg border border-neutral-700 bg-neutral-900 shadow-2xl"
+            cardClassName="relative w-full max-w-3xl rounded border border-neutral-800 bg-neutral-900 "
         >
             <div className="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
                 <h2 className="text-sm font-semibold text-neutral-100">Choose a Template</h2>
@@ -87,7 +87,7 @@ export const TemplateBrowserModal: React.FC<TemplateBrowserModalProps> = ({ temp
                                     key={template.id}
                                     type="button"
                                     onClick={() => onSelect(template)}
-                                    className="group flex h-full flex-col items-start gap-2 rounded-lg border border-neutral-700 bg-neutral-800/60 p-4 text-left transition-colors hover:border-sky-500 hover:bg-neutral-800"
+                                    className="group flex h-full flex-col items-start gap-2 rounded border border-neutral-800 bg-neutral-800 p-4 text-left transition-colors hover:border-sky-500 hover:bg-neutral-800"
                                 >
                                     <span className="text-sm font-semibold text-neutral-100 group-hover:text-white">
                                         {displayName}
