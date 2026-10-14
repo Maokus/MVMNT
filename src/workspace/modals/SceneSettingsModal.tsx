@@ -397,12 +397,12 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
             cardClassName="relative flex h-full max-h-[90vh] w-[700px] max-w-[95vw] flex-col overflow-hidden rounded border border-neutral-800 bg-neutral-900 p-5 text-sm text-neutral-200 "
         >
             <Button
-                variant="icon"
+                variant="icon-lg"
                 onClick={onClose}
                 aria-label="Close scene settings"
                 className="absolute right-3 top-3"
             >
-                <FaTimes />
+                <FaTimes size={16} />
             </Button>
             <h2 className="m-0 mb-1 text-lg font-semibold text-white">Scene Settings</h2>
             <p className="m-0 mb-4 text-[13px] text-neutral-400">

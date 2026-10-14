@@ -184,7 +184,7 @@ const TimelinePanel: React.FC = () => {
                     </div>
                 )}
                 {audioImportProgress.active && (
-                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black">
+                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/45">
                         <div className="w-[min(420px,calc(100%-32px))] rounded border border-neutral-800 bg-neutral-950 p-4 ">
                             <div className="flex items-start justify-between gap-4">
                                 <div>

@@ -44,7 +44,7 @@ export function ModalShell({
             aria-modal="true"
             aria-label={label}
         >
-            <div className="absolute inset-0 bg-black" onClick={onCancel} aria-hidden="true" />
+            <div className="absolute inset-0 bg-black/60" onClick={onCancel} aria-hidden="true" />
             <div
                 className={
                     cardClassName ??

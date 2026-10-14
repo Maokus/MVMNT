@@ -40,9 +40,10 @@ const VARIANT_CASES: Array<[ButtonVariant, string]> = [
     ],
     ['faint', 'text-xs text-neutral-400 hover:text-neutral-200'],
     [
-        'icon',
-        'flex items-center justify-center w-7 h-7 rounded text-neutral-400 hover:text-white hover:bg-neutral-800',
+        'icon-lg',
+        'flex items-center justify-center w-9 h-9 rounded text-neutral-400 hover:text-white hover:bg-neutral-800',
     ],
+    ['icon', 'flex items-center justify-center w-7 h-7 rounded text-neutral-400 hover:text-white hover:bg-neutral-800'],
     ['indigo', 'rounded bg-indigo-600 px-3 py-1 text-[12px] font-medium text-white transition hover:bg-indigo-500'],
     ['info', 'rounded bg-sky-600 px-3 py-1 text-[12px] font-medium text-white transition hover:bg-sky-500'],
     [

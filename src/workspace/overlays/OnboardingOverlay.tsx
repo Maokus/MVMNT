@@ -36,7 +36,7 @@ export function OnboardingOverlay({ onClose, onStart, busy, error, restarting }:
     });
 
     return (
-        <FloatingOverlay lockScroll className="z-[9000] flex items-center justify-center bg-black p-4">
+        <FloatingOverlay lockScroll className="z-[9000] flex items-center justify-center bg-black/60 p-4">
             <FloatingFocusManager context={context} outsideElementsInert returnFocus>
                 <section
                     ref={refs.setFloating}

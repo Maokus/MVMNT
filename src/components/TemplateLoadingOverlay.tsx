@@ -17,7 +17,7 @@ export const TemplateLoadingOverlay: React.FC = () => {
 
     return (
         <div
-            className="pointer-events-none fixed inset-0 z-[10500] flex items-center justify-center bg-neutral-950"
+            className="pointer-events-none fixed inset-0 z-[10500] flex items-center justify-center bg-neutral-950/70"
             role="status"
             aria-live="polite"
         >

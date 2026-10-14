@@ -240,7 +240,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                         <DocumentSaveStatus />
 
                         <Button
-                            variant="icon"
+                            variant="icon-lg"
                             onClick={() => {
                                 setShowSettingsModal(true);
                                 setShowSceneMenu(false);
@@ -248,11 +248,11 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                             title="Scene settings"
                             aria-label="Scene settings"
                         >
-                            <FaCog size={14} />
+                            <FaCog size={16} />
                         </Button>
                         <div className="relative">
                             <Button
-                                variant="icon"
+                                variant="icon-lg"
                                 ref={sceneMenuButtonRef}
                                 onClick={() => setShowSceneMenu(!showSceneMenu)}
                                 title="Scene options"
@@ -260,7 +260,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                                 aria-haspopup="true"
                                 aria-expanded={showSceneMenu}
                             >
-                                <FaEllipsisV size={14} />
+                                <FaEllipsisV size={16} />
                             </Button>
                             {showSceneMenu && sceneMenuButtonRef.current ? (
                                 <CommandContextMenu

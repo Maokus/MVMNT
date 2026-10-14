@@ -19,6 +19,7 @@ type ButtonVariant =
     | 'solid-amber'
     | 'faint'
     | 'icon'
+    | 'icon-lg'
     | 'indigo'
     | 'info'
     | 'panel'
@@ -60,11 +61,14 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
     'solid-amber':
         'rounded border border-amber-800 bg-amber-600 px-3 py-1.5 font-semibold text-white transition-colors hover:bg-amber-500',
     icon: 'flex items-center justify-center w-7 h-7 rounded text-neutral-400 hover:text-white hover:bg-neutral-800',
+    'icon-lg':
+        'flex items-center justify-center w-9 h-9 rounded text-neutral-400 hover:text-white hover:bg-neutral-800',
     indigo: 'rounded bg-indigo-600 px-3 py-1 text-[12px] font-medium text-white transition hover:bg-indigo-500',
     info: 'rounded bg-sky-600 px-3 py-1 text-[12px] font-medium text-white transition hover:bg-sky-500',
     panel: 'rounded border border-neutral-800 bg-neutral-900 px-2 py-1 text-xs text-neutral-200 hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60',
     menu: 'flex w-full items-center rounded px-2 py-2 text-left text-neutral-200 hover:bg-neutral-800',
-    'list-row': 'flex w-full items-center justify-between rounded px-3 py-2 text-left text-neutral-200 hover:bg-neutral-800',
+    'list-row':
+        'flex w-full items-center justify-between rounded px-3 py-2 text-left text-neutral-200 hover:bg-neutral-800',
 };
 
 const SIZE_CLASSES: Record<Exclude<ButtonSize, 'full'>, string> = {
