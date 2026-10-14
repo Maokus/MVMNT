@@ -14,6 +14,11 @@ export function clamp01(v: number): number {
     return v < 0 ? 0 : v > 1 ? 1 : v;
 }
 
+/** Clamp a number into [min, max]. Shared workspace-wide to avoid local copies. */
+export function clamp(value: number, min: number, max: number): number {
+    return Math.min(max, Math.max(min, value));
+}
+
 /** Snap an (x,y) pair to the nearest candidate pair (Cartesian product of candidates) */
 export function snapToGrid2D(x: number, y: number, candidates: number[]) {
     let bestX = x;
