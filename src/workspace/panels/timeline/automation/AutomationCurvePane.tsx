@@ -427,7 +427,6 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                             strokeWidth={isSelected ? 2 : 1.5}
                             strokeLinejoin="round"
                             pointerEvents="none"
-                            style={isSelected ? { filter: 'drop-shadow(0 0 3px rgba(147,197,253,0.7))' } : undefined}
                         />
                     );
                 })}
@@ -548,7 +547,6 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
                             strokeWidth={isSelected ? 2 : 1.5}
                             style={{
                                 cursor: 'grab',
-                                filter: isSelected ? 'drop-shadow(0 0 3px rgba(147,197,253,0.7))' : undefined,
                             }}
                             onPointerDown={(e) => handlePointDown(e, pt.tick, pt.value)}
                             onContextMenu={(e) => {

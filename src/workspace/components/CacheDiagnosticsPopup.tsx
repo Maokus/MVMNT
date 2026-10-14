@@ -75,7 +75,7 @@ export const CacheDiagnosticsPopup: React.FC = () => {
 
     return (
         <div className="pointer-events-none fixed bottom-4 left-4 z-[70] max-w-[320px] sm:max-w-xs md:max-w-sm">
-            <div className="pointer-events-auto flex flex-col gap-3 rounded-lg border border-amber-400/40 bg-neutral-950/95 p-4 text-[12px] text-neutral-100 shadow-[0_12px_24px_rgba(0,0,0,0.45)] backdrop-blur">
+            <div className="pointer-events-auto flex flex-col gap-3 rounded-lg border border-amber-400/40 bg-neutral-950/95 p-4 text-[12px] text-neutral-100 shadow-2xl">
                 <div className="text-[13px] font-semibold text-amber-100">
                     {isCalculating ? 'Calculating audio features' : 'Audio analysis required'}
                 </div>

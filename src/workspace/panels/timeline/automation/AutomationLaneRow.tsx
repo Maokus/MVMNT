@@ -647,7 +647,6 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                             strokeWidth={selected || hovered ? 2 : 1}
                             style={{
                                 pointerEvents: 'none',
-                                filter: selected || hovered ? 'drop-shadow(0 0 3px rgba(147,197,253,0.7))' : undefined,
                             }}
                         />
                     );

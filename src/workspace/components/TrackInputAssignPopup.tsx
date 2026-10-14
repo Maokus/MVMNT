@@ -36,7 +36,7 @@ const TrackInputAssignPopup: React.FC<Props> = ({ elementId, trackInputs, onDism
         >
             <div
                 ref={popupRef}
-                className="flex flex-col gap-3 rounded-lg border border-amber-400/40 bg-neutral-950/95 p-4 text-[12px] text-neutral-100 shadow-[0_12px_24px_rgba(0,0,0,0.45)] backdrop-blur"
+                className="flex flex-col gap-3 rounded-lg border border-amber-400/40 bg-neutral-950/95 p-4 text-[12px] text-neutral-100 shadow-2xl"
             >
                 <div className="text-[13px] font-semibold text-amber-100">
                     Added element with track input{trackInputs.length > 1 ? 's' : ''}

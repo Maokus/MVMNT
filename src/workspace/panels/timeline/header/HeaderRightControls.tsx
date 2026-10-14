@@ -336,7 +336,7 @@ const HeaderRightControls: React.FC<{
                                 role: 'menu',
                                 'aria-label': 'Timeline options menu',
                                 className:
-                                    'w-64 rounded border border-border bg-panel/95 p-3 shadow-lg shadow-black/40 flex flex-col gap-3 text-neutral-200 backdrop-blur-sm z-[1000] text-xs',
+                                    'w-64 rounded border border-border bg-panel/95 p-3 shadow-lg flex flex-col gap-3 text-neutral-200 z-[1000] text-xs',
                             })}
                             ref={menuRefs.setFloating}
                             style={menuFloatingStyles}
