@@ -101,7 +101,7 @@ const TrackEditorRow: React.FC<TrackEditorRowProps> = ({ trackId, isDragOver, dr
                         title={midiPreviewEnabled ? 'Test sound on (click to disable)' : 'Enable test sound'}
                         style={{ height: pillHeight, minHeight: pillHeight, fontSize: smallFontSize }}
                     >
-                        <FaVolumeUp aria-hidden="true" />
+                        <FaVolumeUp size={14} aria-hidden="true" />
                     </button>
                 )}
                 {/* Mute / Solo (audio only for now, easily extend) */}
@@ -194,7 +194,7 @@ const TrackEditorRow: React.FC<TrackEditorRowProps> = ({ trackId, isDragOver, dr
                 }}
                 style={{ width: controlSize, height: pillHeight }}
             >
-                <FaTrash />
+                <FaTrash size={14} />
             </button>
         </div>
     );

@@ -261,7 +261,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                             aria-label="Scene settings"
                             type="button"
                         >
-                            <FaCog />
+                            <FaCog size={14} />
                         </button>
                         <div className="relative">
                             <button
@@ -273,7 +273,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                                 aria-haspopup="true"
                                 aria-expanded={showSceneMenu}
                             >
-                                <FaEllipsisV />
+                                <FaEllipsisV size={14} />
                             </button>
                             {showSceneMenu && sceneMenuButtonRef.current ? (
                                 <CommandContextMenu
@@ -284,23 +284,28 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                                     onClose={() => setShowSceneMenu(false)}
                                     ariaLabel="Scene options"
                                     entries={[
-                                        { label: 'Save', shortcut: 'Mod+S', icon: <FaSave />, onSelect: handleSave },
+                                        {
+                                            label: 'Save',
+                                            shortcut: 'Mod+S',
+                                            icon: <FaSave size={14} />,
+                                            onSelect: handleSave,
+                                        },
                                         {
                                             label: 'Save As…',
                                             shortcut: 'Mod+Shift+S',
-                                            icon: <FaFileExport />,
+                                            icon: <FaFileExport size={14} />,
                                             onSelect: handleSaveAs,
                                         },
                                         {
                                             label: 'Load from File…',
                                             shortcut: 'Mod+O',
-                                            icon: <FaFolderOpen />,
+                                            icon: <FaFolderOpen size={14} />,
                                             onSelect: handleLoad,
                                         },
                                         {
                                             label: 'New Blank Scene',
                                             shortcut: 'Mod+N',
-                                            icon: <FaMagic />,
+                                            icon: <FaMagic size={14} />,
                                             onSelect: handleNew,
                                         },
                                     ]}

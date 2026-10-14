@@ -219,7 +219,7 @@ const HeaderRightControls: React.FC<{
                             : 'bg-neutral-900/60 text-neutral-400 hover:bg-neutral-800/60 hover:text-neutral-200'
                     }`}
                 >
-                    <FaMagnet />
+                    <FaMagnet size={14} />
                 </button>
                 {/* Divider */}
                 <div className="w-px bg-neutral-700 self-stretch" />
@@ -294,7 +294,7 @@ const HeaderRightControls: React.FC<{
                             : 'bg-neutral-900/60 text-neutral-400 hover:bg-neutral-800/60 hover:text-neutral-200'
                     }`}
                 >
-                    <FaMagic />
+                    <FaMagic size={14} />
                 </button>
             </div>
             {/* Auto-follow playhead button */}
@@ -312,7 +312,7 @@ const HeaderRightControls: React.FC<{
                         : 'bg-neutral-900/60 text-neutral-200 hover:bg-neutral-800/60'
                 }`}
             >
-                <FaArrowRight />
+                <FaArrowRight size={14} />
             </button>
             {/* Ellipsis menu trigger */}
             <button
@@ -326,7 +326,7 @@ const HeaderRightControls: React.FC<{
                 ref={menuRefs.setReference}
                 className="px-2 py-1 rounded border border-border bg-menubar hover:bg-neutral-800/60 text-neutral-200 flex items-center justify-center text-[12px]"
             >
-                <FaEllipsisV />
+                <FaEllipsisV size={14} />
             </button>
             {menuOpen && (
                 <FloatingPortal>
@@ -374,7 +374,7 @@ const HeaderRightControls: React.FC<{
                                         setMenuOpen(false);
                                     }}
                                 >
-                                    <FaExpand className="text-neutral-300" />
+                                    <FaExpand size={14} />
                                 </Button>
                                 <Button
                                     variant="toolbar"
@@ -385,7 +385,7 @@ const HeaderRightControls: React.FC<{
                                         setMenuOpen(false);
                                     }}
                                 >
-                                    <FaObjectGroup className="text-neutral-300" />
+                                    <FaObjectGroup size={14} />
                                 </Button>
                                 <Button
                                     variant="toolbar"
@@ -396,7 +396,7 @@ const HeaderRightControls: React.FC<{
                                         setMenuOpen(false);
                                     }}
                                 >
-                                    <FaCrosshairs className="text-neutral-300" />
+                                    <FaCrosshairs size={14} />
                                 </Button>
                             </div>
                         </div>

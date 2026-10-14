@@ -697,7 +697,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                                     title="Edit macro name"
                                     aria-label="Edit macro name"
                                 >
-                                    <FaPen />
+                                    <FaPen size={14} />
                                 </Button>
                             </div>
                         )}
@@ -711,7 +711,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                             title="Manage Assignments"
                             aria-label="Manage Assignments"
                         >
-                            <FaLink />
+                            <FaLink size={14} />
                         </Button>
                         <Button
                             variant="quiet"
@@ -720,7 +720,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                             title="Delete Macro"
                             aria-label="Delete Macro"
                         >
-                            <FaTrash />
+                            <FaTrash size={14} />
                         </Button>
                     </div>
                 </div>
@@ -753,7 +753,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                         className="text-xs px-2 py-1 text-white rounded cursor-pointer bg-[color:var(--twc-accent)] hover:bg-[#1177bb] flex items-center gap-1"
                         onClick={() => setShowCreateDialog(true)}
                     >
-                        <FaPlus /> <span>Add Macro</span>
+                        <FaPlus size={14} /> <span>Add Macro</span>
                     </button>
                 )}
             </div>

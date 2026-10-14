@@ -261,7 +261,7 @@ const ChannelRow: React.FC<{ channelId: string }> = ({ channelId }) => {
                             goPrevKeyframe();
                         }}
                     >
-                        <FaAngleLeft className="text-[8px]" />
+                        <FaAngleLeft className="text-xs" />
                     </Button>
                     <Button
                         variant="icon"
@@ -272,7 +272,7 @@ const ChannelRow: React.FC<{ channelId: string }> = ({ channelId }) => {
                             goNextKeyframe();
                         }}
                     >
-                        <FaAngleRight className="text-[8px]" />
+                        <FaAngleRight className="text-xs" />
                     </Button>
                     {channel?.valueType !== 'string' && (
                         <button
@@ -287,7 +287,7 @@ const ChannelRow: React.FC<{ channelId: string }> = ({ channelId }) => {
                                 toggleCurve();
                             }}
                         >
-                            <FaChartLine className="text-[8px]" />
+                            <FaChartLine className="text-xs" />
                         </button>
                     )}
                     <button
@@ -301,7 +301,7 @@ const ChannelRow: React.FC<{ channelId: string }> = ({ channelId }) => {
                             });
                         }}
                     >
-                        <FaTimes className="text-[8px]" />
+                        <FaTimes className="text-xs" />
                     </button>
                 </div>
             </div>
@@ -375,11 +375,7 @@ const SceneNodeAutomationGroup: React.FC<{ row: AutomatedSceneNodeView }> = ({ r
                         }}
                         title={treeExpanded ? 'Collapse descendants' : 'Expand descendants'}
                     >
-                        {treeExpanded ? (
-                            <FaChevronDown className="text-[9px]" />
-                        ) : (
-                            <FaChevronRight className="text-[9px]" />
-                        )}
+                        {treeExpanded ? <FaChevronDown className="text-xs" /> : <FaChevronRight className="text-xs" />}
                     </button>
                 ) : (
                     <span className="w-3" />
@@ -397,11 +393,7 @@ const SceneNodeAutomationGroup: React.FC<{ row: AutomatedSceneNodeView }> = ({ r
                         }}
                         title={isExpanded ? 'Collapse property channels' : 'Expand property channels'}
                     >
-                        {isExpanded ? (
-                            <FaChevronDown className="text-[9px]" />
-                        ) : (
-                            <FaChevronRight className="text-[9px]" />
-                        )}
+                        {isExpanded ? <FaChevronDown className="text-xs" /> : <FaChevronRight className="text-xs" />}
                     </button>
                 ) : null}
             </div>
@@ -444,7 +436,7 @@ const AutomationTrackLabels: React.FC = () => {
                 className="flex items-center gap-1 px-2 border-b border-neutral-800 bg-neutral-900/40"
                 style={{ height: AUTOMATION_SEARCH_HEIGHT }}
             >
-                <FaSearch className="text-[9px] text-neutral-500 shrink-0" />
+                <FaSearch className="text-xs text-neutral-500 shrink-0" />
                 <input
                     type="text"
                     value={searchQuery}
@@ -454,7 +446,7 @@ const AutomationTrackLabels: React.FC = () => {
                 />
                 {searchQuery && (
                     <button className="text-neutral-500 hover:text-neutral-200" onClick={() => setSearchQuery('')}>
-                        <FaTimes className="text-[9px]" />
+                        <FaTimes className="text-xs" />
                     </button>
                 )}
             </div>

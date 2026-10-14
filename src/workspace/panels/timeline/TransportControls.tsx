@@ -26,7 +26,7 @@ const TransportControls: React.FC = () => {
                 aria-label="Step back one tick"
                 title="Step back one tick (Ctrl/Cmd+Left)"
             >
-                <FaChevronLeft />
+                <FaChevronLeft size={14} />
             </Button>
             <Button
                 variant="transport"
@@ -37,7 +37,7 @@ const TransportControls: React.FC = () => {
                 aria-label={isPlaying ? 'Pause playback' : 'Play'}
                 title={isPlaying ? 'Pause' : 'Play'}
             >
-                {isPlaying ? <FaPause /> : <FaPlay />}
+                {isPlaying ? <FaPause size={14} /> : <FaPlay size={14} />}
             </Button>
             <Button
                 variant="transport"
@@ -51,7 +51,7 @@ const TransportControls: React.FC = () => {
                 aria-label="Stop and return to range start"
                 title="Stop"
             >
-                <FaStop />
+                <FaStop size={14} />
             </Button>
             <Button
                 variant="transport"
@@ -60,7 +60,7 @@ const TransportControls: React.FC = () => {
                 aria-label="Step forward one tick"
                 title="Step forward one tick (Ctrl/Cmd+Right)"
             >
-                <FaChevronRight />
+                <FaChevronRight size={14} />
             </Button>
         </div>
     );
