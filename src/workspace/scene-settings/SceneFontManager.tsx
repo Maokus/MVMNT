@@ -169,7 +169,7 @@ const SceneFontManager: React.FC = () => {
                         </Button>
                     ))}
                 </div>
-                <Button variant="info" size="sm" onClick={() => fileInput.current?.click()}>
+                <Button variant="primary" size="md" onClick={() => fileInput.current?.click()}>
                     Upload font
                 </Button>
             </div>

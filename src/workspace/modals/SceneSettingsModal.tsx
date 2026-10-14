@@ -413,7 +413,7 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                     <Button
                         key={tab.id}
                         variant="ghost"
-                        size="sm"
+                        size="md"
                         onClick={() => setActiveTab(tab.id)}
                         className={activeTab === tab.id ? 'bg-neutral-800 text-white' : ''}
                     >
@@ -495,7 +495,7 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                             </label>
                         </div>
                         <div className="flex items-center gap-3">
-                            <Button variant="info" size="full" disabled={!hasResizeChanges} onClick={applyResize}>
+                            <Button variant="primary" size="md" disabled={!hasResizeChanges} onClick={applyResize}>
                                 Apply Resize
                             </Button>
                             {hasResizeChanges && (
@@ -605,8 +605,8 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                                     </p>
                                 </div>
                                 <Button
-                                    variant="info"
-                                    size="full"
+                                    variant="primary"
+                                    size="md"
                                     onClick={connectToDevPluginServer}
                                     disabled={
                                         devPluginConnection.scanning || devPluginConnection.state === 'unavailable'

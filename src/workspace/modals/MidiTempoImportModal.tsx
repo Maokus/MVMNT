@@ -36,11 +36,15 @@ export function MidiTempoImportModal({
                     Skip
                 </Button>
                 {hasExistingKeyframes && (
-                    <Button variant="solid-blue" size="full" onClick={() => onChoice('merge')}>
+                    <Button variant="primary" size="md" onClick={() => onChoice('merge')}>
                         Merge with existing
                     </Button>
                 )}
-                <Button variant="solid-amber" size="full" onClick={() => onChoice('replace')}>
+                <Button
+                    variant={hasExistingKeyframes ? 'danger-outline' : 'primary'}
+                    size="md"
+                    onClick={() => onChoice('replace')}
+                >
                     {hasExistingKeyframes ? 'Replace existing' : 'Import'}
                 </Button>
             </div>

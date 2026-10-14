@@ -61,10 +61,10 @@ export function MidiImportModeModal({
                 <Button variant="ghost" size="full" onClick={onCancel}>
                     Cancel
                 </Button>
-                <Button variant="solid-blue" size="full" onClick={onImportSingle}>
+                <Button variant="primary" size="md" onClick={onImportSingle}>
                     Import as single track
                 </Button>
-                <Button variant="solid-emerald" size="full" onClick={onImportSplit}>
+                <Button variant="primary" size="md" onClick={onImportSplit}>
                     Split into {playableCount} tracks
                 </Button>
             </div>

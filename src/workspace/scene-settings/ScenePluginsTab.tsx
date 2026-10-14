@@ -138,7 +138,7 @@ const ScenePluginsTab: React.FC = () => {
                     style={{ display: 'none' }}
                 />
 
-                <Button variant="indigo" size="full" onClick={handleImportClick} disabled={importing} className="mt-3">
+                <Button variant="primary" size="md" onClick={handleImportClick} disabled={importing} className="mt-3">
                     {importing ? 'Importing...' : 'Select Plugin File'}
                 </Button>
 
@@ -152,7 +152,7 @@ const ScenePluginsTab: React.FC = () => {
                             <Button variant="secondary" size="sm" onClick={() => setPendingFile(null)}>
                                 Cancel
                             </Button>
-                            <Button variant="indigo" size="full" onClick={handleConfirmImport}>
+                            <Button variant="primary" size="md" onClick={handleConfirmImport}>
                                 Install
                             </Button>
                         </div>
@@ -170,7 +170,7 @@ const ScenePluginsTab: React.FC = () => {
                             <Button variant="secondary" size="sm" onClick={() => setUpgradeOffer(null)}>
                                 Cancel
                             </Button>
-                            <Button variant="info" size="full" onClick={handleConfirmUpgrade}>
+                            <Button variant="primary" size="md" onClick={handleConfirmUpgrade}>
                                 Upgrade
                             </Button>
                         </div>

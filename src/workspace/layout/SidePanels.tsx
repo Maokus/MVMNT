@@ -12,6 +12,7 @@ import {
     useRole,
 } from '@floating-ui/react';
 import { SceneElementPanel, ElementDropdown } from '@workspace/panels/scene-element';
+import { Button } from '@workspace/components/Button';
 import { PropertiesPanel } from '@workspace/panels/properties';
 import { useSceneSelection } from '@context/SceneSelectionContext';
 import { useVisualizer } from '@context/VisualizerContext';
@@ -248,17 +249,18 @@ const SidePanelsInternal: React.FC = () => {
                 <div className="inspector-panel-header">
                     <h3 className="inspector-panel-header__title">Elements</h3>
                     <div className="relative">
-                        <button
+                        <Button
+                            variant="primary"
+                            size="sm"
                             {...getAddElementReferenceProps({
                                 type: 'button',
                                 onClick: () => setShowAddElementDropdown((prev) => !prev),
                                 title: 'Add element',
                             })}
                             ref={addElementRefs.setReference}
-                            className="inspector-panel-header__add-button"
                         >
                             + Add
-                        </button>
+                        </Button>
 
                         {showAddElementDropdown && (
                             <FloatingPortal>

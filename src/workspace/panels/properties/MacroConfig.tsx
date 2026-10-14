@@ -749,12 +749,14 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
             <div className="macro-header">
                 <h4 className="flex items-center gap-2">Macros</h4>
                 {showAddButton && (
-                    <button
-                        className="text-xs px-2 py-1 text-white rounded cursor-pointer bg-[color:var(--twc-accent)] hover:bg-[#1177bb] flex items-center gap-1"
+                    <Button
+                        variant="primary"
+                        size="sm"
                         onClick={() => setShowCreateDialog(true)}
+                        className="inline-flex items-center gap-1"
                     >
                         <FaPlus size={14} /> <span>Add Macro</span>
-                    </button>
+                    </Button>
                 )}
             </div>
 

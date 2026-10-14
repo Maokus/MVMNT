@@ -716,10 +716,10 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
             </div>
 
             <div className="flex gap-2 justify-end mt-2">
-                <Button variant="neutral" size="full" disabled={isExporting} onClick={onClose}>
+                <Button variant="ghost" size="md" disabled={isExporting} onClick={onClose}>
                     Cancel
                 </Button>
-                <Button variant="navy" size="full" disabled={isExporting} onClick={beginExport}>
+                <Button variant="primary" size="md" disabled={isExporting} onClick={beginExport}>
                     {isExporting ? 'Starting...' : 'Start export'}
                 </Button>
             </div>
