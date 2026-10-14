@@ -122,7 +122,7 @@ const ScenePluginsTab: React.FC = () => {
                 </p>
             </div>
 
-            <section className="rounded border border-neutral-800 bg-neutral-900/70 p-4">
+            <section className="rounded border border-neutral-800 bg-neutral-900 p-4">
                 <h4 className="m-0 text-[12px] font-semibold text-white">Import Plugin</h4>
                 <p className="mt-2 text-[12px] text-neutral-300">
                     Select a{' '}
@@ -138,14 +138,9 @@ const ScenePluginsTab: React.FC = () => {
                     style={{ display: 'none' }}
                 />
 
-                <button
-                    type="button"
-                    onClick={handleImportClick}
-                    disabled={importing}
-                    className="mt-3 rounded bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white transition hover:bg-indigo-500 disabled:bg-neutral-700 disabled:text-neutral-400"
-                >
+                <Button variant="indigo" size="full" onClick={handleImportClick} disabled={importing} className="mt-3">
                     {importing ? 'Importing...' : 'Select Plugin File'}
-                </button>
+                </Button>
 
                 {pendingFile && (
                     <div className="mt-3 rounded border border-amber-500/40 bg-amber-900/20 p-3 space-y-2">
@@ -190,7 +185,7 @@ const ScenePluginsTab: React.FC = () => {
                 )}
             </section>
 
-            <section className="rounded border border-neutral-800 bg-neutral-900/70 p-4">
+            <section className="rounded border border-neutral-800 bg-neutral-900 p-4">
                 <h4 className="m-0 text-[12px] font-semibold text-white">Installed Plugins</h4>
 
                 {pluginList.length === 0 ? (
@@ -278,26 +273,22 @@ const ScenePluginsTab: React.FC = () => {
                                         </div>
 
                                         <div className="flex flex-col gap-2">
-                                            <button
-                                                type="button"
+                                            <Button
+                                                variant={plugin.enabled ? 'solid-amber' : 'solid-emerald'}
+                                                size="full"
                                                 onClick={() => handleTogglePlugin(plugin.manifest.id, plugin.enabled)}
                                                 disabled={isLoading}
-                                                className={`rounded px-3 py-1.5 text-[11px] font-medium transition ${
-                                                    plugin.enabled
-                                                        ? 'bg-amber-600 text-white hover:bg-amber-500'
-                                                        : 'bg-emerald-600 text-white hover:bg-emerald-500'
-                                                } disabled:bg-neutral-700 disabled:text-neutral-400`}
                                             >
                                                 {plugin.enabled ? 'Disable' : 'Enable'}
-                                            </button>
-                                            <button
-                                                type="button"
+                                            </Button>
+                                            <Button
+                                                variant="danger"
+                                                size="full"
                                                 onClick={() => handleRemovePlugin(plugin.manifest.id)}
                                                 disabled={isLoading}
-                                                className="rounded bg-rose-600 px-3 py-1.5 text-[11px] font-medium text-white transition hover:bg-rose-500 disabled:bg-neutral-700 disabled:text-neutral-400"
                                             >
                                                 Remove
-                                            </button>
+                                            </Button>
                                         </div>
                                     </div>
                                 </div>

@@ -68,12 +68,12 @@ const ChannelLane: React.FC<{ channel: AutomationChannel; width: number }> = ({ 
 
     return (
         <div data-channel-id={channel.id}>
-            <div className="relative border-b border-neutral-800/60" style={{ height: AUTOMATION_ROW_HEIGHT }}>
+            <div className="relative border-b border-neutral-800" style={{ height: AUTOMATION_ROW_HEIGHT }}>
                 <AutomationLaneRow channel={channel} width={width} />
             </div>
             {curveExpanded && (
                 <div
-                    className="border-b border-neutral-800/60"
+                    className="border-b border-neutral-800"
                     style={{ height: curveHeight }}
                     onDoubleClick={handleCurveDoubleClick}
                 >

@@ -86,7 +86,7 @@ export function GettingStarted({
             {!collapsed && (
                 <div
                     id="getting-started-steps"
-                    className="max-h-[35dvh] overflow-y-auto border-t border-neutral-800/60 px-3 py-3"
+                    className="max-h-[35dvh] overflow-y-auto border-t border-neutral-800 px-3 py-3"
                 >
                     {complete ? (
                         <>

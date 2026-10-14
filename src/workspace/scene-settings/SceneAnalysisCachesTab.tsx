@@ -6,6 +6,7 @@ import { audioFeatureCalculatorRegistry } from '@audio/features/audioFeatureRegi
 import { formatCacheDiffDescriptor, useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
 import { useTimelineStore } from '@state/timelineStore';
 import { shallow } from 'zustand/shallow';
+import { Button } from '@workspace/components/Button';
 
 interface StatusMeta {
     label: string;
@@ -282,7 +283,7 @@ const SceneAnalysisCachesTab: React.FC = () => {
             <p className="m-0 text-[12px] text-neutral-400">
                 Monitor audio feature processing progress and manually control analysis jobs.
             </p>
-            <div className="rounded border border-neutral-800 bg-neutral-950/50 p-3 text-[11px] text-neutral-300">
+            <div className="rounded border border-neutral-800 bg-neutral-950 p-3 text-[11px] text-neutral-300">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="text-neutral-400">
                         {pendingSummary}
@@ -300,35 +301,27 @@ const SceneAnalysisCachesTab: React.FC = () => {
                         )}
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                        <button
-                            type="button"
-                            className={`rounded border px-2 py-1 text-[11px] transition-colors ${
-                                deleteExtraneousDisabled
-                                    ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
-                                    : 'border-rose-500/60 text-rose-200 hover:bg-rose-500/10'
-                            }`}
+                        <Button
+                            variant="danger-outline"
+                            size="full"
                             onClick={deleteExtraneousCaches}
                             disabled={deleteExtraneousDisabled}
                         >
                             Delete extraneous caches
-                        </button>
-                        <button
-                            type="button"
-                            className={`rounded border px-2 py-1 text-[11px] transition-colors ${
-                                regenerateAllDisabled
-                                    ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
-                                    : 'border-emerald-500/60 text-emerald-200 hover:bg-emerald-500/10'
-                            }`}
+                        </Button>
+                        <Button
+                            variant="success-outline"
+                            size="full"
                             onClick={regenerateAll}
                             disabled={regenerateAllDisabled}
                         >
                             Calculate requested feature tracks
-                        </button>
+                        </Button>
                     </div>
                 </div>
             </div>
             {rows.length === 0 ? (
-                <div className="rounded border border-neutral-800 bg-neutral-900/40 px-3 py-4 text-[12px] text-neutral-400">
+                <div className="rounded border border-neutral-800 bg-neutral-900 px-3 py-4 text-[12px] text-neutral-400">
                     Add an audio track to begin analysing audio features.
                 </div>
             ) : (
@@ -407,35 +400,27 @@ const SceneAnalysisCachesTab: React.FC = () => {
                                             )}
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <button
-                                                type="button"
-                                                className={`rounded border px-2 py-1 transition-colors ${
-                                                    stopDisabled
-                                                        ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
-                                                        : 'border-rose-500/60 text-rose-200 hover:bg-rose-500/10'
-                                                }`}
+                                            <Button
+                                                variant="danger-outline"
+                                                size="full"
                                                 onClick={() => handleStop(row.sourceId)}
                                                 disabled={stopDisabled}
                                             >
                                                 Stop
-                                            </button>
-                                            <button
-                                                type="button"
-                                                className={`rounded border px-2 py-1 transition-colors ${
-                                                    restartDisabled
-                                                        ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
-                                                        : 'border-sky-500/60 text-sky-200 hover:bg-sky-500/10'
-                                                }`}
+                                            </Button>
+                                            <Button
+                                                variant="secondary"
+                                                size="full"
                                                 onClick={() => handleRestart(row.sourceId)}
                                                 disabled={restartDisabled}
                                                 title={restartTitle}
                                             >
                                                 Recalculate all
-                                            </button>
+                                            </Button>
                                         </div>
                                     </div>
                                     {pendingDescriptors.length > 0 && (
-                                        <div className="rounded border border-amber-500/40 bg-neutral-900/70 p-2">
+                                        <div className="rounded border border-amber-500/40 bg-neutral-900 p-2">
                                             <div className="mb-1 text-[11px] font-semibold text-amber-100">
                                                 Requested feature tracks awaiting analysis
                                             </div>
@@ -443,7 +428,7 @@ const SceneAnalysisCachesTab: React.FC = () => {
                                                 {pendingDescriptors.map((pending) => (
                                                     <div
                                                         key={`${row.sourceId}-${pending.id}-${pending.status}-${pending.profile}`}
-                                                        className="flex flex-col gap-1 rounded border border-neutral-800/70 bg-neutral-950/60 p-2"
+                                                        className="flex flex-col gap-1 rounded border border-neutral-800 bg-neutral-950 p-2"
                                                     >
                                                         <div className="flex flex-wrap items-center justify-between gap-2">
                                                             <span className="text-[11px] font-medium text-neutral-100">
@@ -474,7 +459,7 @@ const SceneAnalysisCachesTab: React.FC = () => {
                                         </div>
                                     )}
                                     {row.features.length > 0 && (
-                                        <div className="rounded border border-neutral-800 bg-neutral-950/50 p-2">
+                                        <div className="rounded border border-neutral-800 bg-neutral-950 p-2">
                                             <div className="mb-1 text-[11px] font-semibold text-neutral-200">
                                                 Cached feature tracks
                                             </div>
@@ -494,7 +479,7 @@ const SceneAnalysisCachesTab: React.FC = () => {
                                                     return (
                                                         <div
                                                             key={`${row.sourceId}-${feature.key}`}
-                                                            className="flex flex-wrap items-center justify-between gap-2 rounded border border-neutral-800/60 bg-neutral-900 px-2 py-1"
+                                                            className="flex flex-wrap items-center justify-between gap-2 rounded border border-neutral-800 bg-neutral-900 px-2 py-1"
                                                         >
                                                             <div className="flex flex-col">
                                                                 <span className="text-[11px] font-medium text-neutral-100">
@@ -516,13 +501,9 @@ const SceneAnalysisCachesTab: React.FC = () => {
                                                                     )}
                                                                 </span>
                                                             </div>
-                                                            <button
-                                                                type="button"
-                                                                className={`rounded border px-2 py-1 transition-colors ${
-                                                                    reanalyzeDisabled
-                                                                        ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
-                                                                        : 'border-emerald-500/60 text-emerald-200 hover:bg-emerald-500/10'
-                                                                }`}
+                                                            <Button
+                                                                variant="success-outline"
+                                                                size="full"
                                                                 onClick={() =>
                                                                     feature.calculatorId &&
                                                                     handleReanalyzeFeature(
@@ -534,7 +515,7 @@ const SceneAnalysisCachesTab: React.FC = () => {
                                                                 title={reanalyzeTitle}
                                                             >
                                                                 Re-analyse
-                                                            </button>
+                                                            </Button>
                                                         </div>
                                                     );
                                                 })}

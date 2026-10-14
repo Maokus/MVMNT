@@ -119,7 +119,7 @@ const CurveRangeControls: React.FC<{ channelId: string; curveHeight: number }> =
 
     return (
         <div
-            className="border-b border-neutral-800/60 bg-neutral-900/30 flex flex-col items-center justify-center py-1"
+            className="border-b border-neutral-800 bg-neutral-900/30 flex flex-col items-center justify-center py-1"
             style={{ height: curveHeight, width: '100%' }}
         >
             <div>
@@ -240,7 +240,7 @@ const ChannelRow: React.FC<{ channelId: string }> = ({ channelId }) => {
     return (
         <>
             <div
-                className="flex items-center justify-between gap-1 pl-6 pr-2 border-b border-neutral-800/60 text-neutral-400 hover:bg-neutral-800/30"
+                className="flex items-center justify-between gap-1 pl-6 pr-2 border-b border-neutral-800 text-neutral-400 hover:bg-neutral-800/30"
                 style={{ height: AUTOMATION_ROW_HEIGHT }}
                 onDoubleClick={toggleCurve}
             >
@@ -353,7 +353,7 @@ const SceneNodeAutomationGroup: React.FC<{ row: AutomatedSceneNodeView }> = ({ r
     return (
         <>
             <div
-                className="flex items-center gap-1.5 px-2 border-b border-neutral-800 cursor-pointer select-none text-neutral-300 hover:bg-neutral-800/40"
+                className="flex items-center gap-1.5 px-2 border-b border-neutral-800 cursor-pointer select-none text-neutral-300 hover:bg-neutral-800"
                 style={{ height: AUTOMATION_HEADER_HEIGHT, paddingLeft: row.depth * 12 + 8 }}
                 onClick={() => {
                     const selection = useSelectionStore.getState();
@@ -433,7 +433,7 @@ const AutomationTrackLabels: React.FC = () => {
 
             {/* Search bar */}
             <div
-                className="flex items-center gap-1 px-2 border-b border-neutral-800 bg-neutral-900/40"
+                className="flex items-center gap-1 px-2 border-b border-neutral-800 bg-neutral-900"
                 style={{ height: AUTOMATION_SEARCH_HEIGHT }}
             >
                 <FaSearch className="text-xs text-neutral-500 shrink-0" />

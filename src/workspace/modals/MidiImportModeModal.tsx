@@ -36,7 +36,7 @@ export function MidiImportModeModal({
                 <span className="font-semibold text-white">{playableCount}</span> playable MIDI tracks. Choose how you
                 would like to import them.
             </p>
-            <ul className="mt-4 flex flex-col gap-2 rounded border border-neutral-800/70 bg-neutral-800/40 p-3 text-[12px] text-neutral-200">
+            <ul className="mt-4 flex flex-col gap-2 rounded border border-neutral-800 bg-neutral-800 p-3 text-[12px] text-neutral-200">
                 {tracks.map((track, index) => {
                     const label = track.name?.trim().length ? track.name.trim() : `Track ${index + 1}`;
                     const channels = track.channels.length
@@ -58,13 +58,9 @@ export function MidiImportModeModal({
                 })}
             </ul>
             <div className="mt-5 flex flex-wrap justify-end gap-2 text-[13px]">
-                <button
-                    type="button"
-                    onClick={onCancel}
-                    className="rounded border border-transparent px-3 py-1.5 text-neutral-300 transition-colors hover:bg-neutral-800 hover:text-white"
-                >
+                <Button variant="ghost" size="full" onClick={onCancel}>
                     Cancel
-                </button>
+                </Button>
                 <Button variant="solid-blue" size="full" onClick={onImportSingle}>
                     Import as single track
                 </Button>

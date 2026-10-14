@@ -219,7 +219,7 @@ const TimelineRuler: React.FC = () => {
     return (
         <div
             ref={containerRef}
-            className="timeline-ruler relative select-none bg-neutral-900/40 border-y border-neutral-800"
+            className="timeline-ruler relative select-none bg-neutral-900 border-y border-neutral-800"
             style={{ height, clipPath: 'border-box' }}
             onPointerDown={onPointerDown}
             onPointerMove={(e) => {

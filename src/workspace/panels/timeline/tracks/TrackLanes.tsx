@@ -282,7 +282,7 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
 
     return (
         <div
-            className="timeline-lanes relative border-t border-neutral-800 bg-neutral-900/40"
+            className="timeline-lanes relative border-t border-neutral-800 bg-neutral-900"
             ref={containerRef}
             onDragOver={onDragOver}
             onDragEnter={onDragOver}

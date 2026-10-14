@@ -28,7 +28,7 @@ const TempoRangeControls: React.FC = () => {
 
     return (
         <div
-            className="flex flex-col items-center justify-center gap-1 border-b border-neutral-800/60 bg-neutral-900/30"
+            className="flex flex-col items-center justify-center gap-1 border-b border-neutral-800 bg-neutral-900/30"
             style={{ height: TEMPO_LANE_HEIGHT }}
         >
             <span className="text-[9px] text-neutral-500">BPM range</span>

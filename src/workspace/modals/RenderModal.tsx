@@ -11,6 +11,7 @@ import { FormField, inputCls } from './render-modal/FormField';
 import { loadExportPresets, type ExportPreset } from '@export/presets';
 import { updateDestinationExtension } from './render-modal/exportDestination';
 import { ModalShell } from './ModalShell';
+import { Button } from '@workspace/components/Button';
 import { EXPORT_DESTINATION_UNAVAILABLE } from '@workspace/userMessages';
 
 interface RenderModalProps {
@@ -718,20 +719,12 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
             </div>
 
             <div className="flex gap-2 justify-end mt-2">
-                <button
-                    disabled={isExporting}
-                    onClick={onClose}
-                    className="px-3 py-1 border rounded text-xs font-medium bg-neutral-700 border-neutral-600 text-neutral-200 hover:bg-neutral-600 hover:text-white disabled:opacity-50"
-                >
+                <Button variant="neutral" size="full" disabled={isExporting} onClick={onClose}>
                     Cancel
-                </button>
-                <button
-                    disabled={isExporting}
-                    onClick={beginExport}
-                    className="px-4 py-1 rounded text-xs font-semibold bg-[#0e639c] text-white hover:bg-[#1177bb] disabled:opacity-50"
-                >
+                </Button>
+                <Button variant="navy" size="full" disabled={isExporting} onClick={beginExport}>
                     {isExporting ? 'Starting...' : 'Start export'}
-                </button>
+                </Button>
             </div>
         </ModalShell>
     );

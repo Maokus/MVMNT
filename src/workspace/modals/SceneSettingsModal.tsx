@@ -10,6 +10,7 @@ import { useScene } from '@context/SceneContext';
 import { useSceneStore } from '@state/sceneStore';
 import { dispatchSceneCommand } from '@state/scene';
 import { ModalShell } from './ModalShell';
+import { Button } from '@workspace/components/Button';
 import { clampPositiveInt } from '@workspace/forms/inputs/numberInput';
 import { deriveElementOrder } from '@state/scene-graph';
 import SceneFontManager from '../scene-settings/SceneFontManager';
@@ -395,14 +396,14 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
             outerClassName="fixed inset-0 z-[9800] flex items-center justify-center"
             cardClassName="relative flex h-full max-h-[90vh] w-[700px] max-w-[95vw] flex-col overflow-hidden rounded border border-neutral-800 bg-neutral-900 p-5 text-sm text-neutral-200 "
         >
-            <button
-                type="button"
-                className="absolute right-3 top-3 rounded-full border border-transparent p-1 text-neutral-400 transition-colors hover:bg-neutral-800 hover:text-white"
+            <Button
+                variant="icon"
                 onClick={onClose}
                 aria-label="Close scene settings"
+                className="absolute right-3 top-3"
             >
                 <FaTimes />
-            </button>
+            </Button>
             <h2 className="m-0 mb-1 text-lg font-semibold text-white">Scene Settings</h2>
             <p className="m-0 mb-4 text-[13px] text-neutral-400">
                 Adjust render dimensions, playback range, and developer tools for the current scene.
@@ -594,7 +595,7 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                             />
                             Enable Development Overlay
                         </label>
-                        <div className="mt-2 rounded border border-neutral-800 bg-neutral-800/40 p-3">
+                        <div className="mt-2 rounded border border-neutral-800 bg-neutral-800 p-3">
                             <div className="flex items-center justify-between gap-3">
                                 <div>
                                     <h4 className="m-0 text-[12px] font-medium text-neutral-100">

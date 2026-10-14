@@ -104,7 +104,7 @@ const TimelinePanel: React.FC = () => {
                 onDrop={onPanelDrop}
             >
                 {/* Header: left add-track + time indicator, center transport, right view + loop + quantize */}
-                <div className="timeline-header relative z-30 grid flex-none grid-cols-3 items-center border-b border-neutral-800 bg-neutral-900/40 px-2 py-1">
+                <div className="timeline-header relative z-30 grid flex-none grid-cols-3 items-center border-b border-neutral-800 bg-neutral-900 px-2 py-1">
                     {/* Left: Add track buttons + time indicator */}
                     <div className="flex items-center gap-3">
                         <TrackImportButtons
@@ -150,7 +150,7 @@ const TimelinePanel: React.FC = () => {
                             <TempoRangeProvider>
                                 <div className="h-full w-full overflow-y-auto overflow-x-hidden">
                                     <div className="flex min-h-full">
-                                        <div className="tracklist-container relative z-10 w-60 shrink-0 border-r border-neutral-800 bg-neutral-900/40">
+                                        <div className="tracklist-container relative z-10 w-60 shrink-0 border-r border-neutral-800 bg-neutral-900">
                                             <TrackList
                                                 trackIds={trackIds}
                                                 activeTab={activeTab}

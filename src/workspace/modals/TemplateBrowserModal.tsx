@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { TemplateDefinition, TemplateMetadata } from '../templates/types';
 import { ModalShell } from './ModalShell';
+import { Button } from '@workspace/components/Button';
 
 interface TemplateBrowserModalProps {
     templates: TemplateDefinition[];
@@ -64,13 +65,9 @@ export const TemplateBrowserModal: React.FC<TemplateBrowserModalProps> = ({ temp
         >
             <div className="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
                 <h2 className="text-sm font-semibold text-neutral-100">Choose a Template</h2>
-                <button
-                    type="button"
-                    onClick={onClose}
-                    className="rounded border border-neutral-600 px-2 py-1 text-xs uppercase tracking-wide text-neutral-300 transition-colors hover:border-neutral-400 hover:text-neutral-100"
-                >
+                <Button variant="secondary" size="full" onClick={onClose}>
                     Close
-                </button>
+                </Button>
             </div>
             <div className="max-h-[60vh] overflow-y-auto px-4 py-4">
                 {templates.length === 0 ? (

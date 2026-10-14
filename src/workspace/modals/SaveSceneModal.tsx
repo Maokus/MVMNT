@@ -64,16 +64,12 @@ export function SaveSceneModal({ initialName, onCancel, onConfirm }: SaveSceneMo
                         type="text"
                         value={name}
                         onChange={(event) => setName(event.target.value)}
-                        className="rounded border border-neutral-800 bg-neutral-800/80 px-3 py-2 text-[13px] text-white outline-none focus:border-blue-400"
+                        className="rounded border border-neutral-800 bg-neutral-800 px-3 py-2 text-[13px] text-white outline-none focus:border-blue-400"
                         placeholder="Enter a name"
                     />
                 </label>
                 <div className="flex flex-col gap-0">
-                    <button
-                        type="button"
-                        className="flex items-center gap-1.5 self-start text-[12px] text-neutral-500 hover:text-neutral-300 transition-colors"
-                        onClick={() => setIsAdvancedOpen((prev) => !prev)}
-                    >
+                    <Button variant="faint" size="full" onClick={() => setIsAdvancedOpen((prev) => !prev)}>
                         <svg
                             className={`h-3 w-3 transition-transform ${isAdvancedOpen ? 'rotate-180' : ''}`}
                             viewBox="0 0 12 12"
@@ -84,16 +80,16 @@ export function SaveSceneModal({ initialName, onCancel, onConfirm }: SaveSceneMo
                             <path d="M2 4l4 4 4-4" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
                         Advanced
-                    </button>
+                    </Button>
                     {isAdvancedOpen && (
-                        <div className="mt-3 flex flex-col gap-3 rounded border border-neutral-800/60 bg-neutral-800/40 p-3">
+                        <div className="mt-3 flex flex-col gap-3 rounded border border-neutral-800 bg-neutral-800 p-3">
                             <label className="flex flex-col gap-1.5 text-[12px] text-neutral-300">
                                 Description
                                 <textarea
                                     value={description}
                                     onChange={(event) => setDescription(event.target.value)}
                                     rows={2}
-                                    className="resize-none rounded border border-neutral-800 bg-neutral-800/80 px-3 py-2 text-[13px] text-white outline-none focus:border-blue-400"
+                                    className="resize-none rounded border border-neutral-800 bg-neutral-800 px-3 py-2 text-[13px] text-white outline-none focus:border-blue-400"
                                     placeholder="Optional description"
                                 />
                             </label>
@@ -103,7 +99,7 @@ export function SaveSceneModal({ initialName, onCancel, onConfirm }: SaveSceneMo
                                     type="text"
                                     value={author}
                                     onChange={(event) => setAuthor(event.target.value)}
-                                    className="rounded border border-neutral-800 bg-neutral-800/80 px-3 py-2 text-[13px] text-white outline-none focus:border-blue-400"
+                                    className="rounded border border-neutral-800 bg-neutral-800 px-3 py-2 text-[13px] text-white outline-none focus:border-blue-400"
                                     placeholder="Optional author name"
                                 />
                             </label>

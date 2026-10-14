@@ -32,13 +32,9 @@ export function MidiTempoImportModal({
             </p>
 
             <div className="mt-5 flex flex-wrap justify-end gap-2 text-[13px]">
-                <button
-                    type="button"
-                    onClick={() => onChoice('skip')}
-                    className="rounded border border-transparent px-3 py-1.5 text-neutral-300 transition-colors hover:bg-neutral-800 hover:text-white"
-                >
+                <Button variant="ghost" size="full" onClick={() => onChoice('skip')}>
                     Skip
-                </button>
+                </Button>
                 {hasExistingKeyframes && (
                     <Button variant="solid-blue" size="full" onClick={() => onChoice('merge')}>
                         Merge with existing

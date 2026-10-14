@@ -1,5 +1,6 @@
 import { FloatingFocusManager, FloatingOverlay, useFloating } from '@floating-ui/react';
 import { useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
+import { Button } from '@workspace/components/Button';
 
 const sections = [
     {
@@ -119,14 +120,9 @@ export function ControlsModal({ onClose }: { onClose: () => void }) {
                                 Panel shortcuts follow focus; project shortcuts work throughout the editor.
                             </p>
                         </div>
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            aria-label="Close controls"
-                            className="rounded border border-transparent px-2 py-1 text-lg text-neutral-300 hover:bg-neutral-800 focus:outline-none focus:border-neutral-400"
-                        >
+                        <Button variant="ghost" size="full" onClick={onClose} aria-label="Close controls">
                             ×
-                        </button>
+                        </Button>
                     </div>
                     <div className="grid gap-6 overflow-y-auto p-5 sm:grid-cols-2">
                         {sections.map((section) => (

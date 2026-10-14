@@ -129,7 +129,7 @@ const ElementDropdown: React.FC<ElementDropdownProps> = ({ onAddElement, onClose
                             onFocus={(event) => handleCategoryFocus(category, event)}
                             className={`flex items-center gap-2 px-3 py-2 text-left text-[13px] transition-colors ${
                                 openCategory === category
-                                    ? 'bg-neutral-800/80 text-white'
+                                    ? 'bg-neutral-800 text-white'
                                     : 'text-neutral-300 hover:bg-neutral-800 hover:text-white'
                             }`}
                         >

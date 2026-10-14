@@ -260,7 +260,7 @@ const MidiVisualizerInner: React.FC = () => {
                         )}
                         {!isCompact && (
                             <div
-                                className={`relative h-full cursor-col-resize bg-neutral-900/70 border-l border-r border-neutral-800 transition-colors ${assetPanelCollapsed ? 'opacity-70 hover:bg-sky-500/20' : 'hover:bg-sky-500/30'}`}
+                                className={`relative h-full cursor-col-resize bg-neutral-900 border-l border-r border-neutral-800 transition-colors ${assetPanelCollapsed ? 'opacity-70 hover:bg-sky-500/20' : 'hover:bg-sky-500/30'}`}
                                 style={{ width: SIDE_HANDLE_WIDTH }}
                                 onPointerDown={handleAssetResizeDown}
                                 onPointerMove={handleAssetResizeMove}
@@ -292,7 +292,7 @@ const MidiVisualizerInner: React.FC = () => {
                         </div>
                         {!isCompact && (
                             <div
-                                className={`relative h-full cursor-col-resize bg-neutral-900/70 border-l border-r border-neutral-800 transition-colors ${sidePanelsCollapsed ? 'opacity-70 hover:bg-sky-500/20' : 'hover:bg-sky-500/30'}`}
+                                className={`relative h-full cursor-col-resize bg-neutral-900 border-l border-r border-neutral-800 transition-colors ${sidePanelsCollapsed ? 'opacity-70 hover:bg-sky-500/20' : 'hover:bg-sky-500/30'}`}
                                 style={{ width: SIDE_HANDLE_WIDTH }}
                                 onPointerDown={handleSideResizeDown}
                                 onPointerMove={handleSideResizeMove}
@@ -318,7 +318,7 @@ const MidiVisualizerInner: React.FC = () => {
                         )}
                     </div>
                     <div
-                        className={`relative w-full cursor-row-resize bg-neutral-900/70 border-t border-b border-neutral-800 transition-colors ${timelineCollapsed ? 'opacity-70 hover:bg-sky-500/20' : 'hover:bg-sky-500/30'}`}
+                        className={`relative w-full cursor-row-resize bg-neutral-900 border-t border-b border-neutral-800 transition-colors ${timelineCollapsed ? 'opacity-70 hover:bg-sky-500/20' : 'hover:bg-sky-500/30'}`}
                         style={{ height: TIMELINE_HANDLE_HEIGHT }}
                         data-preserve-selection="true"
                         onPointerDown={handleTimelineResizeDown}

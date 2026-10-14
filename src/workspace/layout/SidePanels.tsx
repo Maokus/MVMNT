@@ -287,7 +287,7 @@ const SidePanelsInternal: React.FC = () => {
 
             {/* Divider */}
             <div
-                className={`relative bg-neutral-900/70 border-neutral-800 transition-colors duration-150 ${layout === 'vertical' ? 'w-full h-full cursor-row-resize border-t border-b hover:bg-sky-500/30' : 'h-full w-full cursor-col-resize border-l border-r hover:bg-sky-500/30'}`}
+                className={`relative bg-neutral-900 border-neutral-800 transition-colors duration-150 ${layout === 'vertical' ? 'w-full h-full cursor-row-resize border-t border-b hover:bg-sky-500/30' : 'h-full w-full cursor-col-resize border-l border-r hover:bg-sky-500/30'}`}
                 style={
                     layout === 'vertical'
                         ? { gridRow: '2 / 3', gridColumn: '1 / 2' }
