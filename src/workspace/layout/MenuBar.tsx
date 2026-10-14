@@ -12,6 +12,7 @@ import type { TemplateDefinition } from '@workspace/templates/types';
 import { isTextEditingTarget, matchesShortcut, useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
 import { BUILD_INFO } from '@app/build-info';
 import { CommandContextMenu } from '@workspace/components/CommandContextMenu';
+import { Button } from '@workspace/components/Button';
 import { useDocumentSaveStatusStore } from '@state/documentSaveStatusStore';
 
 interface MenuBarProps {
@@ -171,29 +172,16 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                         </Link>
                     </h3>
                     <nav style={{ display: 'flex', gap: 10, fontSize: 12 }} aria-label="Utility navigation">
-                        <button
-                            type="button"
-                            onClick={() => onHelp?.()}
-                            style={{
-                                background: 'none',
-                                border: 'none',
-                                color: '#cccccc',
-                                cursor: 'pointer',
-                                padding: '4px 6px',
-                                borderRadius: 4,
-                            }}
-                            title="Show onboarding / help"
-                        >
+                        <Button variant="ghost" onClick={() => onHelp?.()} title="Show onboarding / help">
                             help
-                        </button>
-                        <button
-                            type="button"
+                        </Button>
+                        <Button
+                            variant="ghost"
                             onClick={() => setShowControlsModal(true)}
-                            className="rounded px-1.5 py-1 text-neutral-300 hover:bg-white/10 hover:text-white"
                             title="Show keyboard and mouse controls (?)"
                         >
                             controls
-                        </button>
+                        </Button>
                         <Link
                             to="/community"
                             onClick={handleGoCommunity}
@@ -251,22 +239,21 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
 
                         <DocumentSaveStatus />
 
-                        <button
-                            className="bg-transparent border-0 text-neutral-300 cursor-pointer p-1.5 rounded text-sm transition-colors flex items-center justify-center w-7 h-7 hover:bg-white/10 hover:text-white"
+                        <Button
+                            variant="icon"
                             onClick={() => {
                                 setShowSettingsModal(true);
                                 setShowSceneMenu(false);
                             }}
                             title="Scene settings"
                             aria-label="Scene settings"
-                            type="button"
                         >
                             <FaCog size={14} />
-                        </button>
+                        </Button>
                         <div className="relative">
-                            <button
+                            <Button
+                                variant="icon"
                                 ref={sceneMenuButtonRef}
-                                className="bg-transparent border-0 text-neutral-300 cursor-pointer p-1.5 rounded text-sm font-bold transition-colors flex items-center justify-center w-6 h-6 hover:bg-white/10 hover:text-white"
                                 onClick={() => setShowSceneMenu(!showSceneMenu)}
                                 title="Scene options"
                                 data-tutorial-target="save"
@@ -274,7 +261,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                                 aria-expanded={showSceneMenu}
                             >
                                 <FaEllipsisV size={14} />
-                            </button>
+                            </Button>
                             {showSceneMenu && sceneMenuButtonRef.current ? (
                                 <CommandContextMenu
                                     position={{
@@ -319,20 +306,19 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                         <BrowseTemplatesButton
                             templates={templates}
                             onTemplateSelect={handleBrowseTemplates}
-                            className="px-3 py-1 rounded cursor-pointer text-[12px] font-semibold inline-flex items-center justify-center border border-neutral-600 bg-neutral-800/70 text-neutral-100 hover:bg-neutral-700 focus:outline-none focus:border-neutral-400"
+                            className="px-3 py-1 rounded cursor-pointer text-[12px] font-semibold inline-flex items-center justify-center border border-neutral-800 bg-neutral-900 text-neutral-100 hover:bg-neutral-800 focus:outline-none"
                             disabled={!hasTemplates}
                         >
                             Browse Templates
                         </BrowseTemplatesButton>
-                        <button
-                            type="button"
+                        <Button
+                            variant="primary"
                             onClick={() => window.dispatchEvent(new CustomEvent('open-render-modal'))}
                             data-tutorial-target="render"
-                            className="px-3 py-1 rounded cursor-pointer text-[12px] font-semibold inline-flex items-center justify-center bg-[#0e639c] text-white hover:bg-[#1177bb] focus:outline-none focus:border-[#5cc8ff]"
                             title="Render / Export Video"
                         >
                             Render
-                        </button>
+                        </Button>
                     </div>
                 </div>
             </div>

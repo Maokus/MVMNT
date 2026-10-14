@@ -44,11 +44,11 @@ export function ModalShell({
             aria-modal="true"
             aria-label={label}
         >
-            <div className="absolute inset-0 bg-black/60" onClick={onCancel} aria-hidden="true" />
+            <div className="absolute inset-0 bg-black" onClick={onCancel} aria-hidden="true" />
             <div
                 className={
                     cardClassName ??
-                    `relative ${widthClass ?? 'w-[380px] max-w-[90vw]'} rounded-lg border border-neutral-700 bg-neutral-900/95 p-5 text-sm text-neutral-200 shadow-2xl`
+                    `relative ${widthClass ?? 'w-[380px] max-w-[90vw]'} rounded border border-neutral-800 bg-neutral-900 p-5 text-sm text-neutral-200`
                 }
                 onClick={handleCardClick}
             >
