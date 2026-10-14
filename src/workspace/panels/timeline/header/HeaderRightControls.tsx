@@ -14,6 +14,7 @@ import {
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 import { FaMagnet, FaEllipsisV, FaExpand, FaObjectGroup, FaCrosshairs, FaArrowRight, FaMagic } from 'react-icons/fa';
+import { clamp01 } from '@math/transforms/numeric';
 import { Button } from '@workspace/components/Button';
 import {
     formatQuantizeLabel,
@@ -102,11 +103,11 @@ const HeaderRightControls: React.FC<{
     const range = Math.max(1, view.endTick - view.startTick);
     const sliderFromRange = (r: number) => {
         const t = (Math.log(r) - Math.log(MIN_RANGE)) / (Math.log(MAX_RANGE) - Math.log(MIN_RANGE));
-        const clamped = Math.max(0, Math.min(1, t));
+        const clamped = clamp01(t);
         return Math.round(clamped * 100);
     };
     const rangeFromSlider = (v: number) => {
-        const t = Math.max(0, Math.min(1, v / 100));
+        const t = clamp01(v / 100);
         const logR = Math.log(MIN_RANGE) + t * (Math.log(MAX_RANGE) - Math.log(MIN_RANGE));
         return Math.exp(logR);
     };

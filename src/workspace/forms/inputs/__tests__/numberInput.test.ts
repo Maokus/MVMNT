@@ -25,6 +25,10 @@ describe('parseNumberInputWithExpression', () => {
     it('evaluates allowlisted arithmetic', () => {
         expect(parseNumberInputWithExpression('1+2*3')).toBe(7);
         expect(parseNumberInputWithExpression('(10 - 4) / 2')).toBe(3);
+        expect(parseNumberInputWithExpression('2**3')).toBe(8);
+        expect(parseNumberInputWithExpression('2**3**2')).toBe(512);
+        expect(parseNumberInputWithExpression('-(3+4)*2')).toBe(-14);
+        expect(parseNumberInputWithExpression('.5')).toBe(0.5);
     });
 
     it('rejects non-allowlisted or non-finite results', () => {
@@ -32,6 +36,21 @@ describe('parseNumberInputWithExpression', () => {
         expect(parseNumberInputWithExpression('abc')).toBeNull();
         expect(parseNumberInputWithExpression('Math.max(1,2)')).toBeNull();
         expect(parseNumberInputWithExpression('1/0')).toBeNull();
+    });
+
+    it('matches JS rejections for unary-before-** and legacy octals', () => {
+        expect(parseNumberInputWithExpression('-2**2')).toBeNull();
+        expect(parseNumberInputWithExpression('2++2')).toBeNull();
+        // Bare '01' takes the plain-number fast path in old and new code alike;
+        // legacy octals are rejected once embedded in an expression.
+        expect(parseNumberInputWithExpression('01')).toBe(1);
+        expect(parseNumberInputWithExpression('3+01')).toBeNull();
+        expect(parseNumberInputWithExpression('2**-3')).toBeCloseTo(0.125);
+    });
+
+    it('rejects JS comment syntax instead of evaluating it', () => {
+        expect(parseNumberInputWithExpression('10.5-0.5/**/')).toBeNull();
+        expect(parseNumberInputWithExpression('2/**/ + 3')).toBeNull();
     });
 });
 
