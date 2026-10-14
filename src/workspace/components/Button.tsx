@@ -29,8 +29,7 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
-    primary:
-        'rounded bg-blue-500 font-semibold text-white shadow-sm transition-colors hover:bg-blue-400 disabled:opacity-60',
+    primary: 'rounded bg-blue-500 font-semibold text-white transition-colors hover:bg-blue-400 disabled:opacity-60',
     secondary:
         'rounded border border-neutral-600 font-medium text-neutral-300 transition hover:bg-white/10 disabled:opacity-60',
     danger: 'rounded bg-rose-600 font-medium text-white transition hover:bg-rose-500 disabled:opacity-60',
@@ -46,12 +45,12 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
     neutral:
         'px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center bg-neutral-600 border-neutral-500 text-neutral-100 hover:bg-neutral-500 hover:border-neutral-400',
     'solid-blue':
-        'rounded border border-blue-500/70 bg-blue-600/70 px-3 py-1.5 font-semibold text-white shadow-sm transition-colors hover:bg-blue-500',
+        'rounded border border-blue-500/70 bg-blue-600/70 px-3 py-1.5 font-semibold text-white transition-colors hover:bg-blue-500',
     faint: 'text-xs opacity-70 hover:opacity-100',
     'solid-emerald':
-        'rounded border border-emerald-500/70 bg-emerald-600/70 px-3 py-1.5 font-semibold text-white shadow-sm transition-colors hover:bg-emerald-500',
+        'rounded border border-emerald-500/70 bg-emerald-600/70 px-3 py-1.5 font-semibold text-white transition-colors hover:bg-emerald-500',
     'solid-amber':
-        'rounded border border-amber-500/70 bg-amber-600/70 px-3 py-1.5 font-semibold text-white shadow-sm transition-colors hover:bg-amber-500',
+        'rounded border border-amber-500/70 bg-amber-600/70 px-3 py-1.5 font-semibold text-white transition-colors hover:bg-amber-500',
     icon: 'flex items-center justify-center w-4 h-4 rounded text-neutral-500 hover:text-neutral-200 hover:bg-neutral-700/50',
     indigo: 'rounded bg-indigo-600 px-3 py-1 text-[12px] font-medium text-white transition hover:bg-indigo-500',
     info: 'rounded bg-sky-600 px-3 py-1 text-[12px] font-medium text-white transition hover:bg-sky-500',

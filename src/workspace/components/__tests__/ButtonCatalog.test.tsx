@@ -2,8 +2,8 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { Button, type ButtonProps } from '../Button';
 
-// Pins the pixel-identical contract: each catalog variant must render the
-// exact class string it replaced at the migrated call sites.
+// Pins the flat contract: each catalog variant renders its exact class
+// string (shadow-free since the flat-UI pass).
 type ButtonVariant = NonNullable<ButtonProps['variant']>;
 const VARIANT_CASES: Array<[ButtonVariant, string]> = [
     [
@@ -28,15 +28,15 @@ const VARIANT_CASES: Array<[ButtonVariant, string]> = [
     ],
     [
         'solid-blue',
-        'rounded border border-blue-500/70 bg-blue-600/70 px-3 py-1.5 font-semibold text-white shadow-sm transition-colors hover:bg-blue-500',
+        'rounded border border-blue-500/70 bg-blue-600/70 px-3 py-1.5 font-semibold text-white transition-colors hover:bg-blue-500',
     ],
     [
         'solid-emerald',
-        'rounded border border-emerald-500/70 bg-emerald-600/70 px-3 py-1.5 font-semibold text-white shadow-sm transition-colors hover:bg-emerald-500',
+        'rounded border border-emerald-500/70 bg-emerald-600/70 px-3 py-1.5 font-semibold text-white transition-colors hover:bg-emerald-500',
     ],
     [
         'solid-amber',
-        'rounded border border-amber-500/70 bg-amber-600/70 px-3 py-1.5 font-semibold text-white shadow-sm transition-colors hover:bg-amber-500',
+        'rounded border border-amber-500/70 bg-amber-600/70 px-3 py-1.5 font-semibold text-white transition-colors hover:bg-amber-500',
     ],
     ['faint', 'text-xs opacity-70 hover:opacity-100'],
     [
