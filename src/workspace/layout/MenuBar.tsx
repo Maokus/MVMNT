@@ -314,7 +314,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                         <BrowseTemplatesButton
                             templates={templates}
                             onTemplateSelect={handleBrowseTemplates}
-                            className="px-3 py-1 rounded cursor-pointer text-[12px] font-semibold inline-flex items-center justify-center border border-neutral-600 bg-neutral-800/70 text-neutral-100 hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-500/40"
+                            className="px-3 py-1 rounded cursor-pointer text-[12px] font-semibold inline-flex items-center justify-center border border-neutral-600 bg-neutral-800/70 text-neutral-100 hover:bg-neutral-700 focus:outline-none focus:border-neutral-400"
                             disabled={!hasTemplates}
                         >
                             Browse Templates
@@ -323,7 +323,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                             type="button"
                             onClick={() => window.dispatchEvent(new CustomEvent('open-render-modal'))}
                             data-tutorial-target="render"
-                            className="px-3 py-1 rounded cursor-pointer text-[12px] font-semibold shadow-sm inline-flex items-center justify-center bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-pink-400"
+                            className="px-3 py-1 rounded cursor-pointer text-[12px] font-semibold shadow-sm inline-flex items-center justify-center bg-[#0e639c] text-white hover:bg-[#1177bb] focus:outline-none focus:ring-2 focus:ring-[#0e639c]"
                             title="Render / Export Video"
                         >
                             Render

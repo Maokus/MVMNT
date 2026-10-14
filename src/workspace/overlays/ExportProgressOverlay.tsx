@@ -89,7 +89,7 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
                         aria-valuenow={Math.round(progress)}
                     >
                         <div
-                            className="h-full bg-gradient-to-r from-[#0e639c] to-[#1177bb] transition-[width] duration-300"
+                            className="h-full bg-[#0e639c] transition-[width] duration-300"
                             style={{ width: `${progress}%` }}
                         />
                     </div>

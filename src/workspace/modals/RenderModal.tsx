@@ -728,7 +728,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                 <button
                     disabled={isExporting}
                     onClick={beginExport}
-                    className="px-4 py-1 rounded text-xs font-semibold bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 text-white shadow hover:opacity-90 disabled:opacity-50"
+                    className="px-4 py-1 rounded text-xs font-semibold bg-[#0e639c] text-white hover:bg-[#1177bb] disabled:opacity-50"
                 >
                     {isExporting ? 'Starting...' : 'Start export'}
                 </button>
