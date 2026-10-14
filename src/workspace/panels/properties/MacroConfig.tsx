@@ -6,6 +6,7 @@ import TimelineTrackSelect from '@workspace/forms/inputs/TimelineTrackSelect';
 import { useNumberDrag } from '@workspace/forms/inputs/useNumberDrag';
 import ColorAlphaInput from '@workspace/forms/inputs/ColorAlphaInput';
 import AssetSelect from '@workspace/forms/inputs/AssetSelect';
+import { Button } from '@workspace/components/Button';
 import { useMacroAssignments } from '@state/scene';
 
 interface MacroConfigProps {
@@ -688,36 +689,38 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                                 >
                                     {macro.name}
                                 </span>
-                                <button
-                                    type="button"
-                                    className="bg-transparent border-0 text-neutral-400 cursor-pointer px-1 py-0.5 rounded text-xs hover:text-neutral-300 hover:bg-[color:var(--twc-border)] flex items-center"
+                                <Button
+                                    variant="quiet"
+                                    size="full"
                                     onClick={() => handleStartEditingName(macro.name)}
                                     title="Edit macro name"
                                     aria-label="Edit macro name"
                                 >
                                     <FaPen />
-                                </button>
+                                </Button>
                             </div>
                         )}
                     </div>
                     {renderMacroInput(macro)}
                     <div className="macro-actions">
-                        <button
-                            className="bg-transparent border-0 text-neutral-400 cursor-pointer px-1 py-0.5 rounded text-xs hover:text-neutral-300 hover:bg-[color:var(--twc-border)] flex items-center"
+                        <Button
+                            variant="quiet"
+                            size="full"
                             onClick={() => handleShowAssignmentDialog(macro.name)}
                             title="Manage Assignments"
                             aria-label="Manage Assignments"
                         >
                             <FaLink />
-                        </button>
-                        <button
-                            className="bg-transparent border-0 text-neutral-400 cursor-pointer px-1 py-0.5 rounded text-xs hover:text-neutral-300 hover:bg-[color:var(--twc-border)] flex items-center"
+                        </Button>
+                        <Button
+                            variant="quiet"
+                            size="full"
                             onClick={() => handleDeleteMacro(macro.name)}
                             title="Delete Macro"
                             aria-label="Delete Macro"
                         >
                             <FaTrash />
-                        </button>
+                        </Button>
                     </div>
                 </div>
                 <div className="macro-assignments">
@@ -889,18 +892,12 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                             </div>
                         )}
                         <div className="dialog-actions">
-                            <button
-                                className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center bg-[#0e639c] border-[#1177bb] text-white hover:bg-[#1177bb] hover:border-[#1890d4]"
-                                onClick={handleCreateMacro}
-                            >
+                            <Button variant="navy" size="full" onClick={handleCreateMacro}>
                                 Create
-                            </button>
-                            <button
-                                className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center bg-neutral-600 border-neutral-500 text-neutral-100 hover:bg-neutral-500 hover:border-neutral-400"
-                                onClick={() => setShowCreateDialog(false)}
-                            >
+                            </Button>
+                            <Button variant="neutral" size="full" onClick={() => setShowCreateDialog(false)}>
                                 Cancel
-                            </button>
+                            </Button>
                         </div>
                     </div>
                 </div>

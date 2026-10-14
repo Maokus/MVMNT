@@ -1,3 +1,4 @@
+import { Button } from '@workspace/components/Button';
 import { ModalShell } from './ModalShell';
 
 export type TempoImportChoice = 'skip' | 'replace' | 'merge';
@@ -39,21 +40,13 @@ export function MidiTempoImportModal({
                     Skip
                 </button>
                 {hasExistingKeyframes && (
-                    <button
-                        type="button"
-                        onClick={() => onChoice('merge')}
-                        className="rounded border border-blue-500/70 bg-blue-600/70 px-3 py-1.5 font-semibold text-white shadow-sm transition-colors hover:bg-blue-500"
-                    >
+                    <Button variant="solid-blue" size="full" onClick={() => onChoice('merge')}>
                         Merge with existing
-                    </button>
+                    </Button>
                 )}
-                <button
-                    type="button"
-                    onClick={() => onChoice('replace')}
-                    className="rounded border border-amber-500/70 bg-amber-600/70 px-3 py-1.5 font-semibold text-white shadow-sm transition-colors hover:bg-amber-500"
-                >
+                <Button variant="solid-amber" size="full" onClick={() => onChoice('replace')}>
                     {hasExistingKeyframes ? 'Replace existing' : 'Import'}
-                </button>
+                </Button>
             </div>
         </ModalShell>
     );

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Button } from '@workspace/components/Button';
 import { isExportJobActive, useExportJobStore } from '@export/jobs';
 import { createExportDiagnostics } from '@export/diagnostics';
 
@@ -64,20 +65,18 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
                             </h3>
                         </div>
                         {isCollapsed ? (
-                            <button
-                                className="text-xs opacity-70 hover:opacity-100"
+                            <Button
+                                variant="faint"
+                                size="full"
                                 onClick={() => setIsCollapsed(false)}
                                 aria-label="Expand export progress"
                             >
                                 Expand
-                            </button>
+                            </Button>
                         ) : (
-                            <button
-                                className="text-xs opacity-70 hover:opacity-100"
-                                onClick={() => setIsCollapsed(true)}
-                            >
+                            <Button variant="faint" size="full" onClick={() => setIsCollapsed(true)}>
                                 Hide
-                            </button>
+                            </Button>
                         )}
                     </div>
 
@@ -124,12 +123,9 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
                                 >
                                     ⬇ Download {kind === 'video' ? 'Video' : 'PNG Sequence'}
                                 </a>
-                                <button
-                                    className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center bg-neutral-600 border-neutral-500 text-neutral-100 hover:bg-neutral-500 hover:border-neutral-400 ml-[10px]"
-                                    onClick={onClose}
-                                >
+                                <Button variant="neutral" size="full" className="ml-[10px]" onClick={onClose}>
                                     Close
-                                </button>
+                                </Button>
                             </div>
                         ))}
                     {!isCollapsed && visibleJobs.length > 0 && (

@@ -1,4 +1,5 @@
 import type { MIDITrackDetails } from '@core/types';
+import { Button } from '@workspace/components/Button';
 import { ModalShell } from './ModalShell';
 
 interface MidiImportModeModalProps {
@@ -64,20 +65,12 @@ export function MidiImportModeModal({
                 >
                     Cancel
                 </button>
-                <button
-                    type="button"
-                    onClick={onImportSingle}
-                    className="rounded border border-blue-500/70 bg-blue-600/70 px-3 py-1.5 font-semibold text-white shadow-sm transition-colors hover:bg-blue-500"
-                >
+                <Button variant="solid-blue" size="full" onClick={onImportSingle}>
                     Import as single track
-                </button>
-                <button
-                    type="button"
-                    onClick={onImportSplit}
-                    className="rounded border border-emerald-500/70 bg-emerald-600/70 px-3 py-1.5 font-semibold text-white shadow-sm transition-colors hover:bg-emerald-500"
-                >
+                </Button>
+                <Button variant="solid-emerald" size="full" onClick={onImportSplit}>
                     Split into {playableCount} tracks
-                </button>
+                </Button>
             </div>
         </ModalShell>
     );

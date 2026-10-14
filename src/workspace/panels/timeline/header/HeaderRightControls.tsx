@@ -14,6 +14,7 @@ import {
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 import { FaMagnet, FaEllipsisV, FaExpand, FaObjectGroup, FaCrosshairs, FaArrowRight, FaMagic } from 'react-icons/fa';
+import { Button } from '@workspace/components/Button';
 import {
     formatQuantizeLabel,
     TIMELINE_SNAP_OPTIONS,
@@ -363,8 +364,9 @@ const HeaderRightControls: React.FC<{
                             </label>
                             {/* View preset buttons */}
                             <div className="flex items-center gap-1" role="none">
-                                <button
-                                    className="flex-1 px-2 py-1 rounded border border-neutral-700 bg-neutral-900/50 text-neutral-200 hover:bg-neutral-800/60 flex items-center justify-center gap-1"
+                                <Button
+                                    variant="toolbar"
+                                    size="full"
                                     title="Fit all content (Shift+1)"
                                     onClick={() => {
                                         onFitAll?.();
@@ -372,9 +374,10 @@ const HeaderRightControls: React.FC<{
                                     }}
                                 >
                                     <FaExpand className="text-neutral-300" />
-                                </button>
-                                <button
-                                    className="flex-1 px-2 py-1 rounded border border-neutral-700 bg-neutral-900/50 text-neutral-200 hover:bg-neutral-800/60 flex items-center justify-center gap-1"
+                                </Button>
+                                <Button
+                                    variant="toolbar"
+                                    size="full"
                                     title="Zoom to selection (Shift+2)"
                                     onClick={() => {
                                         onZoomToSelection?.();
@@ -382,9 +385,10 @@ const HeaderRightControls: React.FC<{
                                     }}
                                 >
                                     <FaObjectGroup className="text-neutral-300" />
-                                </button>
-                                <button
-                                    className="flex-1 px-2 py-1 rounded border border-neutral-700 bg-neutral-900/50 text-neutral-200 hover:bg-neutral-800/60 flex items-center justify-center gap-1"
+                                </Button>
+                                <Button
+                                    variant="toolbar"
+                                    size="full"
                                     title="Center on playhead (F)"
                                     onClick={() => {
                                         onCenterOnPlayhead?.();
@@ -392,7 +396,7 @@ const HeaderRightControls: React.FC<{
                                     }}
                                 >
                                     <FaCrosshairs className="text-neutral-300" />
-                                </button>
+                                </Button>
                             </div>
                         </div>
                     </FloatingFocusManager>

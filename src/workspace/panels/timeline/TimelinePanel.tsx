@@ -25,6 +25,7 @@ import { useTimelineNavigation } from './hooks/useTimelineNavigation';
 import { useTimelinePointerControls } from './hooks/useTimelinePointerControls';
 import { useAutoFollow } from './hooks/useAutoFollow';
 import { formatBytes } from '@audio/audioMemoryDiagnostics';
+import { Button } from '@workspace/components/Button';
 import { activateCommandSurface } from '@context/commands/commandContext';
 
 const TimelinePanel: React.FC = () => {
@@ -195,14 +196,14 @@ const TimelinePanel: React.FC = () => {
                                             : ''}
                                     </div>
                                 </div>
-                                <button
-                                    type="button"
+                                <Button
+                                    variant="panel"
+                                    size="full"
                                     onClick={cancelAudioImport}
                                     disabled={audioImportProgress.cancelRequested}
-                                    className="rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs text-neutral-200 hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
                                 >
                                     {audioImportProgress.cancelRequested ? 'Canceling...' : 'Cancel'}
-                                </button>
+                                </Button>
                             </div>
                             <div className="mt-3 truncate text-xs text-neutral-300">
                                 {audioImportProgress.currentFile ?? 'Preparing batch...'}

@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { usePluginStore } from '@state/pluginStore';
 import { disablePlugin, enablePlugin, loadPlugin, unloadPlugin, upgradePlugin } from '@core/scene/plugins';
 import { analytics } from '@app/analytics';
+import { Button } from '@workspace/components/Button';
 
 const ScenePluginsTab: React.FC = () => {
     const { plugins, loading } = usePluginStore((state) => ({
@@ -152,20 +153,12 @@ const ScenePluginsTab: React.FC = () => {
                             This plugin will run code on your computer. Only install plugins from authors you trust.
                         </p>
                         <div className="flex gap-2 pt-1">
-                            <button
-                                type="button"
-                                onClick={() => setPendingFile(null)}
-                                className="rounded border border-neutral-600 px-3 py-1 text-[12px] font-medium text-neutral-300 transition hover:bg-white/10"
-                            >
+                            <Button variant="secondary" size="sm" onClick={() => setPendingFile(null)}>
                                 Cancel
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleConfirmImport}
-                                className="rounded bg-indigo-600 px-3 py-1 text-[12px] font-medium text-white transition hover:bg-indigo-500"
-                            >
+                            </Button>
+                            <Button variant="indigo" size="full" onClick={handleConfirmImport}>
                                 Install
-                            </button>
+                            </Button>
                         </div>
                     </div>
                 )}
@@ -178,20 +171,12 @@ const ScenePluginsTab: React.FC = () => {
                             plugin will be replaced if the new version is newer.
                         </p>
                         <div className="flex gap-2 pt-1">
-                            <button
-                                type="button"
-                                onClick={() => setUpgradeOffer(null)}
-                                className="rounded border border-neutral-600 px-3 py-1 text-[12px] font-medium text-neutral-300 transition hover:bg-white/10"
-                            >
+                            <Button variant="secondary" size="sm" onClick={() => setUpgradeOffer(null)}>
                                 Cancel
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleConfirmUpgrade}
-                                className="rounded bg-sky-600 px-3 py-1 text-[12px] font-medium text-white transition hover:bg-sky-500"
-                            >
+                            </Button>
+                            <Button variant="info" size="full" onClick={handleConfirmUpgrade}>
                                 Upgrade
-                            </button>
+                            </Button>
                         </div>
                     </div>
                 )}

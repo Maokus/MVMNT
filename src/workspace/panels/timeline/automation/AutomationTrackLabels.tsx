@@ -21,6 +21,7 @@ import { AUTOMATION_HEADER_HEIGHT, AUTOMATION_ROW_HEIGHT, AUTOMATION_SEARCH_HEIG
 import { useCurveHeight } from '../context/curveHeightContext';
 import { useCurveRange, useCurveRangeControls } from '../context/curveRangeContext';
 import { computeAutoRange } from './automationCurveUtils';
+import { Button } from '@workspace/components/Button';
 
 /** Range controls shown in the left-column spacer when the curve editor is open. */
 const CurveRangeControls: React.FC<{ channelId: string; curveHeight: number }> = ({ channelId, curveHeight }) => {
@@ -251,8 +252,9 @@ const ChannelRow: React.FC<{ channelId: string }> = ({ channelId }) => {
                     {descriptor?.presentation.unit ?? ''}
                 </span>
                 <div className="flex items-center gap-1">
-                    <button
-                        className="flex items-center justify-center w-4 h-4 rounded text-neutral-500 hover:text-neutral-200 hover:bg-neutral-700/50"
+                    <Button
+                        variant="icon"
+                        size="full"
                         title="Previous keyframe (J)"
                         onClick={(e) => {
                             e.stopPropagation();
@@ -260,9 +262,10 @@ const ChannelRow: React.FC<{ channelId: string }> = ({ channelId }) => {
                         }}
                     >
                         <FaAngleLeft className="text-[8px]" />
-                    </button>
-                    <button
-                        className="flex items-center justify-center w-4 h-4 rounded text-neutral-500 hover:text-neutral-200 hover:bg-neutral-700/50"
+                    </Button>
+                    <Button
+                        variant="icon"
+                        size="full"
                         title="Next keyframe (K)"
                         onClick={(e) => {
                             e.stopPropagation();
@@ -270,7 +273,7 @@ const ChannelRow: React.FC<{ channelId: string }> = ({ channelId }) => {
                         }}
                     >
                         <FaAngleRight className="text-[8px]" />
-                    </button>
+                    </Button>
                     {channel?.valueType !== 'string' && (
                         <button
                             className={`flex items-center justify-center w-4 h-4 rounded ${

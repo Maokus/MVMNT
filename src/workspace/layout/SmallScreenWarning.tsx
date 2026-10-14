@@ -1,5 +1,7 @@
 import React from 'react';
 
+import { Button } from '@workspace/components/Button';
+
 interface SmallScreenWarningProps {
     onProceed: () => void;
 }
@@ -18,12 +20,9 @@ const SmallScreenWarning: React.FC<SmallScreenWarningProps> = ({ onProceed }) =>
                     not function correctly on smaller screens.
                 </p>
                 <div className="flex gap-2 mt-4">
-                    <button
-                        className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center bg-[#0e639c] border-[#1177bb] text-white hover:bg-[#1177bb] hover:border-[#1890d4]"
-                        onClick={onProceed}
-                    >
+                    <Button variant="navy" size="full" onClick={onProceed}>
                         Proceed anyway
-                    </button>
+                    </Button>
                 </div>
             </div>
         </div>
