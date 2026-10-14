@@ -307,7 +307,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
             shortcutId="modal.render.escape"
             label="Render / Export"
             onCancel={onClose}
-            outerClassName="fixed inset-0 bg-black/60 flex items-center justify-center z-[9700]"
+            outerClassName="fixed inset-0 flex items-center justify-center z-[9700]"
             cardClassName="border rounded-lg w-[560px] max-w-[92vw] max-h-[90vh] overflow-y-auto p-5 [background-color:var(--twc-menubar)] [border-color:var(--twc-border)] shadow-2xl relative"
         >
             <h2 className="m-0 text-xl font-semibold mb-2">Render / Export</h2>

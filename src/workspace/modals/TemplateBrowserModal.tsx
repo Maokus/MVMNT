@@ -59,8 +59,8 @@ export const TemplateBrowserModal: React.FC<TemplateBrowserModalProps> = ({ temp
             shortcutId="modal.template-browser.escape"
             label="Browse templates"
             onCancel={onClose}
-            outerClassName="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6"
-            cardClassName="w-full max-w-3xl rounded-lg border border-neutral-700 bg-neutral-900 shadow-2xl"
+            outerClassName="fixed inset-0 z-50 flex items-center justify-center px-4 py-6"
+            cardClassName="relative w-full max-w-3xl rounded-lg border border-neutral-700 bg-neutral-900 shadow-2xl"
         >
             <div className="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
                 <h2 className="text-sm font-semibold text-neutral-100">Choose a Template</h2>
