@@ -6,7 +6,8 @@ import { formatQuantizeShortLabel } from '@state/timeline/quantize';
 import { useTimelineStore } from '@state/timelineStore';
 import MidiNotePreview from '@workspace/components/MidiNotePreview';
 import { getClipPreviewLayout, getPreviewViewport } from '@workspace/components/previewGeometry';
-import { getMidiClipsInTimelineSelection, type TimelineClipRef } from '../clipboard/midiClipClipboard';
+import { getTimelineClipsInSelection, type TimelineClipRef } from '../clipboard/midiClipClipboard';
+import { buildDragPreviews, resolveDragGroup, type DragGroupEntry } from './clipDragGroup';
 import { useSnapTicks } from '../hooks/useSnapTicks';
 import { useTickScale } from '../hooks/useTickScale';
 import { formatClipStartLabel } from '../utils/clipLabelUtils';
@@ -26,7 +27,7 @@ type DragStart = {
     startY: number;
     baseOffsetTick: number;
     alt: boolean;
-    groupBaseOffsets: Array<{ trackId: string; clipId: string; offsetTicks: number; trackIndex: number }>;
+    groupBaseOffsets: DragGroupEntry[];
 };
 
 type ResizeStart = {
@@ -50,6 +51,8 @@ const MidiClipBlock: React.FC<Props> = ({
     const updateMidiClip = useTimelineStore((s) => s.updateMidiClip);
     const setMultipleMidiClipOffsets = useTimelineStore((s) => s.setMultipleMidiClipOffsets);
     const moveMidiClipsBetweenTracks = useTimelineStore((s) => s.moveMidiClipsBetweenTracks);
+    const setMultipleAudioClipOffsets = useTimelineStore((s) => s.setMultipleAudioClipOffsets);
+    const moveAudioClipsBetweenTracks = useTimelineStore((s) => s.moveAudioClipsBetweenTracks);
     const setCrossTrackDrag = useTimelineStore((s) => s._setCrossTrackDrag);
     const crossTrackDrag = useTimelineStore((s) => s._crossTrackDrag);
     const tracksOrder = useTimelineStore((s) => s.tracksOrder);
@@ -105,7 +108,8 @@ const MidiClipBlock: React.FC<Props> = ({
         return absStartTick < selectionEnd && absEndTick > selectionStart;
     }, [absEndTick, absStartTick, clipTimelineSelection, trackId, clip.id]);
 
-    const isCrossDragging = crossTrackDrag?.previews.some((p) => p.clipId === clip.id) ?? false;
+    const isCrossDragging =
+        crossTrackDrag?.previews.some((p) => p.clipId === clip.id && p.sourceTrackId === trackId) ?? false;
 
     const tooltip = useMemo(() => {
         const st = useTimelineStore.getState();
@@ -123,7 +127,7 @@ const MidiClipBlock: React.FC<Props> = ({
     const selectForPointer = (e: React.PointerEvent): TimelineClipRef[] => {
         const state = useTimelineStore.getState();
         const currentSelection = useSelectionStore.getState().clipTimelineSelection;
-        const selectedRefs = getMidiClipsInTimelineSelection(state, currentSelection);
+        const selectedRefs = getTimelineClipsInSelection(state, currentSelection);
         const alreadySelected = selectedRefs.some((entry) => entry.trackId === trackId && entry.clipId === clip.id);
 
         if (e.shiftKey || e.metaKey || e.ctrlKey) {
@@ -201,14 +205,33 @@ const MidiClipBlock: React.FC<Props> = ({
         if (!drag || !didMove) return;
 
         if (activeCrossTrackDrag && activeCrossTrackDrag.previews.some((p) => p.sourceTrackId !== p.targetTrackId)) {
-            const moves = activeCrossTrackDrag.previews.map((p) => ({
-                sourceTrackId: p.sourceTrackId,
-                clipId: p.clipId,
-                destinationTrackId: p.targetTrackId,
-                newOffsetTicks: p.previewOffsetTicks,
-            }));
-            void moveMidiClipsBetweenTracks({ moves }).then(() => {
-                selectRefsAsClips(moves.map((m) => ({ trackId: m.destinationTrackId, clipId: m.clipId })));
+            const midiMoves = activeCrossTrackDrag.previews
+                .filter((p) => (p.kind ?? 'midi') === 'midi')
+                .map((p) => ({
+                    sourceTrackId: p.sourceTrackId,
+                    clipId: p.clipId,
+                    destinationTrackId: p.targetTrackId,
+                    newOffsetTicks: p.previewOffsetTicks,
+                }));
+            const audioMoves = activeCrossTrackDrag.previews
+                .filter((p) => p.kind === 'audio')
+                .map((p) => ({
+                    sourceTrackId: p.sourceTrackId,
+                    clipId: p.clipId,
+                    destinationTrackId: p.targetTrackId,
+                    newOffsetTicks: p.previewOffsetTicks,
+                }));
+            const jobs: Array<Promise<void>> = [];
+            if (midiMoves.length) jobs.push(moveMidiClipsBetweenTracks({ moves: midiMoves }));
+            if (audioMoves.length) jobs.push(moveAudioClipsBetweenTracks({ moves: audioMoves }));
+            void Promise.all(jobs).then(() => {
+                selectRefsAsClips(
+                    activeCrossTrackDrag.previews.map((p) => ({
+                        trackId: p.targetTrackId,
+                        clipId: p.clipId,
+                        kind: p.kind ?? 'midi',
+                    }))
+                );
             });
             return;
         }
@@ -217,15 +240,30 @@ const MidiClipBlock: React.FC<Props> = ({
 
         if (drag.groupBaseOffsets.length > 1) {
             const delta = finalTick - drag.baseOffsetTick;
-            void setMultipleMidiClipOffsets({
-                offsets: drag.groupBaseOffsets.map((entry) => ({
+            const midiOffsets = drag.groupBaseOffsets
+                .filter((entry) => entry.kind === 'midi')
+                .map((entry) => ({
                     trackId: entry.trackId,
                     clipId: entry.clipId,
                     offsetTicks: entry.offsetTicks + delta,
-                })),
-            }).then(() => {
+                }));
+            const audioOffsets = drag.groupBaseOffsets
+                .filter((entry) => entry.kind === 'audio')
+                .map((entry) => ({
+                    trackId: entry.trackId,
+                    clipId: entry.clipId,
+                    offsetTicks: entry.offsetTicks + delta,
+                }));
+            const jobs: Array<Promise<void>> = [];
+            if (midiOffsets.length) jobs.push(setMultipleMidiClipOffsets({ offsets: midiOffsets }));
+            if (audioOffsets.length) jobs.push(setMultipleAudioClipOffsets({ offsets: audioOffsets }));
+            void Promise.all(jobs).then(() => {
                 selectRefsAsClips(
-                    drag.groupBaseOffsets.map((entry) => ({ trackId: entry.trackId, clipId: entry.clipId }))
+                    drag.groupBaseOffsets.map((entry) => ({
+                        trackId: entry.trackId,
+                        clipId: entry.clipId,
+                        kind: entry.kind,
+                    }))
                 );
             });
         } else {
@@ -257,22 +295,7 @@ const MidiClipBlock: React.FC<Props> = ({
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
         const nextSelection = selectForPointer(e);
         const storeState = useTimelineStore.getState();
-        const groupBaseOffsets = nextSelection
-            .map((entry) => {
-                const track = storeState.tracks[entry.trackId];
-                if (!track || track.type !== 'midi') return null;
-                const targetClip = track.clips?.find((candidate) => candidate.id === entry.clipId);
-                const ti = storeState.tracksOrder.indexOf(entry.trackId);
-                return targetClip
-                    ? {
-                          trackId: entry.trackId,
-                          clipId: entry.clipId,
-                          offsetTicks: targetClip.offsetTicks,
-                          trackIndex: ti,
-                      }
-                    : null;
-            })
-            .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+        const groupBaseOffsets = resolveDragGroup(storeState, nextSelection);
         dragRef.current = {
             startX: e.clientX,
             startY: e.clientY,
@@ -315,54 +338,17 @@ const MidiClipBlock: React.FC<Props> = ({
         onHoverSnapX(toX(snapped + localStartTick, laneWidth));
         if (Math.abs(dx) > 2 || Math.abs(dy) > 2) setDidMove(true);
 
-        // Cross-track drag detection (previews also drive same-track multi-drag ghosts)
+        // Move previews for the whole drag group (both clip kinds); they render
+        // as live ghosts and drive the drop commit below.
         const trackDelta = Math.round(dy / Math.max(1, rowHeight));
         if (drag.groupBaseOffsets.length > 1 || trackDelta !== 0) {
             const horizontalDelta = snapped - drag.baseOffsetTick;
-            const midiTrackIds = tracksOrder.filter((id) => {
-                const t = useTimelineStore.getState().tracks[id];
-                return t?.type === 'midi';
-            });
-            const previews = drag.groupBaseOffsets
-                .map((entry) => {
-                    const newTrackIndex = entry.trackIndex + trackDelta;
-                    const clampedIndex = Math.max(0, Math.min(tracksOrder.length - 1, newTrackIndex));
-                    const targetId = tracksOrder[clampedIndex];
-                    if (!targetId || !midiTrackIds.includes(targetId)) {
-                        // Snap to nearest MIDI track
-                        const closestMidi = midiTrackIds.reduce((best, id) => {
-                            const idx = tracksOrder.indexOf(id);
-                            return Math.abs(idx - newTrackIndex) < Math.abs(tracksOrder.indexOf(best) - newTrackIndex)
-                                ? id
-                                : best;
-                        }, midiTrackIds[0] ?? entry.trackId);
-                        const t = useTimelineStore.getState().tracks[entry.trackId];
-                        const c = t?.type === 'midi' ? t.clips?.find((cl) => cl.id === entry.clipId) : undefined;
-                        return {
-                            kind: 'midi' as const,
-                            clipId: entry.clipId,
-                            sourceTrackId: entry.trackId,
-                            targetTrackId: closestMidi,
-                            previewOffsetTicks: entry.offsetTicks + horizontalDelta,
-                            sourceId: c?.sourceId ?? '',
-                            regionStartTick: c?.regionStartTick,
-                            regionEndTick: c?.regionEndTick,
-                        };
-                    }
-                    const t = useTimelineStore.getState().tracks[entry.trackId];
-                    const c = t?.type === 'midi' ? t.clips?.find((cl) => cl.id === entry.clipId) : undefined;
-                    return {
-                        kind: 'midi' as const,
-                        clipId: entry.clipId,
-                        sourceTrackId: entry.trackId,
-                        targetTrackId: targetId,
-                        previewOffsetTicks: entry.offsetTicks + horizontalDelta,
-                        sourceId: c?.sourceId ?? '',
-                        regionStartTick: c?.regionStartTick,
-                        regionEndTick: c?.regionEndTick,
-                    };
-                })
-                .filter((p) => !!p.sourceId);
+            const previews = buildDragPreviews(
+                useTimelineStore.getState(),
+                drag.groupBaseOffsets,
+                trackDelta,
+                horizontalDelta
+            );
 
             if (previews.length) {
                 const primaryTarget =

@@ -129,24 +129,9 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
             ];
         }
         if (clipTimelineSelection.type === 'range') {
-            const selectedIndexes = clipTimelineSelection.range.trackIds
-                .map((id) => trackIds.indexOf(id))
-                .filter((index) => index >= 0)
-                .sort((a, b) => a - b);
-            if (!selectedIndexes.length) return [];
-            const left = toX(clipTimelineSelection.range.startTick, w);
-            const right = toX(clipTimelineSelection.range.endTick, w);
-            const first = selectedIndexes[0];
-            const last = selectedIndexes[selectedIndexes.length - 1];
-            return [
-                {
-                    type: 'range' as const,
-                    left: Math.min(left, right),
-                    top: first * rowHeight,
-                    width: Math.max(1, Math.abs(right - left)),
-                    height: (last - first + 1) * rowHeight,
-                },
-            ];
+            // No persistent box for range selections: the live marquee shows the
+            // rect while dragging, and member clips highlight individually.
+            return [];
         }
         if (clipTimelineSelection.type === 'clips') {
             // Per-track segments: one highlight per track that has selected clips
