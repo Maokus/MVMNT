@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { FaLink, FaTrash, FaPlus, FaPen, FaGripVertical } from 'react-icons/fa';
+import { FaLink, FaTrash, FaPlus, FaPen, FaGripVertical, FaFolderOpen } from 'react-icons/fa';
 import { useMacros } from '@context/MacroContext';
 import FontInput from '@workspace/forms/inputs/FontInput';
 import TimelineTrackSelect from '@workspace/forms/inputs/TimelineTrackSelect';
@@ -575,10 +575,10 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                         />
                         <button
                             type="button"
-                            className="px-2 py-1 bg-blue-600 text-white rounded text-[11px] hover:bg-blue-700"
+                            className="inline-flex items-center gap-1.5 px-2 py-1 bg-blue-600 text-white rounded text-[11px] hover:bg-blue-700"
                             onClick={() => document.getElementById(`macro-file-${macro.name}`)?.click()}
                         >
-                            📁 Choose File
+                            <FaFolderOpen size={12} aria-hidden="true" /> Choose File
                         </button>
                         <span className="file-name">{fileName}</span>
                     </div>

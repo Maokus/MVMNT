@@ -161,7 +161,7 @@ const AssetManagerPanel: React.FC = () => {
 
     return (
         <div
-            className={`flex flex-col h-full bg-neutral-950 transition-colors${dragOver ? ' ring-1 ring-inset ring-accent/50' : ''}`}
+            className={`flex flex-col h-full bg-neutral-950 transition-colors${dragOver ? ' border border-[#0e639c]' : ''}`}
             onDragOver={(e) => {
                 e.preventDefault();
                 setDragOver(true);

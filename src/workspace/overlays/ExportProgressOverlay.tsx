@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
+import { FaFilm, FaImage, FaDownload } from 'react-icons/fa';
 import { Button } from '@workspace/components/Button';
+import { ProgressBar } from '@workspace/components/ProgressBar';
 import { isExportJobActive, useExportJobStore } from '@export/jobs';
 import { createExportDiagnostics } from '@export/diagnostics';
 
@@ -60,8 +62,16 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
                                     ×
                                 </button>
                             )}
-                            <h3 className="truncate text-white font-semibold">
-                                {kind === 'video' ? '🎬 Exporting Video' : '📸 Exporting PNG Sequence'}
+                            <h3 className="flex items-center gap-1.5 truncate font-semibold text-white">
+                                {kind === 'video' ? (
+                                    <>
+                                        <FaFilm size={14} aria-hidden="true" /> Exporting Video
+                                    </>
+                                ) : (
+                                    <>
+                                        <FaImage size={14} aria-hidden="true" /> Exporting PNG Sequence
+                                    </>
+                                )}
                             </h3>
                         </div>
                         {isCollapsed ? (
@@ -80,18 +90,8 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
                         )}
                     </div>
 
-                    <div
-                        className={`w-full h-2 rounded overflow-hidden [background-color:var(--twc-control)]${isCollapsed ? '' : ' mb-2'}`}
-                        role="progressbar"
-                        aria-label="Export progress"
-                        aria-valuemin={0}
-                        aria-valuemax={100}
-                        aria-valuenow={Math.round(progress)}
-                    >
-                        <div
-                            className="h-full bg-[#0e639c] transition-[width] duration-300"
-                            style={{ width: `${progress}%` }}
-                        />
+                    <div className={isCollapsed ? '' : ' mb-2'}>
+                        <ProgressBar value={progress} label="Export progress" />
                     </div>
 
                     {!isCollapsed &&
@@ -118,10 +118,11 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
                             <div className="download-section">
                                 <a
                                     href={downloadUrl}
-                                    className="inline-block px-4 py-2 bg-[#196127] text-white no-underline rounded font-semibold text-[13px] hover:bg-[#2d7a3d]"
+                                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#196127] text-white no-underline rounded font-semibold text-[13px] hover:bg-[#2d7a3d]"
                                     download={filename}
                                 >
-                                    ⬇ Download {kind === 'video' ? 'Video' : 'PNG Sequence'}
+                                    <FaDownload size={14} aria-hidden="true" /> Download{' '}
+                                    {kind === 'video' ? 'Video' : 'PNG Sequence'}
                                 </a>
                                 <Button variant="neutral" size="full" className="ml-[10px]" onClick={onClose}>
                                     Close

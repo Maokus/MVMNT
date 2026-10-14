@@ -328,7 +328,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
                             type="button"
                             onClick={() => window.dispatchEvent(new CustomEvent('open-render-modal'))}
                             data-tutorial-target="render"
-                            className="px-3 py-1 rounded cursor-pointer text-[12px] font-semibold shadow-sm inline-flex items-center justify-center bg-[#0e639c] text-white hover:bg-[#1177bb] focus:outline-none focus:ring-2 focus:ring-[#0e639c]"
+                            className="px-3 py-1 rounded cursor-pointer text-[12px] font-semibold inline-flex items-center justify-center bg-[#0e639c] text-white hover:bg-[#1177bb] focus:outline-none focus:border-[#5cc8ff]"
                             title="Render / Export Video"
                         >
                             Render

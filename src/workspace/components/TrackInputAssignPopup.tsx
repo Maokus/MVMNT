@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import TimelineTrackSelect from '@workspace/forms/inputs/TimelineTrackSelect';
 import type { TrackInputDef } from '@context/SceneSelectionContext';
 import { Button } from './Button';
+import { PopupCard } from './PopupCard';
 
 interface Props {
     elementId: string;
@@ -11,8 +12,6 @@ interface Props {
 }
 
 const TrackInputAssignPopup: React.FC<Props> = ({ elementId, trackInputs, onDismiss, onAssign }) => {
-    const popupRef = useRef<HTMLDivElement | null>(null);
-
     const [values, setValues] = useState<Record<string, string | string[] | null>>(() => {
         const init: Record<string, string | string[] | null> = {};
         for (const t of trackInputs) {
@@ -34,13 +33,7 @@ const TrackInputAssignPopup: React.FC<Props> = ({ elementId, trackInputs, onDism
             data-preserve-selection="true"
             onPointerDown={(e) => e.stopPropagation()}
         >
-            <div
-                ref={popupRef}
-                className="flex flex-col gap-3 rounded-lg border border-amber-400/40 bg-neutral-950/95 p-4 text-[12px] text-neutral-100 shadow-2xl"
-            >
-                <div className="text-[13px] font-semibold text-amber-100">
-                    Added element with track input{trackInputs.length > 1 ? 's' : ''}
-                </div>
+            <PopupCard title={`Added element with track input${trackInputs.length > 1 ? 's' : ''}`}>
                 <p className="m-0 text-neutral-200">Assign track input{trackInputs.length > 1 ? 's' : ''}?</p>
                 <div className="flex flex-col gap-2">
                     {trackInputs.map((t) => (
@@ -71,7 +64,7 @@ const TrackInputAssignPopup: React.FC<Props> = ({ elementId, trackInputs, onDism
                         Assign
                     </Button>
                 </div>
-            </div>
+            </PopupCard>
         </div>
     );
 };

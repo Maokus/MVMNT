@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { FaLink } from 'react-icons/fa';
+import { FaLink, FaMusic, FaChevronDown } from 'react-icons/fa';
 import { useSceneStore } from '@state/sceneStore';
 
 export function NodeMacroControl({
@@ -42,16 +42,25 @@ export function NodeMacroControl({
                 aria-label={`${path} macro`}
                 onClick={() => setOpen((value) => !value)}
             >
-                <span className="ae-macro-label-text">
+                <span className="ae-macro-label-text inline-flex items-center gap-1">
                     {bindingMacroId ? (
-                        `🎵 ${macros.byId[bindingMacroId]?.name ?? bindingMacroId}`
+                        <>
+                            <FaMusic size={12} aria-hidden="true" />{' '}
+                            {macros.byId[bindingMacroId]?.name ?? bindingMacroId}
+                        </>
                     ) : hasAssignment ? (
-                        '🎵 Mixed'
+                        <>
+                            <FaMusic size={12} aria-hidden="true" /> Mixed
+                        </>
                     ) : (
-                        <FaLink />
+                        <FaLink size={12} aria-hidden="true" />
                     )}
                 </span>
-                {(options.length > 0 || hasAssignment) && <span className="ae-macro-caret">▼</span>}
+                {(options.length > 0 || hasAssignment) && (
+                    <span className="ae-macro-caret inline-flex">
+                        <FaChevronDown size={10} aria-hidden="true" />
+                    </span>
+                )}
             </button>
             {open ? (
                 <div className="ae-macro-menu">

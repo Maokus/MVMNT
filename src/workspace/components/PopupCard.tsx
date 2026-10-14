@@ -1,0 +1,10 @@
+import type { ReactNode } from 'react';
+
+export function PopupCard({ title, children }: { title: ReactNode; children: ReactNode }) {
+    return (
+        <div className="flex flex-col gap-3 rounded-lg border border-amber-400/40 bg-neutral-950/95 p-4 text-[12px] text-neutral-100 shadow-2xl">
+            <div className="text-[13px] font-semibold text-amber-100">{title}</div>
+            {children}
+        </div>
+    );
+}

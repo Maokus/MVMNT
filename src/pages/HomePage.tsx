@@ -173,7 +173,7 @@ const HomePage: React.FC = () => {
                                 type="button"
                                 onClick={() => void handleNewDocument()}
                                 disabled={isOpening}
-                                className="rounded bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 px-5 py-2.5 text-sm font-medium tracking-[0.2rem] text-white transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-pink-400 focus:ring-offset-1 disabled:opacity-60"
+                                className="rounded bg-[#0e639c] px-5 py-2.5 text-sm font-medium tracking-[0.2rem] text-white transition hover:bg-[#1177bb] focus:outline-none focus:border-[#5cc8ff] disabled:opacity-60"
                             >
                                 NEW DOCUMENT
                             </button>
@@ -245,7 +245,7 @@ const HomePage: React.FC = () => {
                                     key={template.id}
                                     onClick={() => void handleTemplate(template)}
                                     disabled={isOpening}
-                                    className="group flex min-h-32 flex-col items-start rounded-lg border border-neutral-700 bg-neutral-900/60 p-4 text-left transition hover:border-neutral-500 hover:bg-neutral-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60"
+                                    className="group flex min-h-32 flex-col items-start rounded-lg border border-neutral-700 bg-neutral-900/60 p-4 text-left transition hover:border-neutral-500 hover:bg-neutral-900 focus:outline-none focus:border-neutral-400 disabled:opacity-60"
                                 >
                                     <span className="mb-3 text-lg text-neutral-400 transition group-hover:text-white">
                                         <FaFileCirclePlus />

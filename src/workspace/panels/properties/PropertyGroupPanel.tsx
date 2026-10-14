@@ -6,7 +6,7 @@ import type {
 import FormInput, { type FormInputChange } from '@workspace/forms/inputs/FormInput';
 // @ts-ignore
 import { useMacros } from '@context/MacroContext';
-import { FaLink } from 'react-icons/fa';
+import { FaLink, FaMusic, FaExclamationTriangle } from 'react-icons/fa';
 import KeyframeControl, { isAutomatableType } from './KeyframeControl';
 import { hoveredPropertyRef } from './hoveredPropertyRef';
 import { PropertyLayoutRenderer } from './PropertyLayoutRenderer';
@@ -257,12 +257,24 @@ const PropertyGroupPanel: React.FC<PropertyGroupPanelProps> = ({
         const assignedMacroExists = isAssigned && assignedMacro ? true : false;
         const displayLabel = (() => {
             if (assignedMacroExists && assignedMacro) {
-                return `🎵 ${assignedMacro}`;
+                return (
+                    <span className="inline-flex items-center gap-1">
+                        <FaMusic size={12} aria-hidden="true" /> {assignedMacro}
+                    </span>
+                );
             }
             if (assignedMacro && !assignedMacroExists) {
-                return `⚠️ ${assignedMacro}`;
+                return (
+                    <span className="inline-flex items-center gap-1">
+                        <FaExclamationTriangle size={12} aria-hidden="true" /> {assignedMacro}
+                    </span>
+                );
             }
-            return '🔗 Assign Macro';
+            return (
+                <span className="inline-flex items-center gap-1">
+                    <FaLink size={12} aria-hidden="true" /> Assign Macro
+                </span>
+            );
         })();
 
         const hasMacros = macros.length > 0;

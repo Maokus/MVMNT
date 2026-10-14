@@ -308,16 +308,8 @@
     [data-tutorial-step='render'] [data-tutorial-target='render'] {
         position: relative;
         z-index: 10;
-        outline: 3px solid rgb(129 140 248);
-        outline-offset: 3px;
-        box-shadow: 0 0 0 7px rgb(99 102 241 / 0.25);
-        animation: tutorial-target-pulse 1.5s ease-in-out infinite;
-    }
-
-    @keyframes tutorial-target-pulse {
-        50% {
-            box-shadow: 0 0 0 11px rgb(99 102 241 / 0.08);
-        }
+        outline: 2px solid #5cc8ff;
+        outline-offset: 2px;
     }
 
     @media (prefers-reduced-motion: reduce) {

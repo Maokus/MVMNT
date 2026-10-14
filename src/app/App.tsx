@@ -10,6 +10,7 @@ import { importFontFile } from '@fonts/import-font-file';
 import { AnalyticsBootstrap } from './AnalyticsBootstrap';
 import { AnalyticsConsentBanner } from './AnalyticsConsentBanner';
 import { analytics, stagePendingDocumentAnalytics } from './analytics';
+import { LoadingSpinner } from '@workspace/components/LoadingSpinner';
 
 // Tailwind styles are loaded via index.tsx
 const MidiVisualizer = lazy(() => import('@workspace/overlays/MidiVisualizer'));
@@ -50,16 +51,7 @@ const AppLoadingScreen: React.FC<{ message?: string }> = ({ message = 'Loading M
         <div className="flex min-h-screen flex-col items-center justify-center bg-neutral-950 text-neutral-100">
             <div className="relative">
                 <div className="relative flex w-[min(90vw,22rem)] flex-col items-center gap-5 overflow-hidden rounded-lg border border-neutral-800/80 bg-neutral-900 px-8 py-9 text-center shadow-2xl">
-                    <div className="relative flex h-12 w-12 items-center justify-center">
-                        <span
-                            className="absolute h-12 w-12 animate-ping rounded-full bg-neutral-500/25"
-                            aria-hidden="true"
-                        />
-                        <span
-                            className="relative h-12 w-12 animate-spin rounded-full border-[3px] border-neutral-400/60 border-t-transparent"
-                            aria-hidden="true"
-                        />
-                    </div>
+                    <LoadingSpinner size={48} />
                     <div className="space-y-1">
                         <p className="text-base font-semibold tracking-tight text-neutral-100">{message}</p>
                         <p className="text-sm text-neutral-400">{subtext}</p>

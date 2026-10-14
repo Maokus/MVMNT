@@ -388,7 +388,7 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({
                             <button
                                 onClick={handleOpenInWorkspace}
                                 disabled={actioning}
-                                className="inline-flex items-center gap-1.5 rounded bg-indigo-600 px-4 py-1.5 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-indigo-500 disabled:opacity-50"
+                                className="inline-flex items-center gap-1.5 rounded bg-indigo-600 px-4 py-1.5 text-[13px] font-semibold text-white transition-colors hover:bg-indigo-500 disabled:opacity-50"
                             >
                                 <FaArrowRight className="text-[11px]" />{' '}
                                 {actioning ? 'Opening...' : 'Open in Workspace'}
@@ -398,7 +398,7 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({
                             <button
                                 onClick={() => setShowInstallWarning(true)}
                                 disabled={actioning}
-                                className="inline-flex items-center gap-1.5 rounded bg-indigo-600 px-4 py-1.5 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-indigo-500 disabled:opacity-50"
+                                className="inline-flex items-center gap-1.5 rounded bg-indigo-600 px-4 py-1.5 text-[13px] font-semibold text-white transition-colors hover:bg-indigo-500 disabled:opacity-50"
                             >
                                 <FaBolt className="text-[11px]" /> {actioning ? 'Installing...' : 'Install'}
                             </button>
@@ -407,7 +407,7 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({
                             <button
                                 onClick={handleUpdate}
                                 disabled={actioning}
-                                className="inline-flex items-center gap-1.5 rounded bg-amber-600 px-4 py-1.5 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-amber-500 disabled:opacity-50"
+                                className="inline-flex items-center gap-1.5 rounded bg-amber-600 px-4 py-1.5 text-[13px] font-semibold text-white transition-colors hover:bg-amber-500 disabled:opacity-50"
                             >
                                 <FaArrowsRotate className="text-[11px]" /> {actioning ? 'Updating...' : 'Update'}
                             </button>
@@ -416,7 +416,7 @@ const CommunityDetailModal: React.FC<CommunityDetailModalProps> = ({
                             <button
                                 onClick={handleUninstall}
                                 disabled={actioning}
-                                className="inline-flex items-center gap-1.5 rounded border border-red-700/50 px-4 py-1.5 text-[13px] font-semibold text-red-400 shadow-sm transition-colors hover:bg-red-500/10 disabled:opacity-50"
+                                className="inline-flex items-center gap-1.5 rounded border border-red-700/50 px-4 py-1.5 text-[13px] font-semibold text-red-400 transition-colors hover:bg-red-500/10 disabled:opacity-50"
                             >
                                 {actioning ? 'Uninstalling...' : 'Uninstall'}
                             </button>
