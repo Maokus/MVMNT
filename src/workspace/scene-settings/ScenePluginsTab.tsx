@@ -3,6 +3,7 @@ import { usePluginStore } from '@state/pluginStore';
 import { disablePlugin, enablePlugin, loadPlugin, unloadPlugin, upgradePlugin } from '@core/scene/plugins';
 import { analytics } from '@app/analytics';
 import { Button } from '@workspace/components/Button';
+import { PLUGIN_INVALID_FILE_TYPE } from '@workspace/userMessages';
 
 const ScenePluginsTab: React.FC = () => {
     const { plugins, loading } = usePluginStore((state) => ({
@@ -26,7 +27,7 @@ const ScenePluginsTab: React.FC = () => {
         event.target.value = '';
 
         if (!file.name.endsWith('.mvmnt-plugin')) {
-            setImportError('Invalid file type. Please select a .mvmnt-plugin file.');
+            setImportError(PLUGIN_INVALID_FILE_TYPE);
             return;
         }
 

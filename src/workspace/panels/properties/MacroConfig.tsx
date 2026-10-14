@@ -7,6 +7,7 @@ import { useNumberDrag } from '@workspace/forms/inputs/useNumberDrag';
 import ColorAlphaInput from '@workspace/forms/inputs/ColorAlphaInput';
 import AssetSelect from '@workspace/forms/inputs/AssetSelect';
 import { Button } from '@workspace/components/Button';
+import { MACRO_CREATE_FAILED, MACRO_NAME_REQUIRED, MACRO_RENAME_FAILED } from '@workspace/userMessages';
 import { useMacroAssignments } from '@state/scene';
 
 interface MacroConfigProps {
@@ -202,7 +203,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
 
             const success = rename(macroName, trimmed);
             if (!success) {
-                alert('Failed to rename macro. Name might already exist.');
+                alert(MACRO_RENAME_FAILED);
                 return;
             }
 
@@ -238,7 +239,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
 
     const handleCreateMacro = () => {
         if (!newMacro.name.trim()) {
-            alert('Please enter a macro name');
+            alert(MACRO_NAME_REQUIRED);
             return;
         }
 
@@ -297,7 +298,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                 accept: '.mid,.midi',
             });
         } else {
-            alert('Failed to create macro. Name might already exist.');
+            alert(MACRO_CREATE_FAILED);
         }
     };
 

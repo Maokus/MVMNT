@@ -21,6 +21,8 @@ import {
     type ColorFieldMode,
     type HsvaColor,
 } from './colorPickerUtils';
+import { createDragSessionId } from '@workspace/components/dragSession';
+import { SCREEN_COLOR_SAMPLE_FAILED } from '@workspace/userMessages';
 
 export interface ColorPickerGesture {
     id: string;
@@ -70,8 +72,6 @@ const colorDrafts = (color: HsvaColor): InputDrafts => {
 
 const isSameColor = (first: HsvaColor, second: HsvaColor, includeAlpha: boolean): boolean =>
     hsvaToHex(first, includeAlpha) === hsvaToHex(second, includeAlpha);
-
-import { createDragSessionId } from '@workspace/components/dragSession';
 
 const createSessionId = (): string => createDragSessionId('color-drag');
 
@@ -312,7 +312,7 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({ color, includeAlpha = 
             emit(sampled, { preserveHue: true, record: true });
         } catch (cause) {
             if (mountedRef.current && (cause as Error)?.name !== 'AbortError') {
-                setEyeDropperError('Could not sample a screen color.');
+                setEyeDropperError(SCREEN_COLOR_SAMPLE_FAILED);
             }
         } finally {
             if (eyeDropperAbortRef.current === abortController) eyeDropperAbortRef.current = null;

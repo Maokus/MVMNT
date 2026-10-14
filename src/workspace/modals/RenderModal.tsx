@@ -11,6 +11,7 @@ import { FormField, inputCls } from './render-modal/FormField';
 import { loadExportPresets, type ExportPreset } from '@export/presets';
 import { updateDestinationExtension } from './render-modal/exportDestination';
 import { ModalShell } from './ModalShell';
+import { EXPORT_DESTINATION_UNAVAILABLE } from '@workspace/userMessages';
 
 interface RenderModalProps {
     onClose: () => void;
@@ -297,7 +298,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
             updateForm({ outputPath, filename: result.displayName?.replace(/\.[^.]+$/, '') || form.filename });
             setExportSettings((prev) => ({ ...prev, outputPath }));
         } else if (result.status === 'error') {
-            alert(result.error || 'Could not choose an export destination.');
+            alert(result.error || EXPORT_DESTINATION_UNAVAILABLE);
         }
     };
 

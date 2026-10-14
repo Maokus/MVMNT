@@ -49,6 +49,7 @@ import { CacheDiagnosticsPopup } from '@workspace/components/CacheDiagnosticsPop
 import { useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
 import AssetManagerPanel from '@workspace/panels/asset-manager/AssetManagerPanel';
 import { MissingFontsBanner } from '@workspace/components/MissingFontsBanner';
+import { failedToLoadSceneDetail } from '@workspace/userMessages';
 import { clamp } from '@math/transforms/numeric';
 const SIDE_MIN_WIDTH = 320;
 const SIDE_MAX_WIDTH = 720;
@@ -623,7 +624,7 @@ const TemplateInitializer: React.FC = () => {
                                 console.warn('[Import] Failed:', msg);
                                 const cancelled = abortController?.signal.aborted ?? false;
                                 void failPendingDocumentAnalytics(cancelled);
-                                if (!cancelled) alert('Failed to load scene: ' + msg);
+                                if (!cancelled) alert(failedToLoadSceneDetail(msg));
                             } else {
                                 const metadataStore = useSceneMetadataStore.getState();
                                 const importedName = metadataStore.metadata?.name?.trim() || 'Untitled';
@@ -679,7 +680,7 @@ const TemplateInitializer: React.FC = () => {
                                 clearPendingRender();
                                 window.mvmntDesktop?.automation.reportResult({ type: 'error', code: 'input', message });
                             } else {
-                                alert('Failed to load scene: ' + message);
+                                alert(failedToLoadSceneDetail(message));
                             }
                         }
                         clearStoredImportPayload();

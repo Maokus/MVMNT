@@ -15,6 +15,11 @@ import { getMidiClipLocalBounds } from '@state/timeline/midiClips';
 import { getAudioClipTimelineBounds } from '@state/timeline/audioClips';
 import { createTimingContext } from '@state/timelineTime';
 import { getNextImportedTrackName } from '../hooks/importTrackName';
+import {
+    AUDIO_IMPORT_BAD_FORMAT,
+    AUDIO_IMPORT_FAILED_LOG,
+    unableToImportAudioFileMessage,
+} from '@workspace/userMessages';
 
 type Props = {
     trackIds: string[];
@@ -256,12 +261,9 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
                         clipName: audio.name,
                     });
                 } catch (error) {
-                    console.error('Failed to import audio track', error);
-                    const reason =
-                        error instanceof Error
-                            ? error.message
-                            : 'The format may be unsupported or the file may be corrupted.';
-                    alert(`Unable to import ${audio.name}. ${reason}`);
+                    console.error(AUDIO_IMPORT_FAILED_LOG, error);
+                    const reason = error instanceof Error ? error.message : AUDIO_IMPORT_BAD_FORMAT;
+                    alert(unableToImportAudioFileMessage(audio.name, reason));
                 }
             }
             if (ignored > 0) {

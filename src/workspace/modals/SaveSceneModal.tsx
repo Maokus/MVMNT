@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { Button } from '@workspace/components/Button';
 import { ModalShell } from './ModalShell';
+import { PROJECT_NAME_REQUIRED } from '@workspace/userMessages';
 
 interface SaveSceneModalProps {
     initialName: string;
@@ -42,7 +43,7 @@ export function SaveSceneModal({ initialName, onCancel, onConfirm }: SaveSceneMo
         event.preventDefault();
         const trimmed = name.trim();
         if (!trimmed) {
-            setError('Please provide a project name before saving.');
+            setError(PROJECT_NAME_REQUIRED);
             inputRef.current?.focus();
             return;
         }
