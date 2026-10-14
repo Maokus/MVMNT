@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
     ANALYTICS_CONSENT_STORAGE_KEY,
     ANALYTICS_POLICY_VERSION,
@@ -6,7 +6,7 @@ import {
     type AnalyticsProvider,
 } from '../analytics/contracts';
 import { createAnalyticsService } from '../analytics/service';
-import { analyticsEnabledForBuild } from '../analytics';
+import { analyticsContext, analyticsEnabledForBuild } from '../analytics';
 
 const context: AnalyticsContext = {
     app_version: '0.16.0-nightly.20260817.42',
@@ -50,12 +50,43 @@ describe('provider-neutral analytics service', () => {
         localStorage.clear();
     });
 
+    afterEach(() => {
+        Object.defineProperty(window, 'mvmntDesktop', { configurable: true, value: undefined });
+    });
+
     it('enables stable and nightly builds but requires an explicit development override', () => {
         expect(analyticsEnabledForBuild('stable', 'token', 'host', undefined)).toBe(true);
         expect(analyticsEnabledForBuild('nightly', 'token', 'host', undefined)).toBe(true);
         expect(analyticsEnabledForBuild('development', 'token', 'host', undefined)).toBe(false);
         expect(analyticsEnabledForBuild('development', 'token', 'host', 'true')).toBe(true);
         expect(analyticsEnabledForBuild('stable', undefined, 'host', undefined)).toBe(false);
+    });
+
+    it('uses the packaged nightly identity for analytics context', async () => {
+        Object.defineProperty(window, 'mvmntDesktop', {
+            configurable: true,
+            value: {
+                app: {
+                    getBuildInfo: vi.fn().mockResolvedValue({
+                        version: '0.16.0-nightly.20261013.42',
+                        releaseLine: '0.16.0',
+                        displayVersion: '0.16.0-nightly.20261013.42',
+                        channel: 'nightly',
+                        commit: 'nightly42',
+                        builtAt: '2026-10-13T12:00:00Z',
+                        isPackaged: true,
+                        updateChecksEnabled: false,
+                    }),
+                },
+            },
+        });
+
+        expect(await analyticsContext()).toMatchObject({
+            app_version: '0.16.0-nightly.20261013.42',
+            app_release_line: '0.16.0',
+            build_channel: 'nightly',
+            build_commit: 'nightly42',
+        });
     });
 
     it('does not create a provider or persistence before explicit consent', async () => {
@@ -244,6 +275,30 @@ describe('provider-neutral analytics service', () => {
         expect(first.shutdown).toHaveBeenCalledWith({ clearPersistence: true });
         expect(second.capture).toHaveBeenCalledWith('app_opened', {});
         expect(factory).toHaveBeenCalledTimes(2);
+        service.destroy();
+    });
+
+    it('does not initialize the provider if consent is withdrawn while reading build information', async () => {
+        const provider = createProvider();
+        let finishContext: ((value: AnalyticsContext) => void) | undefined;
+        const contextPromise = new Promise<AnalyticsContext>((resolve) => {
+            finishContext = resolve;
+        });
+        const readContext = vi.fn(() => contextPromise);
+        const service = createAnalyticsService({
+            providerFactory: async () => provider,
+            isEnabled: () => true,
+            context: readContext,
+        });
+
+        const grant = service.setConsent('granted');
+        await vi.waitFor(() => expect(readContext).toHaveBeenCalledOnce());
+        await service.setConsent('denied');
+        finishContext?.(context);
+        await grant;
+
+        expect(provider.initialize).not.toHaveBeenCalled();
+        expect(provider.capture).not.toHaveBeenCalled();
         service.destroy();
     });
 
