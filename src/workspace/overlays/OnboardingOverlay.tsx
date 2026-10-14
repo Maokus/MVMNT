@@ -1,5 +1,6 @@
 import { FloatingFocusManager, FloatingOverlay, useFloating } from '@floating-ui/react';
 import { useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
+import { Button } from '@workspace/components/Button';
 
 interface OnboardingOverlayProps {
     onClose: () => void;
@@ -58,22 +59,18 @@ export function OnboardingOverlay({ onClose, onStart, busy, error, restarting }:
                         </p>
                     )}
                     <div className="mt-5 flex flex-row-reverse justify-start gap-2">
-                        <button
-                            type="button"
+                        <Button
+                            variant="primary"
+                            size="md"
                             disabled={busy}
                             onClick={onStart}
-                            className="rounded bg-blue-500 px-3 py-1.5 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1 disabled:opacity-60"
+                            className="focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1"
                         >
                             {busy ? 'Loading tutorial…' : restarting ? 'Restart tutorial' : 'Try tutorial'}
-                        </button>
-                        <button
-                            type="button"
-                            disabled={busy}
-                            onClick={onClose}
-                            className="rounded border border-transparent px-3 py-1.5 text-[13px] font-medium text-neutral-300 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-60"
-                        >
+                        </Button>
+                        <Button variant="ghost" size="md" disabled={busy} onClick={onClose}>
                             Not now
-                        </button>
+                        </Button>
                     </div>
                 </section>
             </FloatingFocusManager>

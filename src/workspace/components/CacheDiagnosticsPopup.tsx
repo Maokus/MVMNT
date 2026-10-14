@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AudioFeatureCacheStatus } from '@audio/features/audioFeatureTypes';
 import { useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
 import { useTimelineStore } from '@state/timelineStore';
+import { Button } from './Button';
 
 function formatProgressLabel(statuses: AudioFeatureCacheStatus[]): string {
     const activeStatus = statuses.find((status) => status.state === 'pending');
@@ -105,21 +106,13 @@ export const CacheDiagnosticsPopup: React.FC = () => {
                     </p>
                 )}
                 <div className="flex flex-wrap justify-end gap-2">
-                    <button
-                        type="button"
-                        className="rounded border border-neutral-700 px-3 py-1 text-[12px] font-medium text-neutral-300 transition hover:bg-neutral-800"
-                        onClick={handleDismiss}
-                    >
+                    <Button variant="muted" size="sm" onClick={handleDismiss}>
                         {isCalculating ? 'Hide' : 'Dismiss'}
-                    </button>
+                    </Button>
                     {!isCalculating && (
-                        <button
-                            type="button"
-                            className="rounded border border-emerald-400/60 bg-emerald-500/20 px-3 py-1 text-[12px] font-medium text-emerald-100 transition hover:bg-emerald-500/30"
-                            onClick={handleCalculate}
-                        >
+                        <Button variant="accent" size="sm" onClick={handleCalculate}>
                             Calculate
-                        </button>
+                        </Button>
                     )}
                 </div>
             </div>

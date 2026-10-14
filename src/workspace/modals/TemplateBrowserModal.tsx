@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { TemplateDefinition, TemplateMetadata } from '../templates/types';
-import { useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
+import { ModalShell } from './ModalShell';
 
 interface TemplateBrowserModalProps {
     templates: TemplateDefinition[];
@@ -11,17 +11,6 @@ interface TemplateBrowserModalProps {
 
 export const TemplateBrowserModal: React.FC<TemplateBrowserModalProps> = ({ templates, onClose, onSelect }) => {
     const [metadataMap, setMetadataMap] = useState<Record<string, TemplateMetadata>>({});
-
-    useGlobalShortcut({
-        id: 'modal.template-browser.escape',
-        domain: 'modal',
-        matches: (event) => event.key === 'Escape',
-        handle: (event) => {
-            event.preventDefault();
-            onClose();
-            return true;
-        },
-    });
 
     useEffect(() => {
         let cancelled = false;
@@ -66,69 +55,64 @@ export const TemplateBrowserModal: React.FC<TemplateBrowserModalProps> = ({ temp
     }, [templates]);
 
     return (
-        <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Browse templates"
-            onClick={onClose}
+        <ModalShell
+            shortcutId="modal.template-browser.escape"
+            label="Browse templates"
+            onCancel={onClose}
+            outerClassName="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-6"
+            cardClassName="w-full max-w-3xl rounded-lg border border-neutral-700 bg-neutral-900 shadow-2xl"
         >
-            <div
-                className="w-full max-w-3xl rounded-lg border border-neutral-700 bg-neutral-900 shadow-2xl"
-                onClick={(event) => event.stopPropagation()}
-            >
-                <div className="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
-                    <h2 className="text-sm font-semibold text-neutral-100">Choose a Template</h2>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="rounded border border-neutral-600 px-2 py-1 text-xs uppercase tracking-wide text-neutral-300 transition-colors hover:border-neutral-400 hover:text-neutral-100"
-                    >
-                        Close
-                    </button>
-                </div>
-                <div className="max-h-[60vh] overflow-y-auto px-4 py-4">
-                    {templates.length === 0 ? (
-                        <p className="text-sm text-neutral-400">No templates available yet.</p>
-                    ) : (
-                        <div className="grid gap-3 sm:grid-cols-2">
-                            {templates.map((template) => {
-                                const metadata = metadataMap[template.id];
-                                const displayName = metadata?.name?.trim() || template.name;
-                                const displayDescription = metadata?.description?.trim() || template.description;
-                                const displayAuthor = metadata?.author?.trim() || template.author;
-                                return (
-                                    <button
-                                        key={template.id}
-                                        type="button"
-                                        onClick={() => onSelect(template)}
-                                        className="group flex h-full flex-col items-start gap-2 rounded-lg border border-neutral-700 bg-neutral-800/60 p-4 text-left transition-colors hover:border-sky-500 hover:bg-neutral-800"
-                                    >
-                                        <span className="text-sm font-semibold text-neutral-100 group-hover:text-white">
-                                            {displayName}
-                                        </span>
-                                        <span className="text-xs text-neutral-400 group-hover:text-neutral-300">
-                                            {displayDescription}
-                                        </span>
-                                        {displayAuthor && (
-                                            <span className="text-[11px] uppercase tracking-wide text-neutral-500 group-hover:text-neutral-400">
-                                                By {displayAuthor}
-                                            </span>
-                                        )}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    )}
-                </div>
-                <div className="border-t border-neutral-800 px-4 py-2.5 text-xs text-neutral-500">
-                    Looking for more?{' '}
-                    <Link to="/community" className="text-indigo-400 hover:text-indigo-300 underline">
-                        Browse the Community hub
-                    </Link>
-                </div>
+            <div className="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
+                <h2 className="text-sm font-semibold text-neutral-100">Choose a Template</h2>
+                <button
+                    type="button"
+                    onClick={onClose}
+                    className="rounded border border-neutral-600 px-2 py-1 text-xs uppercase tracking-wide text-neutral-300 transition-colors hover:border-neutral-400 hover:text-neutral-100"
+                >
+                    Close
+                </button>
             </div>
-        </div>
+            <div className="max-h-[60vh] overflow-y-auto px-4 py-4">
+                {templates.length === 0 ? (
+                    <p className="text-sm text-neutral-400">No templates available yet.</p>
+                ) : (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                        {templates.map((template) => {
+                            const metadata = metadataMap[template.id];
+                            const displayName = metadata?.name?.trim() || template.name;
+                            const displayDescription = metadata?.description?.trim() || template.description;
+                            const displayAuthor = metadata?.author?.trim() || template.author;
+                            return (
+                                <button
+                                    key={template.id}
+                                    type="button"
+                                    onClick={() => onSelect(template)}
+                                    className="group flex h-full flex-col items-start gap-2 rounded-lg border border-neutral-700 bg-neutral-800/60 p-4 text-left transition-colors hover:border-sky-500 hover:bg-neutral-800"
+                                >
+                                    <span className="text-sm font-semibold text-neutral-100 group-hover:text-white">
+                                        {displayName}
+                                    </span>
+                                    <span className="text-xs text-neutral-400 group-hover:text-neutral-300">
+                                        {displayDescription}
+                                    </span>
+                                    {displayAuthor && (
+                                        <span className="text-[11px] uppercase tracking-wide text-neutral-500 group-hover:text-neutral-400">
+                                            By {displayAuthor}
+                                        </span>
+                                    )}
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+            <div className="border-t border-neutral-800 px-4 py-2.5 text-xs text-neutral-500">
+                Looking for more?{' '}
+                <Link to="/community" className="text-indigo-400 hover:text-indigo-300 underline">
+                    Browse the Community hub
+                </Link>
+            </div>
+        </ModalShell>
     );
 };
 

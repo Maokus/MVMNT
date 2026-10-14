@@ -49,8 +49,7 @@ import { CacheDiagnosticsPopup } from '@workspace/components/CacheDiagnosticsPop
 import { useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
 import AssetManagerPanel from '@workspace/panels/asset-manager/AssetManagerPanel';
 import { MissingFontsBanner } from '@workspace/components/MissingFontsBanner';
-
-const clampNumber = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+import { clamp } from '@math/transforms/numeric';
 const SIDE_MIN_WIDTH = 320;
 const SIDE_MAX_WIDTH = 720;
 const PREVIEW_MIN_WIDTH = 520;
@@ -194,13 +193,13 @@ const MidiVisualizerInner: React.FC = () => {
         if (typeof window === 'undefined') return 360;
         const approx = Math.round(window.innerWidth * 0.28);
         const maxCandidate = Math.max(SIDE_MIN_WIDTH, Math.min(SIDE_MAX_WIDTH, window.innerWidth - PREVIEW_MIN_WIDTH));
-        return clampNumber(approx, SIDE_MIN_WIDTH, maxCandidate);
+        return clamp(approx, SIDE_MIN_WIDTH, maxCandidate);
     });
     const [timelineHeight, setTimelineHeight] = useState(() => {
         if (typeof window === 'undefined') return 240;
         const approx = Math.round(window.innerHeight * 0.25);
         const maxCandidate = Math.max(TIMELINE_MIN_HEIGHT, Math.round(window.innerHeight * 0.65));
-        return clampNumber(approx, TIMELINE_MIN_HEIGHT, maxCandidate);
+        return clamp(approx, TIMELINE_MIN_HEIGHT, maxCandidate);
     });
 
     const diagnosticsBannerVisible = useAudioDiagnosticsStore((state) => state.bannerVisible);
@@ -214,7 +213,7 @@ const MidiVisualizerInner: React.FC = () => {
         const ideal = Math.round(viewport * 0.65);
         const lowerBound = TIMELINE_MIN_HEIGHT + 60;
         const upperBound = Math.max(lowerBound, viewport - 160);
-        const max = clampNumber(ideal, lowerBound, upperBound);
+        const max = clamp(ideal, lowerBound, upperBound);
         return { min: TIMELINE_MIN_HEIGHT, max: Math.max(TIMELINE_MIN_HEIGHT, max) };
     }, []);
 
@@ -239,13 +238,13 @@ const MidiVisualizerInner: React.FC = () => {
     useEffect(() => {
         const handleResize = () => {
             const bounds = getTimelineBounds();
-            setTimelineHeight((prev) => clampNumber(prev, bounds.min, bounds.max));
+            setTimelineHeight((prev) => clamp(prev, bounds.min, bounds.max));
             setIsCompact(window.innerWidth < 1200);
             const container = workspaceRef.current;
             if (!container) return;
             const width = container.getBoundingClientRect().width;
             const maxCandidate = Math.max(SIDE_MIN_WIDTH, Math.min(SIDE_MAX_WIDTH, width - PREVIEW_MIN_WIDTH));
-            setSidePanelWidth((prev) => clampNumber(prev, SIDE_MIN_WIDTH, maxCandidate));
+            setSidePanelWidth((prev) => clamp(prev, SIDE_MIN_WIDTH, maxCandidate));
         };
         handleResize();
         if (typeof window !== 'undefined') {
@@ -282,12 +281,12 @@ const MidiVisualizerInner: React.FC = () => {
         const maxExpanded = Math.max(SIDE_MIN_WIDTH, Math.min(SIDE_MAX_WIDTH, containerWidth - PREVIEW_MIN_WIDTH));
         const maxForRaw = Math.max(0, containerWidth - PREVIEW_MIN_WIDTH);
         const delta = e.clientX - state.startX;
-        const rawNext = clampNumber(state.startWidth - delta, 0, maxForRaw);
+        const rawNext = clamp(state.startWidth - delta, 0, maxForRaw);
         if (rawNext <= SIDE_COLLAPSE_THRESHOLD) {
             setSidePanelsCollapsed(true);
         } else {
             setSidePanelsCollapsed(false);
-            setSidePanelWidth(clampNumber(rawNext, SIDE_MIN_WIDTH, maxExpanded));
+            setSidePanelWidth(clamp(rawNext, SIDE_MIN_WIDTH, maxExpanded));
         }
     };
 
@@ -309,12 +308,12 @@ const MidiVisualizerInner: React.FC = () => {
         const state = assetResizeRef.current;
         if (!state) return;
         const delta = e.clientX - state.startX;
-        const rawNext = clampNumber(state.startWidth + delta, 0, ASSET_PANEL_MAX_WIDTH);
+        const rawNext = clamp(state.startWidth + delta, 0, ASSET_PANEL_MAX_WIDTH);
         if (rawNext <= ASSET_COLLAPSE_THRESHOLD) {
             setAssetPanelCollapsed(true);
         } else {
             setAssetPanelCollapsed(false);
-            setAssetPanelWidth(clampNumber(rawNext, ASSET_PANEL_MIN_WIDTH, ASSET_PANEL_MAX_WIDTH));
+            setAssetPanelWidth(clamp(rawNext, ASSET_PANEL_MIN_WIDTH, ASSET_PANEL_MAX_WIDTH));
         }
     };
 
@@ -336,12 +335,12 @@ const MidiVisualizerInner: React.FC = () => {
         if (!state) return;
         const bounds = getTimelineBounds();
         const delta = e.clientY - state.startY;
-        const rawNext = clampNumber(state.startHeight - delta, 0, bounds.max);
+        const rawNext = clamp(state.startHeight - delta, 0, bounds.max);
         if (rawNext <= TIMELINE_COLLAPSE_THRESHOLD) {
             setTimelineCollapsed(true);
         } else {
             setTimelineCollapsed(false);
-            setTimelineHeight(clampNumber(rawNext, bounds.min, bounds.max));
+            setTimelineHeight(clamp(rawNext, bounds.min, bounds.max));
         }
     };
 

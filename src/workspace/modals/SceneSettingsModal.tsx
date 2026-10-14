@@ -9,7 +9,8 @@ import { getProjectTimeSpentSeconds } from '@state/projectTimeTracker';
 import { useScene } from '@context/SceneContext';
 import { useSceneStore } from '@state/sceneStore';
 import { dispatchSceneCommand } from '@state/scene';
-import { useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
+import { ModalShell } from './ModalShell';
+import { clampPositiveInt } from '@workspace/forms/inputs/numberInput';
 import { deriveElementOrder } from '@state/scene-graph';
 import SceneFontManager from '../scene-settings/SceneFontManager';
 import SceneAnalysisCachesTab from '../scene-settings/SceneAnalysisCachesTab';
@@ -46,11 +47,6 @@ const SCALING_MODE_OPTIONS: Array<{ id: ResizeScalingMode; label: string; descri
 interface SceneSettingsModalProps {
     onClose: () => void;
 }
-
-const clampPositiveInt = (value: number, fallback: number) => {
-    if (!Number.isFinite(value) || value <= 0) return fallback;
-    return Math.floor(value);
-};
 
 const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
     const { exportSettings, setExportSettings, debugSettings, setDebugSettings } = useVisualizer();
@@ -118,17 +114,6 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
     useEffect(() => {
         setLocalAuthor(metadata.author ?? '');
     }, [metadata.author]);
-
-    useGlobalShortcut({
-        id: 'modal.scene-settings.escape',
-        domain: 'modal',
-        matches: (event) => event.key === 'Escape',
-        handle: (event) => {
-            event.preventDefault();
-            onClose();
-            return true;
-        },
-    });
 
     // Pending (normalised but not yet applied) dimensions
     const pendingWidth = useMemo(
@@ -354,10 +339,6 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
         setPlaybackRangeExplicitTicks(toTicks(startVal ?? undefined), toTicks(endVal ?? undefined));
     };
 
-    const onModalClick: React.MouseEventHandler<HTMLDivElement> = (e) => {
-        e.stopPropagation();
-    };
-
     const formatTimestamp = (value: string) => {
         if (!value) return '—';
         try {
@@ -407,372 +388,366 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
     );
 
     return (
-        <div className="fixed inset-0 z-[9800] flex items-center justify-center" role="dialog" aria-modal="true">
-            <div className="absolute inset-0 bg-black/60" onClick={onClose} aria-hidden="true" />
-            <div
-                className="relative flex h-full max-h-[90vh] w-[700px] max-w-[95vw] flex-col overflow-hidden rounded-lg border border-neutral-700 bg-neutral-900/95 p-5 text-sm text-neutral-200 shadow-2xl"
-                onClick={onModalClick}
+        <ModalShell
+            shortcutId="modal.scene-settings.escape"
+            label="Scene Settings"
+            onCancel={onClose}
+            outerClassName="fixed inset-0 z-[9800] flex items-center justify-center"
+            cardClassName="relative flex h-full max-h-[90vh] w-[700px] max-w-[95vw] flex-col overflow-hidden rounded-lg border border-neutral-700 bg-neutral-900/95 p-5 text-sm text-neutral-200 shadow-2xl"
+        >
+            <button
+                type="button"
+                className="absolute right-3 top-3 rounded-full border border-transparent p-1 text-neutral-400 transition-colors hover:bg-white/10 hover:text-white"
+                onClick={onClose}
+                aria-label="Close scene settings"
             >
-                <button
-                    type="button"
-                    className="absolute right-3 top-3 rounded-full border border-transparent p-1 text-neutral-400 transition-colors hover:bg-white/10 hover:text-white"
-                    onClick={onClose}
-                    aria-label="Close scene settings"
-                >
-                    <FaTimes />
-                </button>
-                <h2 className="m-0 mb-1 text-lg font-semibold text-white">Scene Settings</h2>
-                <p className="m-0 mb-4 text-[13px] text-neutral-400">
-                    Adjust render dimensions, playback range, and developer tools for the current scene.
-                </p>
-                <div className="mb-4 flex gap-2 overflow-x-auto border-b border-neutral-800 pb-2">
-                    {tabs.map((tab) => (
-                        <button
-                            key={tab.id}
-                            type="button"
-                            onClick={() => setActiveTab(tab.id)}
-                            className={`rounded px-3 py-1 text-[12px] transition-colors ${
-                                activeTab === tab.id
-                                    ? 'bg-sky-600/20 text-sky-200'
-                                    : 'text-neutral-400 hover:bg-neutral-800/60 hover:text-neutral-100'
-                            }`}
-                        >
-                            {tab.label}
-                        </button>
-                    ))}
-                </div>
-                <div className="flex-1 overflow-y-auto pr-1">
-                    {activeTab === 'general' && (
-                        <div className="flex flex-col gap-5">
-                            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                                <label className="flex flex-col gap-1 text-[12px]">
-                                    Width
-                                    <input
-                                        type="number"
-                                        min={16}
-                                        max={8192}
-                                        value={localWidth}
-                                        onChange={(e) => setLocalWidth(e.target.value)}
-                                        onBlur={normalizeWidth}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                                normalizeWidth();
-                                                (e.currentTarget as HTMLInputElement).blur();
-                                            }
-                                        }}
-                                        className="number-input w-full"
-                                    />
-                                </label>
-                                <label className="flex flex-col gap-1 text-[12px]">
-                                    Height
-                                    <input
-                                        type="number"
-                                        min={16}
-                                        max={8192}
-                                        value={localHeight}
-                                        onChange={(e) => setLocalHeight(e.target.value)}
-                                        onBlur={normalizeHeight}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                                normalizeHeight();
-                                                (e.currentTarget as HTMLInputElement).blur();
-                                            }
-                                        }}
-                                        className="number-input w-full"
-                                    />
-                                </label>
-                                <label className="flex flex-col gap-1 text-[12px]">
-                                    FPS
-                                    <input
-                                        type="number"
-                                        min={1}
-                                        max={240}
-                                        value={localFps}
-                                        onChange={(e) => setLocalFps(e.target.value)}
-                                        onBlur={commitFps}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                                commitFps();
-                                                (e.currentTarget as HTMLInputElement).blur();
-                                            }
-                                        }}
-                                        className="number-input w-full"
-                                    />
-                                </label>
-                                <label className="flex flex-col gap-1 text-[12px]">
-                                    Scaling Mode
-                                    <select
-                                        value={scalingMode}
-                                        onChange={(e) => setScalingMode(e.target.value as ResizeScalingMode)}
-                                        className="w-full rounded border border-neutral-700 bg-neutral-800/60 px-2 py-[5px] text-[12px] text-neutral-100 focus:border-sky-500 focus:outline-none"
-                                    >
-                                        {SCALING_MODE_OPTIONS.map((opt) => (
-                                            <option key={opt.id} value={opt.id}>
-                                                {opt.label}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </label>
-                            </div>
-                            <div className="flex items-center gap-3">
+                <FaTimes />
+            </button>
+            <h2 className="m-0 mb-1 text-lg font-semibold text-white">Scene Settings</h2>
+            <p className="m-0 mb-4 text-[13px] text-neutral-400">
+                Adjust render dimensions, playback range, and developer tools for the current scene.
+            </p>
+            <div className="mb-4 flex gap-2 overflow-x-auto border-b border-neutral-800 pb-2">
+                {tabs.map((tab) => (
+                    <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setActiveTab(tab.id)}
+                        className={`rounded px-3 py-1 text-[12px] transition-colors ${
+                            activeTab === tab.id
+                                ? 'bg-sky-600/20 text-sky-200'
+                                : 'text-neutral-400 hover:bg-neutral-800/60 hover:text-neutral-100'
+                        }`}
+                    >
+                        {tab.label}
+                    </button>
+                ))}
+            </div>
+            <div className="flex-1 overflow-y-auto pr-1">
+                {activeTab === 'general' && (
+                    <div className="flex flex-col gap-5">
+                        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                            <label className="flex flex-col gap-1 text-[12px]">
+                                Width
+                                <input
+                                    type="number"
+                                    min={16}
+                                    max={8192}
+                                    value={localWidth}
+                                    onChange={(e) => setLocalWidth(e.target.value)}
+                                    onBlur={normalizeWidth}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            normalizeWidth();
+                                            (e.currentTarget as HTMLInputElement).blur();
+                                        }
+                                    }}
+                                    className="number-input w-full"
+                                />
+                            </label>
+                            <label className="flex flex-col gap-1 text-[12px]">
+                                Height
+                                <input
+                                    type="number"
+                                    min={16}
+                                    max={8192}
+                                    value={localHeight}
+                                    onChange={(e) => setLocalHeight(e.target.value)}
+                                    onBlur={normalizeHeight}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            normalizeHeight();
+                                            (e.currentTarget as HTMLInputElement).blur();
+                                        }
+                                    }}
+                                    className="number-input w-full"
+                                />
+                            </label>
+                            <label className="flex flex-col gap-1 text-[12px]">
+                                FPS
+                                <input
+                                    type="number"
+                                    min={1}
+                                    max={240}
+                                    value={localFps}
+                                    onChange={(e) => setLocalFps(e.target.value)}
+                                    onBlur={commitFps}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            commitFps();
+                                            (e.currentTarget as HTMLInputElement).blur();
+                                        }
+                                    }}
+                                    className="number-input w-full"
+                                />
+                            </label>
+                            <label className="flex flex-col gap-1 text-[12px]">
+                                Scaling Mode
+                                <select
+                                    value={scalingMode}
+                                    onChange={(e) => setScalingMode(e.target.value as ResizeScalingMode)}
+                                    className="w-full rounded border border-neutral-700 bg-neutral-800/60 px-2 py-[5px] text-[12px] text-neutral-100 focus:border-sky-500 focus:outline-none"
+                                >
+                                    {SCALING_MODE_OPTIONS.map((opt) => (
+                                        <option key={opt.id} value={opt.id}>
+                                            {opt.label}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <button
+                                type="button"
+                                disabled={!hasResizeChanges}
+                                onClick={applyResize}
+                                className={`rounded px-4 py-1.5 text-[12px] font-medium transition-colors ${
+                                    hasResizeChanges
+                                        ? 'bg-sky-600 text-white hover:bg-sky-500'
+                                        : 'cursor-not-allowed bg-neutral-700/50 text-neutral-500'
+                                }`}
+                            >
+                                Apply Resize
+                            </button>
+                            {hasResizeChanges && (
+                                <span className="text-[11px] text-neutral-400">
+                                    {pendingWidth} × {pendingHeight} —{' '}
+                                    {SCALING_MODE_OPTIONS.find((o) => o.id === scalingMode)?.description}
+                                </span>
+                            )}
+                        </div>
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                            <label className="flex flex-col gap-1 text-[12px]">
+                                Scene Start (bars)
+                                <input
+                                    type="number"
+                                    min={0}
+                                    step={0.01}
+                                    value={localStartBars}
+                                    onChange={(e) => setLocalStartBars(e.target.value)}
+                                    onBlur={commitSceneRange}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            commitSceneRange();
+                                            (e.currentTarget as HTMLInputElement).blur();
+                                        }
+                                    }}
+                                    className="number-input w-full"
+                                />
+                            </label>
+                            <label className="flex flex-col gap-1 text-[12px]">
+                                Scene End (bars)
+                                <input
+                                    type="number"
+                                    min={0}
+                                    step={0.01}
+                                    value={localEndBars}
+                                    onChange={(e) => setLocalEndBars(e.target.value)}
+                                    onBlur={commitSceneRange}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            commitSceneRange();
+                                            (e.currentTarget as HTMLInputElement).blur();
+                                        }
+                                    }}
+                                    className="number-input w-full"
+                                />
+                            </label>
+                        </div>
+                    </div>
+                )}
+                {activeTab === 'caches' && <SceneAnalysisCachesTab />}
+                {activeTab === 'fonts' && (
+                    <div className="flex flex-col gap-3">
+                        <h3 className="m-0 text-[13px] font-semibold text-white">Fonts</h3>
+                        <p className="m-0 text-[12px] text-neutral-400">
+                            Upload custom fonts for this scene and manage the shared font library available to font
+                            pickers.
+                        </p>
+                        <SceneFontManager />
+                    </div>
+                )}
+                {activeTab === 'plugins' && <ScenePluginsTab />}
+                {activeTab === 'developer' && (
+                    <div className="flex flex-col gap-3">
+                        <h3 className="m-0 text-[13px] font-semibold text-white">Developer</h3>
+                        <label className="flex items-center gap-2 text-[12px] text-neutral-300">
+                            <input
+                                type="checkbox"
+                                checked={!!debugSettings?.showAnchorPoints}
+                                onChange={(e) =>
+                                    setDebugSettings((prev) => ({ ...prev, showAnchorPoints: e.target.checked }))
+                                }
+                            />
+                            Show Anchor Points
+                        </label>
+                        <label className="flex items-center gap-2 text-[12px] text-neutral-300">
+                            <input
+                                type="checkbox"
+                                checked={!!debugSettings?.showDevelopmentOverlay}
+                                onChange={(e) =>
+                                    setDebugSettings((prev) => ({
+                                        ...prev,
+                                        showDevelopmentOverlay: e.target.checked,
+                                    }))
+                                }
+                            />
+                            Enable Development Overlay
+                        </label>
+                        <div className="mt-2 rounded border border-neutral-700 bg-neutral-800/40 p-3">
+                            <div className="flex items-center justify-between gap-3">
+                                <div>
+                                    <h4 className="m-0 text-[12px] font-medium text-neutral-100">
+                                        Development Plugin Server
+                                    </h4>
+                                    <p className="m-0 mt-1 text-[11px] text-neutral-400">
+                                        {devPluginConnection.state === 'idle' &&
+                                            'Not connected. Connect to enable development plugin hot reload.'}
+                                        {devPluginConnection.state === 'connecting' &&
+                                            `Scanning local ports ${devPluginConnection.portRange}…`}
+                                        {devPluginConnection.state === 'connected' &&
+                                            (devPluginConnection.scanning
+                                                ? `Connected while scanning ports ${devPluginConnection.portRange}.`
+                                                : 'Connected to a development plugin server.')}
+                                        {devPluginConnection.state === 'failed' &&
+                                            `No development plugin server responded on ports ${devPluginConnection.portRange}.`}
+                                        {devPluginConnection.state === 'unavailable' &&
+                                            'Development plugin servers are available only while running MVMNT in development mode.'}
+                                    </p>
+                                </div>
                                 <button
                                     type="button"
-                                    disabled={!hasResizeChanges}
-                                    onClick={applyResize}
-                                    className={`rounded px-4 py-1.5 text-[12px] font-medium transition-colors ${
-                                        hasResizeChanges
-                                            ? 'bg-sky-600 text-white hover:bg-sky-500'
-                                            : 'cursor-not-allowed bg-neutral-700/50 text-neutral-500'
-                                    }`}
+                                    onClick={connectToDevPluginServer}
+                                    disabled={
+                                        devPluginConnection.scanning || devPluginConnection.state === 'unavailable'
+                                    }
+                                    className="shrink-0 rounded bg-sky-600 px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-sky-500 disabled:cursor-not-allowed disabled:bg-neutral-700 disabled:text-neutral-400"
                                 >
-                                    Apply Resize
+                                    {devPluginConnection.scanning
+                                        ? 'Scanning…'
+                                        : devPluginConnection.servers.length > 0
+                                          ? 'Scan Again'
+                                          : 'Scan'}
                                 </button>
-                                {hasResizeChanges && (
-                                    <span className="text-[11px] text-neutral-400">
-                                        {pendingWidth} × {pendingHeight} —{' '}
-                                        {SCALING_MODE_OPTIONS.find((o) => o.id === scalingMode)?.description}
-                                    </span>
+                            </div>
+                            <div className="mt-3 border-t border-neutral-700 pt-3">
+                                <div className="flex items-center justify-between gap-3 text-[11px] text-neutral-300">
+                                    <span>Scanning ports {devPluginConnection.portRange}</span>
+                                    <label className="flex cursor-pointer items-center gap-2">
+                                        <input
+                                            type="checkbox"
+                                            checked={devPluginConnection.continuousScanning}
+                                            disabled={devPluginConnection.state === 'unavailable'}
+                                            onChange={(event) =>
+                                                setDevPluginServerContinuousScanning(event.target.checked)
+                                            }
+                                        />
+                                        Continue scanning
+                                    </label>
+                                </div>
+                                {devPluginConnection.continuousScanning && (
+                                    <p className="m-0 mt-1 text-[11px] text-neutral-500">
+                                        Checks once every few seconds for servers that start later.
+                                    </p>
                                 )}
-                            </div>
-                            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                                <label className="flex flex-col gap-1 text-[12px]">
-                                    Scene Start (bars)
-                                    <input
-                                        type="number"
-                                        min={0}
-                                        step={0.01}
-                                        value={localStartBars}
-                                        onChange={(e) => setLocalStartBars(e.target.value)}
-                                        onBlur={commitSceneRange}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                                commitSceneRange();
-                                                (e.currentTarget as HTMLInputElement).blur();
-                                            }
-                                        }}
-                                        className="number-input w-full"
-                                    />
-                                </label>
-                                <label className="flex flex-col gap-1 text-[12px]">
-                                    Scene End (bars)
-                                    <input
-                                        type="number"
-                                        min={0}
-                                        step={0.01}
-                                        value={localEndBars}
-                                        onChange={(e) => setLocalEndBars(e.target.value)}
-                                        onBlur={commitSceneRange}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter') {
-                                                commitSceneRange();
-                                                (e.currentTarget as HTMLInputElement).blur();
-                                            }
-                                        }}
-                                        className="number-input w-full"
-                                    />
-                                </label>
-                            </div>
-                        </div>
-                    )}
-                    {activeTab === 'caches' && <SceneAnalysisCachesTab />}
-                    {activeTab === 'fonts' && (
-                        <div className="flex flex-col gap-3">
-                            <h3 className="m-0 text-[13px] font-semibold text-white">Fonts</h3>
-                            <p className="m-0 text-[12px] text-neutral-400">
-                                Upload custom fonts for this scene and manage the shared font library available to font
-                                pickers.
-                            </p>
-                            <SceneFontManager />
-                        </div>
-                    )}
-                    {activeTab === 'plugins' && <ScenePluginsTab />}
-                    {activeTab === 'developer' && (
-                        <div className="flex flex-col gap-3">
-                            <h3 className="m-0 text-[13px] font-semibold text-white">Developer</h3>
-                            <label className="flex items-center gap-2 text-[12px] text-neutral-300">
-                                <input
-                                    type="checkbox"
-                                    checked={!!debugSettings?.showAnchorPoints}
-                                    onChange={(e) =>
-                                        setDebugSettings((prev) => ({ ...prev, showAnchorPoints: e.target.checked }))
-                                    }
-                                />
-                                Show Anchor Points
-                            </label>
-                            <label className="flex items-center gap-2 text-[12px] text-neutral-300">
-                                <input
-                                    type="checkbox"
-                                    checked={!!debugSettings?.showDevelopmentOverlay}
-                                    onChange={(e) =>
-                                        setDebugSettings((prev) => ({
-                                            ...prev,
-                                            showDevelopmentOverlay: e.target.checked,
-                                        }))
-                                    }
-                                />
-                                Enable Development Overlay
-                            </label>
-                            <div className="mt-2 rounded border border-neutral-700 bg-neutral-800/40 p-3">
-                                <div className="flex items-center justify-between gap-3">
-                                    <div>
-                                        <h4 className="m-0 text-[12px] font-medium text-neutral-100">
-                                            Development Plugin Server
-                                        </h4>
-                                        <p className="m-0 mt-1 text-[11px] text-neutral-400">
-                                            {devPluginConnection.state === 'idle' &&
-                                                'Not connected. Connect to enable development plugin hot reload.'}
-                                            {devPluginConnection.state === 'connecting' &&
-                                                `Scanning local ports ${devPluginConnection.portRange}…`}
-                                            {devPluginConnection.state === 'connected' &&
-                                                (devPluginConnection.scanning
-                                                    ? `Connected while scanning ports ${devPluginConnection.portRange}.`
-                                                    : 'Connected to a development plugin server.')}
-                                            {devPluginConnection.state === 'failed' &&
-                                                `No development plugin server responded on ports ${devPluginConnection.portRange}.`}
-                                            {devPluginConnection.state === 'unavailable' &&
-                                                'Development plugin servers are available only while running MVMNT in development mode.'}
-                                        </p>
-                                    </div>
-                                    <button
-                                        type="button"
-                                        onClick={connectToDevPluginServer}
-                                        disabled={
-                                            devPluginConnection.scanning || devPluginConnection.state === 'unavailable'
-                                        }
-                                        className="shrink-0 rounded bg-sky-600 px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-sky-500 disabled:cursor-not-allowed disabled:bg-neutral-700 disabled:text-neutral-400"
-                                    >
-                                        {devPluginConnection.scanning
-                                            ? 'Scanning…'
-                                            : devPluginConnection.servers.length > 0
-                                              ? 'Scan Again'
-                                              : 'Scan'}
-                                    </button>
-                                </div>
-                                <div className="mt-3 border-t border-neutral-700 pt-3">
-                                    <div className="flex items-center justify-between gap-3 text-[11px] text-neutral-300">
-                                        <span>Scanning ports {devPluginConnection.portRange}</span>
-                                        <label className="flex cursor-pointer items-center gap-2">
-                                            <input
-                                                type="checkbox"
-                                                checked={devPluginConnection.continuousScanning}
-                                                disabled={devPluginConnection.state === 'unavailable'}
-                                                onChange={(event) =>
-                                                    setDevPluginServerContinuousScanning(event.target.checked)
-                                                }
-                                            />
-                                            Continue scanning
-                                        </label>
-                                    </div>
-                                    {devPluginConnection.continuousScanning && (
-                                        <p className="m-0 mt-1 text-[11px] text-neutral-500">
-                                            Checks once every few seconds for servers that start later.
-                                        </p>
+                                <div className="mt-2 rounded bg-neutral-950/40 px-2 py-1.5 text-[11px]">
+                                    <div className="font-medium text-neutral-300">Connected servers</div>
+                                    {devPluginConnection.servers.length > 0 ? (
+                                        <ul className="m-0 mt-1 list-none space-y-1 p-0 text-emerald-300">
+                                            {devPluginConnection.servers.map((server) => (
+                                                <li key={server.serverUrl}>
+                                                    <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                                                    localhost:{server.port}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    ) : (
+                                        <p className="m-0 mt-1 text-neutral-500">No servers connected.</p>
                                     )}
-                                    <div className="mt-2 rounded bg-neutral-950/40 px-2 py-1.5 text-[11px]">
-                                        <div className="font-medium text-neutral-300">Connected servers</div>
-                                        {devPluginConnection.servers.length > 0 ? (
-                                            <ul className="m-0 mt-1 list-none space-y-1 p-0 text-emerald-300">
-                                                {devPluginConnection.servers.map((server) => (
-                                                    <li key={server.serverUrl}>
-                                                        <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                                                        localhost:{server.port}
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        ) : (
-                                            <p className="m-0 mt-1 text-neutral-500">No servers connected.</p>
-                                        )}
-                                    </div>
                                 </div>
                             </div>
                         </div>
-                    )}
-                    {activeTab === 'metadata' && (
-                        <div className="flex flex-col gap-3">
-                            <h3 className="m-0 text-[13px] font-semibold text-white">Scene Metadata</h3>
-                            <label className="flex flex-col gap-1 text-[12px]">
-                                Scene Name
-                                <input
-                                    type="text"
-                                    value={localSceneName}
-                                    onChange={(e) => setLocalSceneName(e.target.value)}
-                                    onBlur={commitSceneName}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            commitSceneName();
-                                            (e.currentTarget as HTMLInputElement).blur();
-                                        }
-                                    }}
-                                    className="w-full rounded border border-neutral-700 bg-neutral-800/60 px-2 py-1 text-neutral-100 focus:border-sky-500 focus:outline-none"
-                                />
-                            </label>
-                            <label className="flex flex-col gap-1 text-[12px]">
-                                Scene ID
-                                <input
-                                    type="text"
-                                    value={localSceneId}
-                                    onChange={(e) => setLocalSceneId(e.target.value)}
-                                    onBlur={commitSceneId}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            commitSceneId();
-                                            (e.currentTarget as HTMLInputElement).blur();
-                                        }
-                                    }}
-                                    className="w-full rounded border border-neutral-700 bg-neutral-800/60 px-2 py-1 text-neutral-100 focus:border-sky-500 focus:outline-none"
-                                />
-                            </label>
-                            <label className="flex flex-col gap-1 text-[12px]">
-                                Description
-                                <textarea
-                                    value={localDescription}
-                                    onChange={(e) => setLocalDescription(e.target.value)}
-                                    onBlur={commitDescription}
-                                    rows={3}
-                                    className="w-full resize-none rounded border border-neutral-700 bg-neutral-800/60 px-2 py-2 text-neutral-100 focus:border-sky-500 focus:outline-none"
-                                />
-                            </label>
-                            <label className="flex flex-col gap-1 text-[12px]">
-                                Author
-                                <input
-                                    type="text"
-                                    value={localAuthor}
-                                    onChange={(e) => setLocalAuthor(e.target.value)}
-                                    onBlur={commitAuthor}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            commitAuthor();
-                                            (e.currentTarget as HTMLInputElement).blur();
-                                        }
-                                    }}
-                                    className="w-full rounded border border-neutral-700 bg-neutral-800/60 px-2 py-1 text-neutral-100 focus:border-sky-500 focus:outline-none"
-                                />
-                            </label>
-                            <div className="grid grid-cols-1 gap-3 text-[11px] text-neutral-400 sm:grid-cols-2">
-                                <div>
-                                    <span className="block uppercase tracking-wide text-neutral-500">Created</span>
-                                    <span className="block text-neutral-300">
-                                        {formatTimestamp(metadata.createdAt)}
-                                    </span>
-                                </div>
-                                <div>
-                                    <span className="block uppercase tracking-wide text-neutral-500">Modified</span>
-                                    <span className="block text-neutral-300">
-                                        {formatTimestamp(metadata.modifiedAt)}
-                                    </span>
-                                </div>
-                                <div>
-                                    <span className="block uppercase tracking-wide text-neutral-500">Time spent</span>
-                                    <span className="block text-neutral-300">
-                                        {formatTimeSpent(displayedTimeSeconds)}
-                                    </span>
-                                </div>
+                    </div>
+                )}
+                {activeTab === 'metadata' && (
+                    <div className="flex flex-col gap-3">
+                        <h3 className="m-0 text-[13px] font-semibold text-white">Scene Metadata</h3>
+                        <label className="flex flex-col gap-1 text-[12px]">
+                            Scene Name
+                            <input
+                                type="text"
+                                value={localSceneName}
+                                onChange={(e) => setLocalSceneName(e.target.value)}
+                                onBlur={commitSceneName}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        commitSceneName();
+                                        (e.currentTarget as HTMLInputElement).blur();
+                                    }
+                                }}
+                                className="w-full rounded border border-neutral-700 bg-neutral-800/60 px-2 py-1 text-neutral-100 focus:border-sky-500 focus:outline-none"
+                            />
+                        </label>
+                        <label className="flex flex-col gap-1 text-[12px]">
+                            Scene ID
+                            <input
+                                type="text"
+                                value={localSceneId}
+                                onChange={(e) => setLocalSceneId(e.target.value)}
+                                onBlur={commitSceneId}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        commitSceneId();
+                                        (e.currentTarget as HTMLInputElement).blur();
+                                    }
+                                }}
+                                className="w-full rounded border border-neutral-700 bg-neutral-800/60 px-2 py-1 text-neutral-100 focus:border-sky-500 focus:outline-none"
+                            />
+                        </label>
+                        <label className="flex flex-col gap-1 text-[12px]">
+                            Description
+                            <textarea
+                                value={localDescription}
+                                onChange={(e) => setLocalDescription(e.target.value)}
+                                onBlur={commitDescription}
+                                rows={3}
+                                className="w-full resize-none rounded border border-neutral-700 bg-neutral-800/60 px-2 py-2 text-neutral-100 focus:border-sky-500 focus:outline-none"
+                            />
+                        </label>
+                        <label className="flex flex-col gap-1 text-[12px]">
+                            Author
+                            <input
+                                type="text"
+                                value={localAuthor}
+                                onChange={(e) => setLocalAuthor(e.target.value)}
+                                onBlur={commitAuthor}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        commitAuthor();
+                                        (e.currentTarget as HTMLInputElement).blur();
+                                    }
+                                }}
+                                className="w-full rounded border border-neutral-700 bg-neutral-800/60 px-2 py-1 text-neutral-100 focus:border-sky-500 focus:outline-none"
+                            />
+                        </label>
+                        <div className="grid grid-cols-1 gap-3 text-[11px] text-neutral-400 sm:grid-cols-2">
+                            <div>
+                                <span className="block uppercase tracking-wide text-neutral-500">Created</span>
+                                <span className="block text-neutral-300">{formatTimestamp(metadata.createdAt)}</span>
+                            </div>
+                            <div>
+                                <span className="block uppercase tracking-wide text-neutral-500">Modified</span>
+                                <span className="block text-neutral-300">{formatTimestamp(metadata.modifiedAt)}</span>
+                            </div>
+                            <div>
+                                <span className="block uppercase tracking-wide text-neutral-500">Time spent</span>
+                                <span className="block text-neutral-300">{formatTimeSpent(displayedTimeSeconds)}</span>
                             </div>
                         </div>
-                    )}
-                </div>
+                    </div>
+                )}
             </div>
-        </div>
+        </ModalShell>
     );
 };
 

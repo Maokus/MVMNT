@@ -71,7 +71,9 @@ const colorDrafts = (color: HsvaColor): InputDrafts => {
 const isSameColor = (first: HsvaColor, second: HsvaColor, includeAlpha: boolean): boolean =>
     hsvaToHex(first, includeAlpha) === hsvaToHex(second, includeAlpha);
 
-const createSessionId = (): string => `color-drag-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+import { createDragSessionId } from '@workspace/components/dragSession';
+
+const createSessionId = (): string => createDragSessionId('color-drag');
 
 interface EmitOptions {
     gesture?: ColorPickerGesture;

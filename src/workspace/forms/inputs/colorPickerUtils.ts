@@ -21,7 +21,9 @@ export const MAX_RECENT_COLORS = 8;
 const HEX_PATTERN = /^#?([0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
 const RGB_PATTERN = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*[,/]\s*([\d.]+)%?\s*)?\)$/i;
 
-export const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
+import { clamp } from '@math/transforms/numeric';
+
+export { clamp };
 
 export const normalizeHue = (hue: number): number => ((hue % 360) + 360) % 360;
 

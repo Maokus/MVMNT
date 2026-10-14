@@ -15,10 +15,9 @@ import { SceneElementPanel, ElementDropdown } from '@workspace/panels/scene-elem
 import { PropertiesPanel } from '@workspace/panels/properties';
 import { useSceneSelection } from '@context/SceneSelectionContext';
 import { useVisualizer } from '@context/VisualizerContext';
+import { clamp } from '@math/transforms/numeric';
 
 interface SidePanelsProps {}
-
-const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 const RESIZER_THICKNESS = 6;
 const VERTICAL_MIN_TOP = 160;
 const VERTICAL_MIN_BOTTOM = 220;

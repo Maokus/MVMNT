@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import TimelineTrackSelect from '@workspace/forms/inputs/TimelineTrackSelect';
 import type { TrackInputDef } from '@context/SceneSelectionContext';
+import { Button } from './Button';
 
 interface Props {
     elementId: string;
@@ -63,20 +64,12 @@ const TrackInputAssignPopup: React.FC<Props> = ({ elementId, trackInputs, onDism
                     ))}
                 </div>
                 <div className="flex flex-wrap justify-end gap-2">
-                    <button
-                        type="button"
-                        className="rounded border border-neutral-700 px-3 py-1 text-[12px] font-medium text-neutral-300 transition hover:bg-neutral-800"
-                        onClick={onDismiss}
-                    >
+                    <Button variant="muted" size="sm" onClick={onDismiss}>
                         Dismiss
-                    </button>
-                    <button
-                        type="button"
-                        className="rounded border border-emerald-400/60 bg-emerald-500/20 px-3 py-1 text-[12px] font-medium text-emerald-100 transition hover:bg-emerald-500/30"
-                        onClick={handleAssign}
-                    >
+                    </Button>
+                    <Button variant="accent" size="sm" onClick={handleAssign}>
                         Assign
-                    </button>
+                    </Button>
                 </div>
             </div>
         </div>
