@@ -317,39 +317,40 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
             </p>
 
             <div ref={presetMenuRef} className="absolute top-4 right-4">
-                <button
-                    type="button"
+                <Button
+                    variant="icon"
+                    size="full"
                     aria-label="Export presets"
                     aria-haspopup="menu"
                     aria-expanded={presetMenuOpen}
                     title="Export presets"
                     onClick={() => setPresetMenuOpen((open) => !open)}
-                    className="flex h-8 w-8 items-center justify-center rounded border border-neutral-600 bg-neutral-700 text-neutral-100 hover:bg-neutral-600"
+                    className="border border-neutral-800"
                 >
                     <FaEllipsisV aria-hidden="true" />
-                </button>
+                </Button>
                 {presetMenuOpen && (
                     <div
                         role="menu"
                         aria-label="Export presets"
-                        className="absolute right-0 top-10 z-10 w-56 rounded border border-neutral-600 bg-neutral-800 p-1 shadow-xl text-xs"
+                        className="absolute right-0 top-10 z-10 w-56 rounded border border-neutral-800 bg-neutral-900 p-1 text-xs"
                     >
                         <div className="px-2 py-1.5 text-neutral-400">Presets</div>
                         {presets.map((preset) => (
-                            <button
+                            <Button
                                 key={preset.id}
-                                type="button"
+                                variant="menu"
+                                size="full"
                                 role="menuitem"
                                 onClick={() => {
                                     setSelectedPresetId(preset.id);
                                     applyPreset(preset);
                                     setPresetMenuOpen(false);
                                 }}
-                                className="flex w-full items-center rounded px-2 py-1.5 text-left text-neutral-100 hover:bg-neutral-700"
                             >
                                 <span className="flex-1">{preset.name}</span>
                                 {selectedPresetId === preset.id && <span aria-label="Selected">✓</span>}
-                            </button>
+                            </Button>
                         ))}
                     </div>
                 )}
@@ -383,13 +384,9 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                             value={form.outputPath}
                             className={`${inputCls} flex-1 opacity-80`}
                         />
-                        <button
-                            type="button"
-                            className="rounded border border-neutral-600 px-3 text-sm text-neutral-100 hover:bg-neutral-700"
-                            onClick={() => void chooseDestination()}
-                        >
+                        <Button variant="neutral" size="full" onClick={() => void chooseDestination()}>
                             Choose…
-                        </button>
+                        </Button>
                     </div>
                 </FormField>
 

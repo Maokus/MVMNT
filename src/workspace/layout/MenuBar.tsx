@@ -31,10 +31,10 @@ export function DocumentSaveStatus() {
 
     const tone =
         phase === 'error'
-            ? 'border-red-700/70 bg-red-950/70 text-red-200'
+            ? 'border-red-800 bg-red-950 text-red-200'
             : phase === 'warning'
-              ? 'border-amber-700/70 bg-amber-950/70 text-amber-200'
-              : 'border-neutral-600/70 bg-neutral-800 text-neutral-200';
+              ? 'border-amber-800 bg-amber-950 text-amber-200'
+              : 'border-neutral-800 bg-neutral-800 text-neutral-200';
     const label = queued && phase === 'saving' ? `${message} · latest queued` : message;
 
     return (

@@ -27,37 +27,37 @@ function getStatusMeta(status?: AudioFeatureCacheStatus): StatusMeta {
         case 'ready':
             return {
                 label: 'Analysed',
-                badgeClass: 'bg-emerald-500/60 text-emerald-50 border border-emerald-300/40',
+                badgeClass: 'bg-emerald-600 text-emerald-50 border border-emerald-800',
                 description: status?.message,
             };
         case 'pending':
             return {
                 label: 'Analysing…',
-                badgeClass: 'bg-amber-500/60 text-amber-50 border border-amber-300/40',
+                badgeClass: 'bg-amber-600 text-amber-50 border border-amber-800',
                 description: status?.message,
             };
         case 'failed':
             return {
                 label: 'Failed',
-                badgeClass: 'bg-rose-500/70 text-rose-50 border border-rose-300/40',
+                badgeClass: 'bg-rose-600 text-rose-50 border border-rose-800',
                 description: status.message,
             };
         case 'stale':
             return {
                 label: 'Queued',
-                badgeClass: 'bg-sky-500/60 text-sky-50 border border-sky-300/40',
+                badgeClass: 'bg-sky-600 text-sky-50 border border-sky-800',
                 description: status.message ?? 'Awaiting re-analysis',
             };
         case 'idle':
             return {
                 label: 'Not analysed',
-                badgeClass: 'bg-slate-600/70 text-slate-100 border border-slate-400/40',
+                badgeClass: 'bg-slate-600 text-slate-100 border border-slate-800',
                 description: status.message,
             };
         default:
             return {
                 label: 'Not analysed',
-                badgeClass: 'bg-slate-600/70 text-slate-100 border border-slate-400/40',
+                badgeClass: 'bg-slate-600 text-slate-100 border border-slate-800',
                 description: status?.message,
             };
     }
@@ -92,12 +92,12 @@ function formatUpdatedAt(value?: number): string | undefined {
 function getPendingStatusBadgeClass(status: PendingDescriptorSummary['status']): string {
     switch (status) {
         case 'bad-request':
-            return 'border border-rose-400/60 bg-rose-500/10 text-rose-100';
+            return 'border border-rose-800 bg-rose-600 text-rose-100';
         case 'missing':
-            return 'border border-amber-400/60 bg-amber-500/10 text-amber-100';
+            return 'border border-amber-800 bg-amber-600 text-amber-100';
         case 'stale':
         default:
-            return 'border border-sky-400/60 bg-sky-500/10 text-sky-100';
+            return 'border border-sky-800 bg-sky-600 text-sky-100';
     }
 }
 
@@ -420,7 +420,7 @@ const SceneAnalysisCachesTab: React.FC = () => {
                                         </div>
                                     </div>
                                     {pendingDescriptors.length > 0 && (
-                                        <div className="rounded border border-amber-500/40 bg-neutral-900 p-2">
+                                        <div className="rounded border border-amber-800 bg-neutral-900 p-2">
                                             <div className="mb-1 text-[11px] font-semibold text-amber-100">
                                                 Requested feature tracks awaiting analysis
                                             </div>

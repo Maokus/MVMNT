@@ -119,7 +119,7 @@ const CurveRangeControls: React.FC<{ channelId: string; curveHeight: number }> =
 
     return (
         <div
-            className="border-b border-neutral-800 bg-neutral-900/30 flex flex-col items-center justify-center py-1"
+            className="border-b border-neutral-800 bg-neutral-900 flex flex-col items-center justify-center py-1"
             style={{ height: curveHeight, width: '100%' }}
         >
             <div>
@@ -172,24 +172,16 @@ const CurveRangeControls: React.FC<{ channelId: string; curveHeight: number }> =
                     }}
                 />
                 {/* Auto toggle button */}
-                <button
-                    type="button"
-                    style={{
-                        fontSize: 9,
-                        padding: '1px 6px',
-                        borderRadius: 3,
-                        border: `1px solid ${autoRange ? 'rgba(96,165,250,0.4)' : 'rgba(255,255,255,0.15)'}`,
-                        background: autoRange ? 'rgba(96,165,250,0.2)' : 'rgba(0,0,0,0.4)',
-                        color: autoRange ? '#93c5fd' : 'rgba(255,255,255,0.45)',
-                        cursor: 'pointer',
-                        lineHeight: 1.5,
-                        userSelect: 'none',
-                        marginLeft: '6px',
-                    }}
+                <Button
+                    variant="ghost"
+                    size="full"
                     onClick={handleToggleAuto}
+                    className={`ml-1.5 text-[9px] leading-6 ${autoRange ? 'bg-neutral-800 text-white' : ''}`}
+                    aria-pressed={autoRange}
+                    title="Toggle auto range"
                 >
                     auto
-                </button>
+                </Button>
             </div>
         </div>
     );
@@ -240,7 +232,7 @@ const ChannelRow: React.FC<{ channelId: string }> = ({ channelId }) => {
     return (
         <>
             <div
-                className="flex items-center justify-between gap-1 pl-6 pr-2 border-b border-neutral-800 text-neutral-400 hover:bg-neutral-800/30"
+                className="flex items-center justify-between gap-1 pl-6 pr-2 border-b border-neutral-800 text-neutral-400 hover:bg-neutral-800"
                 style={{ height: AUTOMATION_ROW_HEIGHT }}
                 onDoubleClick={toggleCurve}
             >
@@ -275,12 +267,9 @@ const ChannelRow: React.FC<{ channelId: string }> = ({ channelId }) => {
                         <FaAngleRight className="text-xs" />
                     </Button>
                     {channel?.valueType !== 'string' && (
-                        <button
-                            className={`flex items-center justify-center w-4 h-4 rounded ${
-                                curveExpanded
-                                    ? 'text-blue-400 bg-blue-900/30'
-                                    : 'text-neutral-500 hover:text-blue-400 hover:bg-blue-900/20'
-                            }`}
+                        <Button
+                            variant="icon"
+                            size="full"
                             title={curveExpanded ? 'Hide curve editor' : 'Show curve editor'}
                             onClick={(e) => {
                                 e.stopPropagation();
@@ -288,10 +277,11 @@ const ChannelRow: React.FC<{ channelId: string }> = ({ channelId }) => {
                             }}
                         >
                             <FaChartLine className="text-xs" />
-                        </button>
+                        </Button>
                     )}
-                    <button
-                        className="flex items-center justify-center w-4 h-4 rounded text-neutral-500 hover:text-red-400 hover:bg-red-900/30"
+                    <Button
+                        variant="icon"
+                        size="full"
                         title={`Remove automation: ${propertyPath}`}
                         onClick={(e) => {
                             e.stopPropagation();
@@ -302,7 +292,7 @@ const ChannelRow: React.FC<{ channelId: string }> = ({ channelId }) => {
                         }}
                     >
                         <FaTimes className="text-xs" />
-                    </button>
+                    </Button>
                 </div>
             </div>
             {/* Curve editor spacer in left column — height synced with right-column curve pane */}
@@ -445,9 +435,9 @@ const AutomationTrackLabels: React.FC = () => {
                     className="flex-1 bg-transparent text-[11px] text-neutral-300 placeholder-neutral-600 outline-none min-w-0"
                 />
                 {searchQuery && (
-                    <button className="text-neutral-500 hover:text-neutral-200" onClick={() => setSearchQuery('')}>
+                    <Button variant="icon" size="full" onClick={() => setSearchQuery('')}>
                         <FaTimes className="text-xs" />
-                    </button>
+                    </Button>
                 )}
             </div>
 

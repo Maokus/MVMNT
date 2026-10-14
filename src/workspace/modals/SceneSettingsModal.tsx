@@ -410,18 +410,15 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
             </p>
             <div className="mb-4 flex gap-2 overflow-x-auto border-b border-neutral-800 pb-2">
                 {tabs.map((tab) => (
-                    <button
+                    <Button
                         key={tab.id}
-                        type="button"
+                        variant="ghost"
+                        size="sm"
                         onClick={() => setActiveTab(tab.id)}
-                        className={`rounded px-3 py-1 text-[12px] transition-colors ${
-                            activeTab === tab.id
-                                ? 'bg-sky-600/20 text-sky-200'
-                                : 'text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100'
-                        }`}
+                        className={activeTab === tab.id ? 'bg-neutral-800 text-white' : ''}
                     >
                         {tab.label}
-                    </button>
+                    </Button>
                 ))}
             </div>
             <div className="flex-1 overflow-y-auto pr-1">
@@ -498,18 +495,9 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                             </label>
                         </div>
                         <div className="flex items-center gap-3">
-                            <button
-                                type="button"
-                                disabled={!hasResizeChanges}
-                                onClick={applyResize}
-                                className={`rounded px-4 py-1.5 text-[12px] font-medium transition-colors ${
-                                    hasResizeChanges
-                                        ? 'bg-sky-600 text-white hover:bg-sky-500'
-                                        : 'cursor-not-allowed bg-neutral-700/50 text-neutral-500'
-                                }`}
-                            >
+                            <Button variant="info" size="full" disabled={!hasResizeChanges} onClick={applyResize}>
                                 Apply Resize
-                            </button>
+                            </Button>
                             {hasResizeChanges && (
                                 <span className="text-[11px] text-neutral-400">
                                     {pendingWidth} × {pendingHeight} —{' '}
@@ -616,20 +604,21 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                                             'Development plugin servers are available only while running MVMNT in development mode.'}
                                     </p>
                                 </div>
-                                <button
-                                    type="button"
+                                <Button
+                                    variant="info"
+                                    size="full"
                                     onClick={connectToDevPluginServer}
                                     disabled={
                                         devPluginConnection.scanning || devPluginConnection.state === 'unavailable'
                                     }
-                                    className="shrink-0 rounded bg-sky-600 px-3 py-1.5 text-[12px] font-medium text-white transition-colors hover:bg-sky-500 disabled:cursor-not-allowed disabled:bg-neutral-700 disabled:text-neutral-400"
+                                    className="shrink-0"
                                 >
                                     {devPluginConnection.scanning
                                         ? 'Scanning…'
                                         : devPluginConnection.servers.length > 0
                                           ? 'Scan Again'
                                           : 'Scan'}
-                                </button>
+                                </Button>
                             </div>
                             <div className="mt-3 border-t border-neutral-800 pt-3">
                                 <div className="flex items-center justify-between gap-3 text-[11px] text-neutral-300">
@@ -651,7 +640,7 @@ const SceneSettingsModal: React.FC<SceneSettingsModalProps> = ({ onClose }) => {
                                         Checks once every few seconds for servers that start later.
                                     </p>
                                 )}
-                                <div className="mt-2 rounded bg-neutral-950/40 px-2 py-1.5 text-[11px]">
+                                <div className="mt-2 rounded bg-neutral-950 px-2 py-1.5 text-[11px]">
                                     <div className="font-medium text-neutral-300">Connected servers</div>
                                     {devPluginConnection.servers.length > 0 ? (
                                         <ul className="m-0 mt-1 list-none space-y-1 p-0 text-emerald-300">

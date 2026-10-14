@@ -84,16 +84,12 @@ export const TemplateBrowserModal: React.FC<TemplateBrowserModalProps> = ({ temp
                                     key={template.id}
                                     type="button"
                                     onClick={() => onSelect(template)}
-                                    className="group flex h-full flex-col items-start gap-2 rounded border border-neutral-800 bg-neutral-800 p-4 text-left transition-colors hover:border-sky-500 hover:bg-neutral-800"
+                                    className="group flex h-full flex-col items-start gap-2 rounded border border-neutral-800 bg-neutral-900 p-4 text-left transition-colors hover:bg-neutral-800"
                                 >
-                                    <span className="text-sm font-semibold text-neutral-100 group-hover:text-white">
-                                        {displayName}
-                                    </span>
-                                    <span className="text-xs text-neutral-400 group-hover:text-neutral-300">
-                                        {displayDescription}
-                                    </span>
+                                    <span className="text-sm font-semibold text-neutral-100">{displayName}</span>
+                                    <span className="text-xs text-neutral-400">{displayDescription}</span>
                                     {displayAuthor && (
-                                        <span className="text-[11px] uppercase tracking-wide text-neutral-500 group-hover:text-neutral-400">
+                                        <span className="text-[11px] uppercase tracking-wide text-neutral-500">
                                             By {displayAuthor}
                                         </span>
                                     )}

@@ -143,9 +143,9 @@ const ScenePluginsTab: React.FC = () => {
                 </Button>
 
                 {pendingFile && (
-                    <div className="mt-3 rounded border border-amber-500/40 bg-amber-900/20 p-3 space-y-2">
+                    <div className="mt-3 rounded border border-amber-800 bg-amber-950 p-3 space-y-2">
                         <p className="text-[12px] font-medium text-amber-200">Install "{pendingFile.name}"?</p>
-                        <p className="text-[12px] text-amber-300/80 leading-relaxed">
+                        <p className="text-[12px] text-amber-300 leading-relaxed">
                             This plugin will run code on your computer. Only install plugins from authors you trust.
                         </p>
                         <div className="flex gap-2 pt-1">
@@ -160,9 +160,9 @@ const ScenePluginsTab: React.FC = () => {
                 )}
 
                 {upgradeOffer && (
-                    <div className="mt-3 rounded border border-sky-500/40 bg-sky-900/20 p-3 space-y-2">
+                    <div className="mt-3 rounded border border-sky-800 bg-sky-950 p-3 space-y-2">
                         <p className="text-[12px] font-medium text-sky-200">Plugin already installed</p>
-                        <p className="text-[12px] text-sky-300/80 leading-relaxed">
+                        <p className="text-[12px] text-sky-300 leading-relaxed">
                             A plugin with this ID is already installed. Would you like to upgrade it? The existing
                             plugin will be replaced if the new version is newer.
                         </p>
@@ -178,7 +178,7 @@ const ScenePluginsTab: React.FC = () => {
                 )}
 
                 {importError && (
-                    <div className="mt-3 rounded border border-rose-500/50 bg-rose-900/30 p-3 text-rose-200">
+                    <div className="mt-3 rounded border border-rose-800 bg-rose-950 p-3 text-rose-200">
                         <p className="text-[12px] font-medium">Import Failed</p>
                         <p className="mt-1 text-[12px]">{importError}</p>
                     </div>
@@ -201,10 +201,10 @@ const ScenePluginsTab: React.FC = () => {
                                     key={plugin.manifest.id}
                                     className={`rounded border p-3 transition ${
                                         hasError
-                                            ? 'border-rose-500/40 bg-rose-900/20'
+                                            ? 'border-rose-800 bg-rose-950'
                                             : plugin.enabled
-                                              ? 'border-emerald-500/40 bg-emerald-900/20'
-                                              : 'border-neutral-800 bg-neutral-800/50'
+                                              ? 'border-emerald-800 bg-emerald-950'
+                                              : 'border-neutral-800 bg-neutral-800'
                                     }`}
                                 >
                                     <div className="flex items-start justify-between gap-3">
@@ -217,17 +217,17 @@ const ScenePluginsTab: React.FC = () => {
                                                     v{plugin.manifest.version}
                                                 </span>
                                                 {isLoading && (
-                                                    <span className="rounded-full bg-blue-900/50 px-2 py-0.5 text-[10px] font-medium text-blue-200">
+                                                    <span className="rounded-full bg-blue-950 px-2 py-0.5 text-[10px] font-medium text-blue-200">
                                                         Loading...
                                                     </span>
                                                 )}
                                                 {hasError && (
-                                                    <span className="rounded-full bg-rose-900/50 px-2 py-0.5 text-[10px] font-medium text-rose-200">
+                                                    <span className="rounded-full bg-rose-950 px-2 py-0.5 text-[10px] font-medium text-rose-200">
                                                         Error
                                                     </span>
                                                 )}
                                                 {!hasError && plugin.enabled && (
-                                                    <span className="rounded-full bg-emerald-900/50 px-2 py-0.5 text-[10px] font-medium text-emerald-200">
+                                                    <span className="rounded-full bg-emerald-950 px-2 py-0.5 text-[10px] font-medium text-emerald-200">
                                                         Enabled
                                                     </span>
                                                 )}
@@ -257,7 +257,7 @@ const ScenePluginsTab: React.FC = () => {
                                                 {plugin.manifest.elements.map((el) => (
                                                     <span
                                                         key={el.type}
-                                                        className="rounded bg-neutral-800/50 px-2 py-0.5 text-[10px] text-neutral-300"
+                                                        className="rounded bg-neutral-800 px-2 py-0.5 text-[10px] text-neutral-300"
                                                     >
                                                         {el.type}
                                                     </span>
@@ -265,7 +265,7 @@ const ScenePluginsTab: React.FC = () => {
                                             </div>
 
                                             {hasError && (
-                                                <div className="mt-2 rounded border border-rose-500/30 bg-rose-900/30 p-2">
+                                                <div className="mt-2 rounded border border-rose-800 bg-rose-950 p-2">
                                                     <p className="text-[11px] font-medium text-rose-200">Error:</p>
                                                     <p className="mt-1 text-[11px] text-rose-300">{plugin.error}</p>
                                                 </div>

@@ -601,7 +601,7 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
                 {visibleSimulationReadiness && (
                     <div
                         role="status"
-                        className="pointer-events-none absolute top-2 left-2 z-10 rounded bg-black/70 px-2 py-1 text-xs text-white select-none"
+                        className="pointer-events-none absolute top-2 left-2 z-10 rounded bg-black px-2 py-1 text-xs text-white select-none"
                     >
                         {simulationStatusText(visibleSimulationReadiness)}
                     </div>

@@ -44,7 +44,7 @@ export function PrivacyPage() {
                 </div>
 
                 <div className="space-y-6 leading-7 text-neutral-300">
-                    <section className="rounded-xl border border-neutral-700 bg-neutral-900/60 p-5">
+                    <section className="rounded border border-neutral-800 bg-neutral-900 p-5">
                         <div className="flex flex-wrap items-baseline justify-between gap-2">
                             <h2 className="text-lg font-semibold text-white">Your choice</h2>
                             <span className="text-xs text-neutral-500">Policy version {ANALYTICS_POLICY_VERSION}</span>
@@ -74,7 +74,7 @@ export function PrivacyPage() {
                     </section>
 
                     <div className="grid gap-4 md:grid-cols-2">
-                        <section className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-5">
+                        <section className="rounded border border-emerald-800 bg-emerald-950 p-5">
                             <h2 className="text-lg font-semibold text-emerald-100">I will collect:</h2>
                             <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-neutral-300">
                                 <li>App version, release channel, coarse platform, and runtime.</li>
@@ -90,7 +90,7 @@ export function PrivacyPage() {
                                 <li>Sanitized renderer error type, fatal state, and stack locations.</li>
                             </ul>
                         </section>
-                        <section className="rounded-xl border border-rose-500/30 bg-rose-950/20 p-5">
+                        <section className="rounded border border-rose-800 bg-rose-950 p-5">
                             <h2 className="text-lg font-semibold text-rose-100">I never collect:</h2>
                             <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-neutral-300">
                                 <li>Project names, filenames, paths, URLs, or free-form text.</li>
@@ -103,7 +103,7 @@ export function PrivacyPage() {
                         </section>
                     </div>
 
-                    <section className="rounded-xl border border-neutral-700 bg-neutral-900/60 p-5">
+                    <section className="rounded border border-neutral-800 bg-neutral-900 p-5">
                         <h2 className="text-lg font-semibold text-white">Identity, processor, and retention</h2>
                         <p className="mt-2">
                             I use random analytics identifiers. If you sign in to Community after consenting, your
@@ -111,7 +111,7 @@ export function PrivacyPage() {
                             Cloud for 12 months.
                         </p>
                         {identifier ? (
-                            <div className="mt-3 rounded border border-neutral-700 bg-neutral-950 p-3 text-sm">
+                            <div className="mt-3 rounded border border-neutral-800 bg-neutral-950 p-3 text-sm">
                                 <p className="text-neutral-400">Analytics identifier</p>
                                 <code className="mt-1 block break-all text-neutral-200">{identifier}</code>
                                 <button className="mt-2 underline" type="button" onClick={() => void copyIdentifier()}>
@@ -121,7 +121,7 @@ export function PrivacyPage() {
                         ) : null}
                     </section>
 
-                    <section className="rounded-xl border border-neutral-700 bg-neutral-900/60 p-5">
+                    <section className="rounded border border-neutral-800 bg-neutral-900 p-5">
                         <h2 className="text-lg font-semibold text-white">Access and deletion</h2>
                         <p className="mt-2">
                             Withdrawing stops future collection and resets the local analytics identity; it does not

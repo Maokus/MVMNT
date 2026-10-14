@@ -253,13 +253,9 @@ const TimelineRuler: React.FC = () => {
 
             {/* Loop UI removed for now */}
 
-            {/* Playback range tint + yellow markers (always visible) */}
+            {/* Playback range markers (always visible) */}
             {playEnd > playStart && (
                 <>
-                    <div
-                        className="absolute top-0 bottom-0 bg-yellow-400/10 pointer-events-none"
-                        style={{ left: playStartX, width: Math.max(0, playEndX - playStartX) }}
-                    />
                     <div
                         className="absolute top-0 bottom-0 w-0 border-l-2 border-yellow-400"
                         style={{ left: playStartX }}

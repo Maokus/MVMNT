@@ -125,7 +125,7 @@ const TimelinePanel: React.FC = () => {
                             onClick={() => setAutoKeying(!autoKeying)}
                             className={`px-2 py-1 rounded border border-neutral-800 flex items-center justify-center transition-colors mr-2 ${
                                 autoKeying
-                                    ? 'bg-red-600/70 text-white border-red-400/70'
+                                    ? 'bg-red-600 text-white border-red-800'
                                     : 'bg-neutral-900 text-neutral-200 hover:bg-neutral-800'
                             }`}
                         >
@@ -179,12 +179,12 @@ const TimelinePanel: React.FC = () => {
                     </CurveHeightProvider>
                 </div>
                 {isDragActive && (
-                    <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center border-2 border-dashed border-blue-500/80 bg-blue-500/10 text-blue-100 text-sm font-semibold uppercase tracking-wide">
+                    <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center border-2 border-dashed border-blue-500 text-blue-100 text-sm font-semibold uppercase tracking-wide">
                         Drop MIDI or audio files to add tracks
                     </div>
                 )}
                 {audioImportProgress.active && (
-                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/45">
+                    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black">
                         <div className="w-[min(420px,calc(100%-32px))] rounded border border-neutral-800 bg-neutral-950 p-4 ">
                             <div className="flex items-start justify-between gap-4">
                                 <div>

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTimelineStore } from '@state/timelineStore';
 import { AUTOMATION_HEADER_HEIGHT, TEMPO_LANE_HEIGHT } from '../constants';
 import { useTempoRange } from '../context/tempoRangeContext';
+import { Button } from '@workspace/components/Button';
 
 const formatBpm = (value: number) => value.toFixed(1);
 
@@ -28,7 +29,7 @@ const TempoRangeControls: React.FC = () => {
 
     return (
         <div
-            className="flex flex-col items-center justify-center gap-1 border-b border-neutral-800 bg-neutral-900/30"
+            className="flex flex-col items-center justify-center gap-1 border-b border-neutral-800 bg-neutral-900"
             style={{ height: TEMPO_LANE_HEIGHT }}
         >
             <span className="text-[9px] text-neutral-500">BPM range</span>
@@ -65,18 +66,19 @@ const TempoRangeControls: React.FC = () => {
                         if (!autoRange) commit('max', event.target.value);
                     }}
                 />
-                <button
-                    type="button"
+                <Button
+                    variant="ghost"
+                    size="full"
                     aria-label="Auto fit BPM range"
                     aria-pressed={autoRange}
-                    className={`rounded border px-1.5 ${autoRange ? 'border-amber-500/50 bg-amber-600/20 text-amber-300' : 'border-neutral-800 text-neutral-400 hover:text-neutral-200'}`}
+                    className={`px-1.5 text-[9px] ${autoRange ? 'bg-neutral-800 text-amber-300' : ''}`}
                     onClick={() => {
                         if (autoRange) setManualRange(range);
                         else setAutoRange(true);
                     }}
                 >
                     auto
-                </button>
+                </Button>
             </div>
             <span className="text-[8px] text-neutral-600">Double-click the lane to add</span>
         </div>
@@ -130,34 +132,36 @@ const TempoLaneHeader: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-1">
                     {enabled && (
-                        <button
-                            className="text-[9px] px-1.5 py-0.5 rounded border border-neutral-800 text-neutral-500 hover:text-neutral-300 hover:bg-neutral-800 transition-colors"
+                        <Button
+                            variant="ghost"
+                            size="full"
+                            className="px-1.5 py-0.5 text-[9px]"
                             onClick={toggleVisible}
                             title={laneVisible ? 'Hide tempo lane' : 'Show tempo lane'}
                         >
                             {laneVisible ? 'Hide' : 'Show'}
-                        </button>
+                        </Button>
                     )}
                     {enabled && keyframes.length > 1 && (
-                        <button
-                            className="text-[9px] px-1.5 py-0.5 rounded border border-neutral-800 text-neutral-500 hover:text-red-300 hover:bg-red-900/30 transition-colors"
+                        <Button
+                            variant="ghost"
+                            size="full"
+                            className="px-1.5 py-0.5 text-[9px] hover:text-red-300"
                             onClick={resetChanges}
                             title="Remove all tempo changes after Bar 1"
                         >
                             Reset
-                        </button>
+                        </Button>
                     )}
-                    <button
-                        className={`text-[9px] px-1.5 py-0.5 rounded border transition-colors ${
-                            enabled
-                                ? 'border-amber-500/50 bg-amber-600/30 text-amber-300 hover:bg-amber-600/50'
-                                : 'border-neutral-800 text-neutral-500 hover:text-neutral-300 hover:bg-neutral-800'
-                        }`}
+                    <Button
+                        variant="ghost"
+                        size="full"
+                        className={`px-1.5 py-0.5 text-[9px] ${enabled ? 'bg-neutral-800 text-amber-300' : ''}`}
                         onClick={toggleEnabled}
                         title={enabled ? 'Disable tempo automation (keeps this tempo map)' : 'Enable tempo automation'}
                     >
                         {enabled ? 'Disable' : 'Enable'}
-                    </button>
+                    </Button>
                 </div>
             </div>
             {/* Lane spacer (synced with right column lane height) */}

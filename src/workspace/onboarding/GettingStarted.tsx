@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSceneSelection } from '@context/SceneSelectionContext';
+import { Button } from '@workspace/components/Button';
 import type { TutorialStep } from './useOnboarding';
 
 interface GettingStartedProps {
@@ -57,7 +58,7 @@ export function GettingStarted({
     return (
         <section
             aria-label="Tutorial"
-            className="m-2 flex-none rounded border border-indigo-400/30 bg-neutral-900 text-neutral-100"
+            className="m-2 flex-none rounded border border-neutral-800 bg-neutral-900 text-neutral-100"
         >
             <div className="flex items-center justify-between gap-2 px-3 py-2">
                 <button
@@ -71,14 +72,9 @@ export function GettingStarted({
                     Tutorial · {count}/6{' '}
                     <span className="ml-1 text-xs text-neutral-400">{collapsed ? 'Expand' : 'Collapse'}</span>
                 </button>
-                <button
-                    type="button"
-                    onClick={onDismiss}
-                    className="rounded px-2 py-1 text-xs text-neutral-400 hover:text-white"
-                    aria-label="Dismiss tutorial"
-                >
+                <Button variant="ghost" size="full" onClick={onDismiss} aria-label="Dismiss tutorial">
                     Dismiss
-                </button>
+                </Button>
             </div>
             <p role="status" className="sr-only">
                 {complete ? 'Tutorial complete. Your video is rendering.' : `${count} of 6 steps complete.`}

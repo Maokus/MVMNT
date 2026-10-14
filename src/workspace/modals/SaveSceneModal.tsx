@@ -129,7 +129,7 @@ export function SaveSceneModal({ initialName, onCancel, onConfirm }: SaveSceneMo
                         variant="primary"
                         size="md"
                         type="submit"
-                        className="focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70"
+                        className="focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
                     >
                         Save
                     </Button>

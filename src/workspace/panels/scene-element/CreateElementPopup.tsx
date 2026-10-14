@@ -99,7 +99,7 @@ const CreateElementPopup: React.FC<CreateElementPopupProps> = ({ position, onAdd
                                 key={elementType.type}
                                 type="button"
                                 className={`flex w-full items-start gap-2 px-3 py-1.5 text-left transition-colors ${
-                                    index === activeIndex ? 'bg-neutral-700/70' : 'hover:bg-neutral-700/40'
+                                    index === activeIndex ? 'bg-neutral-800' : 'hover:bg-neutral-800'
                                 }`}
                                 onMouseEnter={() => setActiveIndex(index)}
                                 onClick={() => selectElementType(elementType.type)}

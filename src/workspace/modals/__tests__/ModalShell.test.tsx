@@ -26,7 +26,7 @@ describe('ModalShell', () => {
                 <span>inner</span>
             </ModalShell>
         );
-        const backdrop = container.querySelector('.bg-black\\/60') ?? container.firstElementChild?.firstElementChild;
+        const backdrop = container.querySelector('.bg-black') ?? container.firstElementChild?.firstElementChild;
         expect(backdrop).toBeTruthy();
         if (backdrop) fireEvent.click(backdrop);
         expect(onCancel).toHaveBeenCalledTimes(1);

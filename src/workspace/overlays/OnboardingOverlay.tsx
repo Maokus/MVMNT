@@ -36,7 +36,7 @@ export function OnboardingOverlay({ onClose, onStart, busy, error, restarting }:
     });
 
     return (
-        <FloatingOverlay lockScroll className="z-[9000] flex items-center justify-center bg-black/60 p-4">
+        <FloatingOverlay lockScroll className="z-[9000] flex items-center justify-center bg-black p-4">
             <FloatingFocusManager context={context} outsideElementsInert returnFocus>
                 <section
                     ref={refs.setFloating}
@@ -64,7 +64,7 @@ export function OnboardingOverlay({ onClose, onStart, busy, error, restarting }:
                             size="md"
                             disabled={busy}
                             onClick={onStart}
-                            className="focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70"
+                            className="focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
                         >
                             {busy ? 'Loading tutorial…' : restarting ? 'Restart tutorial' : 'Try tutorial'}
                         </Button>

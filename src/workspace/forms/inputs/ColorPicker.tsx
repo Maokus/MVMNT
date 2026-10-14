@@ -323,7 +323,7 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({ color, includeAlpha = 
     const rgba = hsvaToRgba(color);
     const saturationStyle = { backgroundColor: `hsl(${color.h}, 100%, 50%)` };
     const alphaStyle = {
-        backgroundImage: `linear-gradient(to right, rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, 0), rgb(${rgba.r}, ${rgba.g}, ${rgba.b}))`,
+        backgroundColor: `rgb(${rgba.r}, ${rgba.g}, ${rgba.b})`,
     };
     const saturationValue = `Saturation ${Math.round(color.s)}%, brightness ${Math.round(color.v)}%`;
     const toneColors = useMemo(() => generateTonePalette(color.h), [color.h]);

@@ -54,13 +54,14 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
                     <div className={`flex items-center justify-between${isCollapsed ? ' mb-2' : ' mb-3'}`}>
                         <div className="flex min-w-0 items-center gap-2">
                             {!active && !isCollapsed && (
-                                <button
-                                    className="-ml-1 text-sm leading-none opacity-60 hover:opacity-100"
+                                <Button
+                                    variant="faint"
+                                    size="full"
                                     onClick={onClose}
                                     aria-label="Close export progress"
                                 >
                                     ×
-                                </button>
+                                </Button>
                             )}
                             <h3 className="flex items-center gap-1.5 truncate font-semibold text-white">
                                 {kind === 'video' ? (
@@ -105,12 +106,9 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
                                             : 'Finishing…'}
                                     </span>
                                     {active && onCancel && (
-                                        <button
-                                            className="px-2 py-1 rounded bg-red-900/70 hover:bg-red-800 text-red-100"
-                                            onClick={() => onCancel(active.id)}
-                                        >
+                                        <Button variant="danger" size="full" onClick={() => onCancel(active.id)}>
                                             Cancel
-                                        </button>
+                                        </Button>
                                     )}
                                 </div>
                             </div>
@@ -137,20 +135,14 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
                                         <span className="truncate">{job.outputName ?? job.snapshot.sceneName}</span>
                                         <span className="opacity-60 capitalize">{job.status}</span>
                                         {job.outputId && onReveal && (
-                                            <button
-                                                className="text-sky-300 hover:text-sky-200"
-                                                onClick={() => onReveal(job.outputId!)}
-                                            >
+                                            <Button variant="faint" size="full" onClick={() => onReveal(job.outputId!)}>
                                                 Reveal
-                                            </button>
+                                            </Button>
                                         )}
                                         {!isExportJobActive(job.status) && onRemove && (
-                                            <button
-                                                className="opacity-60 hover:opacity-100"
-                                                onClick={() => onRemove(job.id)}
-                                            >
+                                            <Button variant="faint" size="full" onClick={() => onRemove(job.id)}>
                                                 ×
-                                            </button>
+                                            </Button>
                                         )}
                                     </div>
                                     {job.status === 'failed' && job.error && (
@@ -163,12 +155,14 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
                         </div>
                     )}
                     {!isCollapsed && !active && jobs.length > 0 && (
-                        <button
-                            className="mt-3 text-[11px] opacity-60 hover:opacity-100"
+                        <Button
+                            variant="faint"
+                            size="full"
                             onClick={() => void downloadDiagnostics()}
+                            className="mt-3 text-[11px]"
                         >
                             Download diagnostics
-                        </button>
+                        </Button>
                     )}
                 </div>
             </div>

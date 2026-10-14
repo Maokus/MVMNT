@@ -12,6 +12,7 @@ import {
     type GoogleFontFamily,
 } from '@fonts/google-fonts-client';
 import { useSceneStore } from '@state/sceneStore';
+import { Button } from '@workspace/components/Button';
 import {
     encodeBuiltInFontToken,
     encodeDeviceFontToken,
@@ -310,17 +311,18 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
                         ref={weightFloating.refs.setFloating}
                         style={weightFloating.floatingStyles}
                         data-preserve-selection="true"
-                        className="z-[1000] max-h-[280px] w-[140px] overflow-y-auto rounded border border-neutral-800 bg-neutral-950 p-1 shadow-xl"
+                        className="z-[1000] max-h-[280px] w-[140px] overflow-y-auto rounded border border-neutral-800 bg-neutral-950 p-1"
                     >
                         {availableVariants.map((variant) => (
-                            <button
+                            <Button
                                 key={variant.key}
-                                type="button"
+                                variant="menu"
+                                size="full"
                                 onClick={variant.select}
-                                className="block w-full rounded px-3 py-2 text-left text-xs text-neutral-200 hover:bg-neutral-800"
+                                className="text-xs"
                             >
                                 {variant.label}
-                            </button>
+                            </Button>
                         ))}
                     </div>
                 </FloatingPortal>
@@ -330,19 +332,15 @@ const FontInput: React.FC<FontInputRowProps> = ({ id, value, schema, disabled, t
                 <FloatingPortal>
                     <div
                         data-preserve-selection="true"
-                        className="fixed left-1/2 top-1/2 z-[1100] w-[360px] -translate-x-1/2 -translate-y-1/2 rounded border border-sky-700 bg-neutral-950 p-3 text-xs text-neutral-200 "
+                        className="fixed left-1/2 top-1/2 z-[1100] w-[360px] -translate-x-1/2 -translate-y-1/2 rounded border border-neutral-800 bg-neutral-950 p-3 text-xs text-neutral-200"
                     >
                         <div className="flex items-center justify-between gap-3">
                             <span>
                                 Embedding {download.family}… {download.completed}/{download.total}
                             </span>
-                            <button
-                                type="button"
-                                onClick={() => downloadController.current?.abort()}
-                                className="rounded border border-neutral-600 px-2 py-1 hover:bg-neutral-800"
-                            >
+                            <Button variant="secondary" size="sm" onClick={() => downloadController.current?.abort()}>
                                 Cancel
-                            </button>
+                            </Button>
                         </div>
                         <div className="mt-2 h-1 overflow-hidden rounded bg-neutral-800">
                             <div
@@ -370,14 +368,10 @@ const FontSection: React.FC<React.PropsWithChildren<{ label: string }>> = ({ lab
 );
 
 const FontRow: React.FC<{ family: string; badge: string; onClick: () => void }> = ({ family, badge, onClick }) => (
-    <button
-        type="button"
-        onClick={onClick}
-        className="flex w-full items-center justify-between rounded px-2 py-2 text-left text-neutral-200 hover:bg-neutral-800"
-    >
+    <Button variant="list-row" size="full" onClick={onClick}>
         <span className="truncate">{family}</span>
         <span className="ml-3 shrink-0 text-[9px] uppercase tracking-wide text-neutral-500">{badge}</span>
-    </button>
+    </Button>
 );
 
 const EmptyRow: React.FC<React.PropsWithChildren> = ({ children }) => (

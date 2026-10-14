@@ -568,12 +568,12 @@ const AutomationCurvePane: React.FC<AutomationCurvePaneProps> = ({ channel, widt
 
             {/* Resize handle */}
             <div
-                className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize flex items-center justify-center hover:bg-blue-500/20 group"
+                className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize flex items-center justify-center hover:bg-neutral-800 group"
                 onPointerDown={handleResizeDown}
                 onPointerMove={handleResizeMove}
                 onPointerUp={handleResizeUp}
             >
-                <div className="w-8 h-0.5 rounded bg-neutral-600 group-hover:bg-blue-400/60" />
+                <div className="w-8 h-0.5 rounded bg-neutral-600 group-hover:bg-neutral-400" />
             </div>
 
             {/* Interpolation picker popover */}

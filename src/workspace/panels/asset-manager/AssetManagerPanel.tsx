@@ -10,6 +10,7 @@ import {
     useInteractions,
 } from '@floating-ui/react';
 import { useVisualAssetRegistryStore, type ProjectAsset } from '@state/visualAssetRegistryStore';
+import { Button } from '@workspace/components/Button';
 
 const ACCEPTED_TYPES = 'image/*,.gif';
 
@@ -105,17 +106,17 @@ const AssetCard: React.FC<{
                     </span>
                 )}
                 {entry.deletable && (
-                    <button
-                        className="shrink-0 text-neutral-500 hover:text-red-400 text-sm leading-none transition-colors"
+                    <Button
+                        variant="icon"
+                        size="full"
                         title="Remove asset"
                         onClick={(e) => {
                             e.stopPropagation();
                             onDelete();
                         }}
-                        type="button"
                     >
                         ×
-                    </button>
+                    </Button>
                 )}
             </div>
         </div>
@@ -175,21 +176,21 @@ const AssetManagerPanel: React.FC = () => {
                 <button
                     ref={refs.setReference}
                     {...getReferenceProps()}
-                    className={`text-xs px-2 py-0.5 rounded transition-colors ${filterOpen || showPluginAssets ? 'bg-accent/20 text-accent border border-accent/40' : 'bg-neutral-700 hover:bg-neutral-600 text-neutral-200'}`}
+                    className={`text-xs px-2 py-0.5 rounded transition-colors ${filterOpen || showPluginAssets ? 'bg-neutral-800 text-white border border-neutral-800' : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200'}`}
                     title="Filter assets"
                     type="button"
                     onClick={() => setFilterOpen((v) => !v)}
                 >
                     Filter{showPluginAssets ? ' ●' : ''}
                 </button>
-                <button
-                    className="text-xs px-2 py-0.5 rounded bg-neutral-700 hover:bg-neutral-600 text-neutral-200 transition-colors"
+                <Button
+                    variant="secondary"
+                    size="sm"
                     title="Upload images"
-                    type="button"
                     onClick={() => fileInputRef.current?.click()}
                 >
                     + Upload
-                </button>
+                </Button>
                 <input
                     ref={fileInputRef}
                     type="file"

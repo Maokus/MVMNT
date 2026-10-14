@@ -5,6 +5,7 @@ import { useSceneStore } from '@state/sceneStore';
 import { useSceneEditorStore } from '@state/sceneEditorStore';
 import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { SaveSceneModal } from '@workspace/modals/SaveSceneModal';
+import { Button } from '@workspace/components/Button';
 import { LocalSaveService } from '@persistence/local-save-service';
 import { LocalFileStore } from '@persistence/local-file-store';
 import { useDirtyTracking } from '@hooks/useDirtyTracking';
@@ -370,38 +371,34 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
             )}
             {unsavedChangesPrompt && (
                 <div
-                    className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/60 p-4"
+                    className="fixed inset-0 z-[2000] flex items-center justify-center bg-black p-4"
                     role="dialog"
                     aria-modal="true"
                     aria-labelledby="unsaved-changes-title"
                 >
-                    <div className="w-full max-w-sm rounded-lg border border-neutral-700 bg-neutral-900 p-5 text-neutral-100 shadow-2xl">
+                    <div className="w-full max-w-sm rounded border border-neutral-800 bg-neutral-900 p-5 text-neutral-100 ">
                         <h2 id="unsaved-changes-title" className="text-base font-semibold">
                             Save changes?
                         </h2>
                         <p className="mt-2 text-sm leading-6 text-neutral-400">{unsavedChangesPrompt.message}</p>
                         <div className="mt-5 flex justify-end gap-3">
-                            <button
-                                type="button"
+                            <Button
+                                variant="neutral"
+                                size="full"
                                 onClick={() => chooseUnsavedChangesDecision('discard')}
-                                className="rounded bg-neutral-700 px-3 py-2 text-sm font-medium hover:bg-neutral-600"
                             >
                                 Don’t save
-                            </button>
-                            <button
-                                type="button"
+                            </Button>
+                            <Button
+                                variant="neutral"
+                                size="full"
                                 onClick={() => chooseUnsavedChangesDecision('cancel')}
-                                className="rounded bg-neutral-700 px-3 py-2 text-sm font-medium hover:bg-neutral-600"
                             >
                                 Cancel
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => chooseUnsavedChangesDecision('save')}
-                                className="rounded bg-indigo-600 px-3 py-2 text-sm font-medium hover:bg-indigo-500"
-                            >
+                            </Button>
+                            <Button variant="primary" size="full" onClick={() => chooseUnsavedChangesDecision('save')}>
                                 Save
-                            </button>
+                            </Button>
                         </div>
                     </div>
                 </div>

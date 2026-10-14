@@ -331,7 +331,7 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({ position, nod
                     ) : (
                         filteredItems.map((item, i) => {
                             const isActive = i === activeIndex;
-                            const baseClass = `w-full text-left px-3 py-1.5 flex items-center gap-2 transition-colors ${isActive ? 'bg-neutral-700/70' : 'hover:bg-neutral-700/40'}`;
+                            const baseClass = `w-full text-left px-3 py-1.5 flex items-center gap-2 transition-colors ${isActive ? 'bg-neutral-800' : 'hover:bg-neutral-800'}`;
 
                             if (item.kind === 'preset') {
                                 return (

@@ -690,7 +690,7 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
             {/* Cross-lane selection box overlay */}
             {selBoxRect && (
                 <div
-                    className="absolute bg-blue-400/10 border border-blue-400 pointer-events-none"
+                    className="absolute border border-blue-400 pointer-events-none"
                     style={{
                         left: selBoxRect.x,
                         top: selBoxRect.y,

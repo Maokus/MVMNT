@@ -4,6 +4,7 @@ import { useTickScale } from '../hooks/useTickScale';
 import { AUTOMATION_HEADER_HEIGHT } from '../constants';
 import { useSnapTicks } from '../hooks/useSnapTicks';
 import { CommandContextMenu } from '@workspace/components/CommandContextMenu';
+import { Button } from '@workspace/components/Button';
 import { useTempoRange } from '../context/tempoRangeContext';
 import { isValueRangeWheel } from './valueRangeWheel';
 
@@ -340,9 +341,14 @@ const TempoAutomationLane: React.FC<TempoAutomationLaneProps> = ({ width, height
                         }}
                     />
                     {!isBasePoint(selected.tick) && (
-                        <button type="button" onClick={deleteSelected} className="text-red-300 hover:text-red-100">
+                        <Button
+                            variant="ghost"
+                            size="full"
+                            onClick={deleteSelected}
+                            className="text-[9px] hover:text-red-300"
+                        >
                             Delete
-                        </button>
+                        </Button>
                     )}
                 </div>
             )}
