@@ -13,7 +13,7 @@ import { useTimelineStore } from '@state/timelineStore';
 import AudioWaveform from '@workspace/components/AudioWaveform';
 import { getClipPreviewLayout, getPreviewViewport } from '@workspace/components/previewGeometry';
 import { getTimelineClipsInSelection, type TimelineClipRef } from '../clipboard/midiClipClipboard';
-import { buildDragPreviews, resolveDragGroup, type DragGroupEntry } from './clipDragGroup';
+import { planDragMove, resolveDragGroup, type DragGroupEntry } from './clipDragGroup';
 import { useSnapTicks } from '../hooks/useSnapTicks';
 import { useTickScale } from '../hooks/useTickScale';
 import { formatClipStartLabel } from '../utils/clipLabelUtils';
@@ -357,22 +357,26 @@ const AudioClipBlock: React.FC<Props> = ({
             true
         );
         const desiredBaseSeconds = ticksToSeconds(timingContext, desiredTrimmedStart) - sourceBounds.startSeconds;
-        const snapped = Math.round(secondsToTicks(timingContext, desiredBaseSeconds));
+        const desired = Math.round(secondsToTicks(timingContext, desiredBaseSeconds));
+        const trackDelta = Math.round(dy / Math.max(1, rowHeight));
+        // Clamp so the dragged clip (and its group) cannot land on a non-group clip.
+        const planned = planDragMove(
+            useTimelineStore.getState(),
+            drag.groupBaseOffsets,
+            trackDelta,
+            desired - drag.baseOffsetTick
+        );
+        const snapped = drag.baseOffsetTick + planned.delta;
         setDragTick(snapped);
-        onHoverSnapX(toX(desiredTrimmedStart, laneWidth));
+        // Keep the snap guide aligned with the clamped position.
+        const clampedTrimmedStart = desiredTrimmedStart + (snapped - desired);
+        onHoverSnapX(toX(clampedTrimmedStart, laneWidth));
         if (Math.abs(dx) > 2 || Math.abs(dy) > 2) setDidMove(true);
 
         // Move previews for the whole drag group (both clip kinds); they render
         // as live ghosts and drive the drop commit below.
-        const trackDelta = Math.round(dy / Math.max(1, rowHeight));
         if (drag.groupBaseOffsets.length > 1 || trackDelta !== 0) {
-            const horizontalDelta = snapped - drag.baseOffsetTick;
-            const previews = buildDragPreviews(
-                useTimelineStore.getState(),
-                drag.groupBaseOffsets,
-                trackDelta,
-                horizontalDelta
-            );
+            const previews = planned.previews;
             if (previews.length) {
                 const primaryTarget =
                     previews.find((p) => p.clipId === clip.id)?.targetTrackId ?? previews[0].targetTrackId;
