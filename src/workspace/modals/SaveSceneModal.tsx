@@ -64,7 +64,7 @@ export function SaveSceneModal({ initialName, onCancel, onConfirm }: SaveSceneMo
                         type="text"
                         value={name}
                         onChange={(event) => setName(event.target.value)}
-                        className="rounded border border-neutral-700 bg-neutral-800/80 px-3 py-2 text-[13px] text-white outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+                        className="rounded border border-neutral-700 bg-neutral-800/80 px-3 py-2 text-[13px] text-white outline-none focus:border-blue-400"
                         placeholder="Enter a name"
                     />
                 </label>
@@ -93,7 +93,7 @@ export function SaveSceneModal({ initialName, onCancel, onConfirm }: SaveSceneMo
                                     value={description}
                                     onChange={(event) => setDescription(event.target.value)}
                                     rows={2}
-                                    className="resize-none rounded border border-neutral-700 bg-neutral-800/80 px-3 py-2 text-[13px] text-white outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+                                    className="resize-none rounded border border-neutral-700 bg-neutral-800/80 px-3 py-2 text-[13px] text-white outline-none focus:border-blue-400"
                                     placeholder="Optional description"
                                 />
                             </label>
@@ -103,7 +103,7 @@ export function SaveSceneModal({ initialName, onCancel, onConfirm }: SaveSceneMo
                                     type="text"
                                     value={author}
                                     onChange={(event) => setAuthor(event.target.value)}
-                                    className="rounded border border-neutral-700 bg-neutral-800/80 px-3 py-2 text-[13px] text-white outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+                                    className="rounded border border-neutral-700 bg-neutral-800/80 px-3 py-2 text-[13px] text-white outline-none focus:border-blue-400"
                                     placeholder="Optional author name"
                                 />
                             </label>
@@ -133,7 +133,7 @@ export function SaveSceneModal({ initialName, onCancel, onConfirm }: SaveSceneMo
                         variant="primary"
                         size="md"
                         type="submit"
-                        className="focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-400"
+                        className="focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70"
                     >
                         Save
                     </Button>

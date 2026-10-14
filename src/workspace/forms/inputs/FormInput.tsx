@@ -279,7 +279,7 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
                 title={title}
                 onChange={handleTextareaChange}
                 rows={4}
-                className="w-full px-2 py-1 border border-control2 rounded text-xs bg-control text-white resize-y font-mono min-w-0 focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
+                className="w-full px-2 py-1 border border-control2 rounded text-xs bg-control text-white resize-y font-mono min-w-0 focus:outline-none focus:border-accent"
             />
         );
     }

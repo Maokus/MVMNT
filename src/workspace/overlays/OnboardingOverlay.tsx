@@ -64,7 +64,7 @@ export function OnboardingOverlay({ onClose, onStart, busy, error, restarting }:
                             size="md"
                             disabled={busy}
                             onClick={onStart}
-                            className="focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1"
+                            className="focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70"
                         >
                             {busy ? 'Loading tutorial…' : restarting ? 'Restart tutorial' : 'Try tutorial'}
                         </Button>

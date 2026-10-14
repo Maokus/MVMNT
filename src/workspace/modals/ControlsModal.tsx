@@ -123,7 +123,7 @@ export function ControlsModal({ onClose }: { onClose: () => void }) {
                             type="button"
                             onClick={onClose}
                             aria-label="Close controls"
-                            className="rounded px-2 py-1 text-lg text-neutral-300 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            className="rounded border border-transparent px-2 py-1 text-lg text-neutral-300 hover:bg-white/10 focus:outline-none focus:border-neutral-400"
                         >
                             ×
                         </button>
