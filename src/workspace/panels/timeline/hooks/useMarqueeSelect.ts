@@ -74,47 +74,51 @@ export function useMarqueeSelect({ containerRef, trackIds, width, activeTab }: U
         const m = marqueeRef.current;
         marqueeRef.current = null;
         try {
-            (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-        } catch {}
-        if (!m || !containerRef.current) {
-            setMarquee(null);
-            return;
-        }
-        const x1 = Math.min(m.startX, m.currentX);
-        const x2 = Math.max(m.startX, m.currentX);
-        const y1 = Math.min(m.startY, m.currentY);
-        const y2 = Math.max(m.startY, m.currentY);
-        const w = Math.max(1, width);
+            try {
+                (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+            } catch {
+                // ignore missing capture
+            }
+            if (!m || !containerRef.current) {
+                return;
+            }
+            const x1 = Math.min(m.startX, m.currentX);
+            const x2 = Math.max(m.startX, m.currentX);
+            const y1 = Math.min(m.startY, m.currentY);
+            const y2 = Math.max(m.startY, m.currentY);
+            const w = Math.max(1, width);
 
-        if (Math.abs(x2 - x1) < 3 && Math.abs(y2 - y1) < 3) {
-            const trackId = resolveTrackAtY(m.startY);
-            if (trackId) {
-                const rawTick = toTick(m.startX, w);
-                selectClipTimeline({
-                    type: 'point',
-                    point: { trackId, tick: snapTicks(rawTick, e.ctrlKey || e.metaKey) },
-                });
+            if (Math.abs(x2 - x1) < 3 && Math.abs(y2 - y1) < 3) {
+                const trackId = resolveTrackAtY(m.startY);
+                if (trackId) {
+                    const rawTick = toTick(m.startX, w);
+                    selectClipTimeline({
+                        type: 'point',
+                        point: { trackId, tick: snapTicks(rawTick, e.ctrlKey || e.metaKey) },
+                    });
+                } else {
+                    selectClipTimeline(null);
+                }
             } else {
-                selectClipTimeline(null);
+                const startTick = snapTicks(toTick(x1, w), e.ctrlKey || e.metaKey);
+                const endTick = snapTicks(toTick(x2, w), e.ctrlKey || e.metaKey);
+                const selectedTrackIds = resolveTracksBetween(y1, y2);
+                if (selectedTrackIds.length) {
+                    selectClipTimeline({
+                        type: 'range',
+                        range: {
+                            startTick: Math.min(startTick, endTick),
+                            endTick: Math.max(startTick, endTick),
+                            trackIds: selectedTrackIds,
+                        },
+                    });
+                } else {
+                    selectClipTimeline(null);
+                }
             }
-        } else {
-            const startTick = snapTicks(toTick(x1, w), e.ctrlKey || e.metaKey);
-            const endTick = snapTicks(toTick(x2, w), e.ctrlKey || e.metaKey);
-            const selectedTrackIds = resolveTracksBetween(y1, y2);
-            if (selectedTrackIds.length) {
-                selectClipTimeline({
-                    type: 'range',
-                    range: {
-                        startTick: Math.min(startTick, endTick),
-                        endTick: Math.max(startTick, endTick),
-                        trackIds: selectedTrackIds,
-                    },
-                });
-            } else {
-                selectClipTimeline(null);
-            }
+        } finally {
+            setMarquee(null);
         }
-        setMarquee(null);
     };
 
     return { marquee, onBackgroundPointerDown, onBackgroundPointerMove, onBackgroundPointerUp };

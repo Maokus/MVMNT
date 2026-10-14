@@ -315,9 +315,9 @@ const MidiClipBlock: React.FC<Props> = ({
         onHoverSnapX(toX(snapped + localStartTick, laneWidth));
         if (Math.abs(dx) > 2 || Math.abs(dy) > 2) setDidMove(true);
 
-        // Cross-track drag detection
+        // Cross-track drag detection (previews also drive same-track multi-drag ghosts)
         const trackDelta = Math.round(dy / Math.max(1, rowHeight));
-        if (trackDelta !== 0 && drag.groupBaseOffsets.length) {
+        if (drag.groupBaseOffsets.length > 1 || trackDelta !== 0) {
             const horizontalDelta = snapped - drag.baseOffsetTick;
             const midiTrackIds = tracksOrder.filter((id) => {
                 const t = useTimelineStore.getState().tracks[id];

@@ -276,8 +276,9 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
         [addMidiTrack, addAudioTrack, snapTicks, toTick, toX, width]
     );
 
-    // Cross-track drag: ghost clips and row highlight
-    const targetRowIndex = crossTrackDrag ? trackIds.indexOf(crossTrackDrag.targetTrackId) : -1;
+    // Cross-track drag: target row highlight (only when actually changing tracks)
+    const isCrossTrackMove = crossTrackDrag?.previews.some((p) => p.sourceTrackId !== p.targetTrackId) ?? false;
+    const targetRowIndex = isCrossTrackMove && crossTrackDrag ? trackIds.indexOf(crossTrackDrag.targetTrackId) : -1;
     const w = Math.max(1, width);
 
     return (

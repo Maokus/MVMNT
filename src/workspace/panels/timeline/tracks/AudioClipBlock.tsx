@@ -356,7 +356,7 @@ const AudioClipBlock: React.FC<Props> = ({
         if (Math.abs(dx) > 2 || Math.abs(dy) > 2) setDidMove(true);
 
         const trackDelta = Math.round(dy / Math.max(1, rowHeight));
-        if (trackDelta !== 0 && drag.groupBaseOffsets.length) {
+        if (drag.groupBaseOffsets.length > 1 || trackDelta !== 0) {
             const horizontalDelta = snapped - drag.baseOffsetTick;
             const audioTrackIds = tracksOrder.filter((id) => useTimelineStore.getState().tracks[id]?.type === 'audio');
             const previews = drag.groupBaseOffsets
