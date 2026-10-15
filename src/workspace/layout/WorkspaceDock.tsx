@@ -30,6 +30,18 @@ import {
 const MIN_WIDTH = 180;
 const MAX_WIDTH = 640;
 const RESIZER_THICKNESS = 6;
+const MENUBAR_HEIGHT = 48;
+const DOCK_ACCENT = '#3794ff';
+
+interface DockRect {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+}
+
+const isInsideRect = (x: number, y: number, rect: DockRect): boolean =>
+    x >= rect.left && x <= rect.left + rect.width && y >= rect.top && y <= rect.top + rect.height;
 
 interface WorkspaceDockProps {
     side: DockSide;
@@ -63,10 +75,13 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
         startX: number;
         startY: number;
         lastX: number;
+        lastY: number;
         moved: boolean;
     }>(null);
     const [guideLeft, setGuideLeft] = useState<number | null>(null);
     const [sideHover, setSideHover] = useState(false);
+    const [dragPoint, setDragPoint] = useState<null | { x: number; y: number }>(null);
+    const [dropRect, setDropRect] = useState<null | DockRect>(null);
     const resizeRef = useRef<null | { startX: number; startWidth: number }>(null);
     const [showAddElementDropdown, setShowAddElementDropdown] = useState(false);
 
@@ -202,10 +217,35 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
         [readSideTabs]
     );
 
+    // Real bounds of the opposite dock, so the drop highlight covers exactly where the
+    // tab will land. Falls back to the workspace edge when that dock has no visible panel.
+    const otherDockRect = useCallback((): DockRect => {
+        const el = document.querySelector<HTMLElement>(`[data-dock-side="${otherSide}"]`);
+        if (el) {
+            const r = el.getBoundingClientRect();
+            if (r.width > 0 && r.height > 0) {
+                return { left: r.left, top: r.top, width: r.width, height: r.height };
+            }
+        }
+        const vw = window.innerWidth;
+        const width = Math.max(160, Math.round(vw * 0.25));
+        const height = window.innerHeight - MENUBAR_HEIGHT;
+        return otherSide === 'left'
+            ? { left: 0, top: MENUBAR_HEIGHT, width, height }
+            : { left: vw - width, top: MENUBAR_HEIGHT, width, height };
+    }, [otherSide]);
+
     const handleTabPointerDown = (id: WorkspacePanelId) => (e: React.PointerEvent<HTMLButtonElement>) => {
         if (e.button !== 0) return;
         suppressTabClickRef.current = false;
-        dragRef.current = { id, startX: e.clientX, startY: e.clientY, lastX: e.clientX, moved: false };
+        dragRef.current = {
+            id,
+            startX: e.clientX,
+            startY: e.clientY,
+            lastX: e.clientX,
+            lastY: e.clientY,
+            moved: false,
+        };
     };
 
     // Window-level listeners are attached once, so a drag keeps working when the
@@ -215,17 +255,20 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
             const session = dragRef.current;
             if (!session) return;
             session.lastX = e.clientX;
+            session.lastY = e.clientY;
             if (!session.moved) {
                 if (Math.hypot(e.clientX - session.startX, e.clientY - session.startY) < 4) return;
                 session.moved = true;
                 suppressTabClickRef.current = true;
                 setDragging(session.id);
             }
-            const vw = window.innerWidth;
-            const overOther = otherSide === 'left' ? e.clientX < vw * 0.25 : e.clientX > vw * 0.75;
-            setSideHover(overOther);
-            // Track the snap position for the whole drag so the guide never disappears.
-            // Whether the tab re-docks to the other side is decided on release.
+            // The opposite dock is highlighted for the whole drag; it lights up fully
+            // once the pointer is actually inside it, which is where the tab will land.
+            const rect = otherDockRect();
+            setDropRect(rect);
+            setSideHover(isInsideRect(e.clientX, e.clientY, rect));
+            setDragPoint({ x: e.clientX, y: e.clientY });
+            // Track the in-dock snap position for the whole drag so its guide never disappears.
             setGuideLeft(guideLeftForX(e.clientX));
         };
 
@@ -236,10 +279,10 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
             setDragging(null);
             setGuideLeft(null);
             setSideHover(false);
+            setDragPoint(null);
+            setDropRect(null);
             if (!session.moved) return;
-            const vw = window.innerWidth;
-            const overOther = otherSide === 'left' ? session.lastX < vw * 0.25 : session.lastX > vw * 0.75;
-            if (overOther) {
+            if (isInsideRect(session.lastX, session.lastY, otherDockRect())) {
                 moveTab(session.id, otherSide, useWorkspacePanelsStore.getState().order[otherSide].length);
             } else {
                 moveTab(session.id, side, insertionIndexForX(session.lastX));
@@ -254,7 +297,7 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
             window.removeEventListener('pointerup', finish);
             window.removeEventListener('pointercancel', finish);
         };
-    }, [otherSide, side, moveTab, setDragging, guideLeftForX, insertionIndexForX]);
+    }, [otherSide, side, moveTab, setDragging, guideLeftForX, insertionIndexForX, otherDockRect]);
 
     const panelBody = useCallback(
         (id: WorkspacePanelId) => {
@@ -381,13 +424,18 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
         bottom: 0,
         width: 3,
         marginLeft: -1,
-        backgroundColor: '#3794ff',
+        backgroundColor: DOCK_ACCENT,
         pointerEvents: 'none',
         zIndex: 30,
     };
 
     const panel = (
-        <div ref={dockRef} className="relative flex min-h-0 shrink-0 flex-col bg-panel border-border" style={{ width }}>
+        <div
+            ref={dockRef}
+            data-dock-side={side}
+            className="relative flex min-h-0 shrink-0 flex-col bg-panel border-border"
+            style={{ width }}
+        >
             <div
                 className="flex items-center gap-1 border-b border-neutral-800 px-1.5 py-1 shrink-0"
                 role="tablist"
@@ -427,33 +475,58 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
         </div>
     );
 
-    const showDropZone = dragging != null && panelSide(order, dragging) !== side;
-    const dropZone = (
+    // The dock that owns the dragged tab draws the highlight for the opposite dock: it
+    // is the one that knows the pointer position. It is always shown while dragging so
+    // the other side is visibly a drop target, and becomes emphatic under the pointer.
+    const showDropZone = dragging != null && panelSide(order, dragging) === side;
+    const dropZone = dropRect ? (
         <div
             data-dock-target={otherSide}
-            className={`pointer-events-none fixed top-12 bottom-0 z-[1090] w-1/4 ${
-                otherSide === 'left' ? 'left-0' : 'right-0'
-            }`}
-            style={{ backgroundColor: sideHover ? 'rgba(55,148,255,0.12)' : 'transparent' }}
+            className="pointer-events-none fixed z-[1090] overflow-hidden"
+            style={{ left: dropRect.left, top: dropRect.top, width: dropRect.width, height: dropRect.height }}
             aria-hidden
         >
-            {sideHover ? (
+            <div
+                className="absolute inset-0 transition-colors"
+                style={{ backgroundColor: sideHover ? 'rgba(55,148,255,0.24)' : 'rgba(55,148,255,0.08)' }}
+            />
+            <div
+                className="absolute top-0 bottom-0"
+                style={{
+                    [otherSide === 'left' ? 'right' : 'left']: 0,
+                    width: sideHover ? 6 : 3,
+                    backgroundColor: DOCK_ACCENT,
+                }}
+            />
+            <div className="absolute inset-0 flex items-center justify-center">
                 <span
-                    data-dock-guide="true"
-                    style={{
-                        position: 'absolute',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        [otherSide === 'left' ? 'right' : 'left']: 0,
-                        width: 3,
-                        height: 64,
-                        borderRadius: 2,
-                        backgroundColor: '#3794ff',
-                    }}
-                />
-            ) : null}
+                    className="rounded px-2 py-1 text-[11px] font-semibold"
+                    style={{ backgroundColor: 'rgba(0,0,0,0.55)', color: sideHover ? '#ffffff' : '#c8c8c8' }}
+                >
+                    {sideHover ? 'Release to dock on this side' : 'Drag here to dock on this side'}
+                </span>
+            </div>
         </div>
-    );
+    ) : null;
+
+    // Floating chip that follows the pointer, so the drag reads clearly even when the
+    // tab itself is dimmed and the pointer has left the strip.
+    const dragChip =
+        dragging && dragPoint ? (
+            <div
+                data-drag-chip="true"
+                className="pointer-events-none fixed z-[1200] -translate-y-1/2"
+                style={{ left: dragPoint.x + 14, top: dragPoint.y }}
+                aria-hidden
+            >
+                <span
+                    className="rounded px-2 py-1 text-[11px] font-semibold"
+                    style={{ backgroundColor: '#0e639c', color: '#ffffff' }}
+                >
+                    {WORKSPACE_PANEL_LABELS[dragging]}
+                </span>
+            </div>
+        ) : null;
 
     return (
         <>
@@ -470,7 +543,8 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
                     </>
                 )
             ) : null}
-            {showDropZone ? dropZone : null}
+            {showDropZone && dropRect ? dropZone : null}
+            {dragChip}
         </>
     );
 };

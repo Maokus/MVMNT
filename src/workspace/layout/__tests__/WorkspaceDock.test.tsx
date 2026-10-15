@@ -86,6 +86,30 @@ describe('WorkspaceDock tab dragging', () => {
         expect(tab.className).toContain('opacity-50');
     });
 
+    it('shows a drop highlight over the opposite dock while a tab is dragged', async () => {
+        const { container, getByRole } = render(
+            <>
+                <WorkspaceDock side="left" />
+                <WorkspaceDock side="right" />
+            </>
+        );
+        const tab = getByRole('tab', { name: 'Properties' });
+
+        fireEvent.pointerDown(tab, { button: 0, clientX: 690, clientY: 20 });
+        fireEvent.pointerMove(window, { clientX: 700, clientY: 20 });
+
+        const zone = (await waitFor(() => {
+            const el = container.querySelector('[data-dock-target="left"]');
+            if (!el) throw new Error('drop highlight missing');
+            return el;
+        })) as HTMLElement;
+
+        // The left dock has no measurable panel in jsdom, so the highlight falls back
+        // to the workspace edge rather than collapsing to nothing.
+        expect(zone.style.left).toBe('0px');
+        expect(container.querySelector('[data-drag-chip="true"]')).not.toBeNull();
+    });
+
     it('reorders the dragged tab on release', async () => {
         const { getByRole } = render(<WorkspaceDock side="right" />);
         const tab = getByRole('tab', { name: 'Properties' });
