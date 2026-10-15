@@ -334,6 +334,17 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
         </div>
     );
 
+    // Inline styles so the guide is visible even if the stylesheet class is stale.
+    const guideStyle: React.CSSProperties = {
+        width: 3,
+        height: 18,
+        flexShrink: 0,
+        borderRadius: 2,
+        backgroundColor: '#f5f5f5',
+    };
+
+    const guide = <span style={guideStyle} aria-hidden data-dock-guide="true" />;
+
     const panel = (
         <div ref={dockRef} className="flex min-h-0 shrink-0 flex-col bg-panel border-border" style={{ width }}>
             <div
@@ -341,13 +352,11 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
                 role="tablist"
                 aria-label="Workspace panels"
             >
-                {tabs.map((id, index) => {
+                {tabs.map((id) => {
                     const fullIndex = orderForSide.indexOf(id);
                     return (
                         <React.Fragment key={id}>
-                            {dropIndex === fullIndex && dragging ? (
-                                <span className="dock-tab-guide" aria-hidden />
-                            ) : null}
+                            {dropIndex === fullIndex && dragging ? guide : null}
                             <button
                                 ref={(el) => {
                                     tabRefs.current[id] = el;
@@ -374,7 +383,7 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
                         </React.Fragment>
                     );
                 })}
-                {dropIndex === orderForSide.length && dragging ? <span className="dock-tab-guide" aria-hidden /> : null}
+                {dropIndex === orderForSide.length && dragging ? guide : null}
             </div>
             <div className="flex min-h-0 flex-1 flex-col">{panelBody(activeId!)}</div>
         </div>
@@ -385,15 +394,24 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
         <div
             data-dock-target={otherSide}
             className={`pointer-events-none fixed top-12 bottom-0 z-[1090] w-1/4 ${
-                otherSide === 'left' ? 'left-0 border-r' : 'right-0 border-l'
-            } ${sideHover ? 'border-neutral-400 bg-neutral-100/15' : 'border-transparent bg-transparent'}`}
+                otherSide === 'left' ? 'left-0' : 'right-0'
+            }`}
+            style={{ backgroundColor: sideHover ? 'rgba(245,245,245,0.14)' : 'transparent' }}
             aria-hidden
         >
             {sideHover ? (
                 <span
-                    className={`absolute top-1/2 -translate-y-1/2 h-16 w-[2px] rounded-full bg-neutral-200 ${
-                        otherSide === 'left' ? 'right-0' : 'left-0'
-                    }`}
+                    data-dock-guide="true"
+                    style={{
+                        position: 'absolute',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        [otherSide === 'left' ? 'right' : 'left']: 0,
+                        width: 3,
+                        height: 64,
+                        borderRadius: 2,
+                        backgroundColor: '#f5f5f5',
+                    }}
                 />
             ) : null}
         </div>

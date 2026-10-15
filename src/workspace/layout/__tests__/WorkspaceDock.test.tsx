@@ -61,7 +61,7 @@ describe('WorkspaceDock tab dragging', () => {
         fireEvent.pointerDown(tab, { button: 0, clientX: 690, clientY: 20 });
         fireEvent.pointerMove(window, { clientX: 700, clientY: 20 });
 
-        await waitFor(() => expect(container.querySelector('.dock-tab-guide')).not.toBeNull());
+        await waitFor(() => expect(container.querySelector('[data-dock-guide]')).not.toBeNull());
     });
 
     it('reorders the dragged tab on release', async () => {
