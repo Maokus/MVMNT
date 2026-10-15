@@ -76,9 +76,6 @@ const sections = [
 ];
 
 export function ControlsModal({ onClose }: { onClose: () => void }) {
-    // Intentionally not built on ModalShell: this dialog needs focus
-    // containment with focus restoration (FloatingFocusManager), scroll
-    // locking, and shortcut claiming beyond Escape while open.
     const { refs, context } = useFloating({ open: true, onOpenChange: (open) => !open && onClose() });
     useGlobalShortcut({
         id: 'modal.controls',
