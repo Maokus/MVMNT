@@ -8,6 +8,7 @@ import MidiNotePreview from '@workspace/components/MidiNotePreview';
 import { getClipPreviewLayout, getPreviewViewport } from '@workspace/components/previewGeometry';
 import { getTimelineClipsInSelection, type TimelineClipRef } from '../clipboard/midiClipClipboard';
 import { planDragMove, resolveDragGroup, type DragGroupEntry } from './clipDragGroup';
+import { nextCommitGroupKey } from '@state/timeline/commitGroup';
 import { useSnapTicks } from '../hooks/useSnapTicks';
 import { useTickScale } from '../hooks/useTickScale';
 import { formatClipStartLabel } from '../utils/clipLabelUtils';
@@ -222,8 +223,10 @@ const MidiClipBlock: React.FC<Props> = ({
                     newOffsetTicks: p.previewOffsetTicks,
                 }));
             const jobs: Array<Promise<void>> = [];
-            if (midiMoves.length) jobs.push(moveMidiClipsBetweenTracks({ moves: midiMoves }));
-            if (audioMoves.length) jobs.push(moveAudioClipsBetweenTracks({ moves: audioMoves }));
+            // One shared key so a mixed-kind move undoes in a single step.
+            const mergeKey = midiMoves.length && audioMoves.length ? nextCommitGroupKey() : undefined;
+            if (midiMoves.length) jobs.push(moveMidiClipsBetweenTracks({ moves: midiMoves }, mergeKey));
+            if (audioMoves.length) jobs.push(moveAudioClipsBetweenTracks({ moves: audioMoves }, mergeKey));
             void Promise.all(jobs).then(() => {
                 selectRefsAsClips(
                     activeCrossTrackDrag.previews.map((p) => ({
@@ -255,8 +258,10 @@ const MidiClipBlock: React.FC<Props> = ({
                     offsetTicks: entry.offsetTicks + delta,
                 }));
             const jobs: Array<Promise<void>> = [];
-            if (midiOffsets.length) jobs.push(setMultipleMidiClipOffsets({ offsets: midiOffsets }));
-            if (audioOffsets.length) jobs.push(setMultipleAudioClipOffsets({ offsets: audioOffsets }));
+            // One shared key so a mixed-kind move undoes in a single step.
+            const mergeKey = midiOffsets.length && audioOffsets.length ? nextCommitGroupKey() : undefined;
+            if (midiOffsets.length) jobs.push(setMultipleMidiClipOffsets({ offsets: midiOffsets }, mergeKey));
+            if (audioOffsets.length) jobs.push(setMultipleAudioClipOffsets({ offsets: audioOffsets }, mergeKey));
             void Promise.all(jobs).then(() => {
                 selectRefsAsClips(
                     drag.groupBaseOffsets.map((entry) => ({
