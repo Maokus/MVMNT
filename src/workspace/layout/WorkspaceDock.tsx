@@ -82,6 +82,7 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
     const [sideHover, setSideHover] = useState(false);
     const [dragPoint, setDragPoint] = useState<null | { x: number; y: number }>(null);
     const [dropRect, setDropRect] = useState<null | DockRect>(null);
+    const [dropLine, setDropLine] = useState<number | null>(null);
     const resizeRef = useRef<null | { startX: number; startWidth: number }>(null);
     const [showAddElementDropdown, setShowAddElementDropdown] = useState(false);
 
@@ -238,6 +239,33 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
         return otherSide === 'left' ? { left: 0, top, width, height } : { left: vw - width, top, width, height };
     }, [otherSide]);
 
+    // Where a release at x would insert into the opposite dock: the index to move to,
+    // plus where that boundary sits inside the dock for the guide. Reads that dock's own
+    // tabs, so the tab can land next to any tab rather than only at the end.
+    const otherDockInsertion = useCallback(
+        (x: number): { index: number; left: number | null } => {
+            const sideOrder = useWorkspacePanelsStore.getState().order[otherSide];
+            const root = document.querySelector<HTMLElement>(`[data-dock-side="${otherSide}"]`);
+            const tabs = root ? Array.from(root.querySelectorAll<HTMLElement>('[data-panel-id]')) : [];
+            const dockLeft = root ? root.getBoundingClientRect().left : 0;
+            for (const el of tabs) {
+                const rect = el.getBoundingClientRect();
+                if (x < rect.left + rect.width / 2) {
+                    return {
+                        index: sideOrder.indexOf(el.dataset.panelId as WorkspacePanelId),
+                        left: rect.left - dockLeft,
+                    };
+                }
+            }
+            const tail = tabs[tabs.length - 1];
+            return {
+                index: sideOrder.length,
+                left: tail ? tail.getBoundingClientRect().right - dockLeft : null,
+            };
+        },
+        [otherSide]
+    );
+
     const handleTabPointerDown = (id: WorkspacePanelId) => (e: React.PointerEvent<HTMLButtonElement>) => {
         if (e.button !== 0) return;
         suppressTabClickRef.current = false;
@@ -268,8 +296,10 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
             // The opposite dock is highlighted for the whole drag; it lights up fully
             // once the pointer is actually inside it, which is where the tab will land.
             const rect = otherDockRect();
+            const over = isInsideRect(e.clientX, e.clientY, rect);
             setDropRect(rect);
-            setSideHover(isInsideRect(e.clientX, e.clientY, rect));
+            setSideHover(over);
+            setDropLine(over ? otherDockInsertion(e.clientX).left : null);
             setDragPoint({ x: e.clientX, y: e.clientY });
             // Track the in-dock snap position for the whole drag so its guide never disappears.
             setGuideLeft(guideLeftForX(e.clientX));
@@ -282,11 +312,12 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
             setDragging(null);
             setGuideLeft(null);
             setSideHover(false);
+            setDropLine(null);
             setDragPoint(null);
             setDropRect(null);
             if (!session.moved) return;
             if (isInsideRect(session.lastX, session.lastY, otherDockRect())) {
-                moveTab(session.id, otherSide, useWorkspacePanelsStore.getState().order[otherSide].length);
+                moveTab(session.id, otherSide, otherDockInsertion(session.lastX).index);
             } else {
                 moveTab(session.id, side, insertionIndexForX(session.lastX));
             }
@@ -300,7 +331,7 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
             window.removeEventListener('pointerup', finish);
             window.removeEventListener('pointercancel', finish);
         };
-    }, [otherSide, side, moveTab, setDragging, guideLeftForX, insertionIndexForX, otherDockRect]);
+    }, [otherSide, side, moveTab, setDragging, guideLeftForX, insertionIndexForX, otherDockRect, otherDockInsertion]);
 
     const panelBody = useCallback(
         (id: WorkspacePanelId) => {
@@ -452,6 +483,7 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
                         }}
                         type="button"
                         role="tab"
+                        data-panel-id={id}
                         aria-selected={activeId === id}
                         onPointerDown={handleTabPointerDown(id)}
                         onClick={() => {
@@ -494,6 +526,13 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
                 className="absolute inset-0 transition-colors"
                 style={{ backgroundColor: sideHover ? 'rgba(55,148,255,0.24)' : 'rgba(55,148,255,0.08)' }}
             />
+            {sideHover && dropLine != null ? (
+                <div
+                    data-drop-line="true"
+                    className="absolute top-0 bottom-0 transition-colors"
+                    style={{ left: dropLine, width: 3, marginLeft: -1, backgroundColor: DOCK_ACCENT }}
+                />
+            ) : null}
             {sideHover ? (
                 <div
                     data-drop-bar="true"

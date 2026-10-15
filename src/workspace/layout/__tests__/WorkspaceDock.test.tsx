@@ -135,6 +135,43 @@ describe('WorkspaceDock tab dragging', () => {
         await waitFor(() => expect(container.querySelector('[data-drop-bar="true"]')).not.toBeNull());
     });
 
+    it('drops a tab between the tabs of the opposite dock, not at the end', async () => {
+        const { container, getByRole } = render(
+            <>
+                <WorkspaceDock side="left" />
+                <WorkspaceDock side="right" />
+            </>
+        );
+        // jsdom lays nothing out, so give the target dock's tabs real midpoints:
+        // Elements spans 704-764 (mid 734) and Properties 764-824 (mid 794).
+        const tabRects: Array<[string, number]> = [
+            ['elements', 704],
+            ['properties', 764],
+        ];
+        for (const [id, left] of tabRects) {
+            const el = container.querySelector(`[data-panel-id="${id}"]`)!;
+            el.getBoundingClientRect = () =>
+                ({ left, right: left + 60, top: 0, bottom: 0, width: 60, height: 0, x: left, y: 0 }) as DOMRect;
+        }
+        const tab = getByRole('tab', { name: 'Assets' });
+
+        // Released at x=760: past Elements' midpoint, before Properties'.
+        fireEvent.pointerDown(tab, { button: 0, clientX: 100, clientY: 20 });
+        fireEvent.pointerMove(window, { clientX: 760, clientY: 300 });
+        await waitFor(() => expect(container.querySelector('[data-drop-line="true"]')).not.toBeNull());
+        fireEvent.pointerUp(window, { clientX: 760, clientY: 300 });
+
+        await waitFor(() =>
+            expect(useWorkspacePanelsStore.getState().order.right).toEqual([
+                'elements',
+                'assets',
+                'properties',
+                'macros',
+            ])
+        );
+        expect(useWorkspacePanelsStore.getState().order.left).toEqual([]);
+    });
+
     it('reorders the dragged tab on release', async () => {
         const { getByRole } = render(<WorkspaceDock side="right" />);
         const tab = getByRole('tab', { name: 'Properties' });
