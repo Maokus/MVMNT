@@ -64,6 +64,24 @@ describe('WorkspaceDock tab dragging', () => {
         await waitFor(() => expect(container.querySelector('[data-dock-guide]')).not.toBeNull());
     });
 
+    it('keeps the snap guide visible when the pointer is over the opposite dock side', async () => {
+        const { container, getByRole } = render(<WorkspaceDock side="right" />);
+        const tab = getByRole('tab', { name: 'Properties' });
+
+        fireEvent.pointerDown(tab, { button: 0, clientX: 690, clientY: 20 });
+        // window.innerWidth is 1024 in jsdom, so x < 256 sits in the opposite (left) quarter.
+        fireEvent.pointerMove(window, { clientX: 100, clientY: 20 });
+
+        const guide = (await waitFor(() => {
+            const el = container.querySelector('[data-dock-guide]');
+            if (!el) throw new Error('snap guide missing');
+            return el;
+        })) as HTMLElement;
+
+        expect(guide.style.width).toBe('3px');
+        expect(guide.style.height).toBe('22px');
+    });
+
     it('reorders the dragged tab on release', async () => {
         const { getByRole } = render(<WorkspaceDock side="right" />);
         const tab = getByRole('tab', { name: 'Properties' });

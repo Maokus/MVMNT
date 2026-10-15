@@ -188,7 +188,9 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
             const vw = window.innerWidth;
             const overOther = otherSide === 'left' ? e.clientX < vw * 0.25 : e.clientX > vw * 0.75;
             setSideHover(overOther);
-            setDropIndex(overOther ? null : insertionIndexForX(e.clientX));
+            // Track the insertion point for the whole drag so the snap guide never
+            // disappears. Whether the tab re-docks to the other side is decided on release.
+            setDropIndex(insertionIndexForX(e.clientX));
         };
 
         const finish = () => {
@@ -334,13 +336,14 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
         </div>
     );
 
-    // Inline styles so the guide is visible even if the stylesheet class is stale.
+    // Inline styles so the guide renders regardless of stylesheet state, and the
+    // accent colour keeps it obvious against the dark panel.
     const guideStyle: React.CSSProperties = {
         width: 3,
-        height: 18,
+        height: 22,
         flexShrink: 0,
         borderRadius: 2,
-        backgroundColor: '#f5f5f5',
+        backgroundColor: '#3794ff',
     };
 
     const guide = <span style={guideStyle} aria-hidden data-dock-guide="true" />;
@@ -396,7 +399,7 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
             className={`pointer-events-none fixed top-12 bottom-0 z-[1090] w-1/4 ${
                 otherSide === 'left' ? 'left-0' : 'right-0'
             }`}
-            style={{ backgroundColor: sideHover ? 'rgba(245,245,245,0.14)' : 'transparent' }}
+            style={{ backgroundColor: sideHover ? 'rgba(55,148,255,0.12)' : 'transparent' }}
             aria-hidden
         >
             {sideHover ? (
@@ -410,7 +413,7 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
                         width: 3,
                         height: 64,
                         borderRadius: 2,
-                        backgroundColor: '#f5f5f5',
+                        backgroundColor: '#3794ff',
                     }}
                 />
             ) : null}
