@@ -12,12 +12,7 @@ import { matchesShortcut, useGlobalShortcut } from '@context/shortcuts/shortcutR
 import { BUILD_INFO } from '@app/build-info';
 import { Button } from '@workspace/components/Button';
 import { useDocumentSaveStatusStore } from '@state/documentSaveStatusStore';
-import {
-    useWorkspacePanelsStore,
-    panelSide,
-    WORKSPACE_PANEL_IDS,
-    WORKSPACE_PANEL_LABELS,
-} from '@state/workspacePanelsStore';
+import { useWorkspacePanelsStore, WORKSPACE_PANEL_IDS, WORKSPACE_PANEL_LABELS } from '@state/workspacePanelsStore';
 
 const DEFAULT_DOCUMENT_TITLE = 'MVMNT – Interactive MIDI Visualizer';
 
@@ -75,9 +70,7 @@ const MenuBar: React.FC = () => {
     const hasTemplates = templates.length > 0;
     const applyTemplate = useTemplateApply();
 
-    const order = useWorkspacePanelsStore((state) => state.order);
     const hidden = useWorkspacePanelsStore((state) => state.hidden);
-    const active = useWorkspacePanelsStore((state) => state.active);
     const togglePanel = useWorkspacePanelsStore((state) => state.toggle);
 
     const handleBrowseTemplates = useCallback(
@@ -194,20 +187,17 @@ const MenuBar: React.FC = () => {
                     <nav className="flex items-center gap-1" aria-label="Workspace panels">
                         {WORKSPACE_PANEL_IDS.map((id) => {
                             const visible = !hidden[id];
-                            const isActive = visible && active[panelSide(order, id)] === id;
                             return (
                                 <button
                                     key={id}
                                     type="button"
                                     onClick={() => togglePanel(id)}
-                                    aria-pressed={isActive}
+                                    aria-pressed={visible}
                                     title={`${visible ? 'Hide' : 'Show'} ${WORKSPACE_PANEL_LABELS[id]} panel`}
-                                    className={`rounded border px-2.5 py-1 text-[12px] font-semibold transition-colors ${
-                                        isActive
-                                            ? 'border-neutral-700 bg-neutral-800 text-white'
-                                            : visible
-                                              ? 'border-neutral-800 bg-neutral-900 text-neutral-200 hover:bg-neutral-800'
-                                              : 'border-transparent text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100'
+                                    className={`rounded px-2.5 py-1 text-[12px] font-semibold transition-colors outline-none focus:outline-none ${
+                                        visible
+                                            ? 'bg-neutral-700 text-white'
+                                            : 'text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100'
                                     }`}
                                 >
                                     {WORKSPACE_PANEL_LABELS[id]}

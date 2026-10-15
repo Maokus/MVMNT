@@ -56,9 +56,15 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
     const dockRef = useRef<HTMLDivElement>(null);
     const tabRefs = useRef<Partial<Record<WorkspacePanelId, HTMLButtonElement | null>>>({});
     const suppressTabClickRef = useRef(false);
-    const [dragSession, setDragSession] = useState<null | { id: WorkspacePanelId; startX: number; startY: number }>(
-        null
-    );
+    // The gesture lives in a ref so the window listeners can stay attached for the
+    // whole drag; they are registered once on mount and never miss a pointermove.
+    const dragRef = useRef<null | {
+        id: WorkspacePanelId;
+        startX: number;
+        startY: number;
+        lastX: number;
+        moved: boolean;
+    }>(null);
     const [guideLeft, setGuideLeft] = useState<number | null>(null);
     const [sideHover, setSideHover] = useState(false);
     const resizeRef = useRef<null | { startX: number; startWidth: number }>(null);
@@ -153,53 +159,67 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
         } catch {}
     };
 
+    // Visible tabs for this side, read from the store at call time so the drag
+    // handlers stay valid for the whole gesture without re-subscribing.
+    const readSideTabs = useCallback(() => {
+        const state = useWorkspacePanelsStore.getState();
+        const sideOrder = state.order[side];
+        return { sideOrder, visible: sideOrder.filter((id) => !state.hidden[id]) };
+    }, [side]);
+
     // Snap position (index in the full side list) for a pointer at x, from the tab midpoints.
-    const insertionIndexForX = (x: number) => {
-        for (const id of tabs) {
-            const el = tabRefs.current[id];
-            if (!el) continue;
-            const rect = el.getBoundingClientRect();
-            if (x < rect.left + rect.width / 2) return orderForSide.indexOf(id);
-        }
-        return orderForSide.length;
-    };
+    const insertionIndexForX = useCallback(
+        (x: number) => {
+            const { sideOrder, visible } = readSideTabs();
+            for (const id of visible) {
+                const el = tabRefs.current[id];
+                if (!el) continue;
+                const rect = el.getBoundingClientRect();
+                if (x < rect.left + rect.width / 2) return sideOrder.indexOf(id);
+            }
+            return sideOrder.length;
+        },
+        [readSideTabs]
+    );
 
     // Horizontal offset, relative to the dock, where the snap guide should be drawn.
-    const guideLeftForX = (x: number): number => {
-        const dockEl = dockRef.current;
-        if (!dockEl) return 0;
-        const dockLeft = dockEl.getBoundingClientRect().left;
-        for (const id of tabs) {
-            const el = tabRefs.current[id];
-            if (!el) continue;
-            const rect = el.getBoundingClientRect();
-            if (x < rect.left + rect.width / 2) return Math.max(0, rect.left - dockLeft);
-        }
-        const tailId = tabs[tabs.length - 1];
-        const tailEl = tailId ? tabRefs.current[tailId] : null;
-        return tailEl ? tailEl.getBoundingClientRect().right - dockLeft : 0;
-    };
+    const guideLeftForX = useCallback(
+        (x: number): number => {
+            const dockEl = dockRef.current;
+            if (!dockEl) return 0;
+            const dockLeft = dockEl.getBoundingClientRect().left;
+            const { visible } = readSideTabs();
+            for (const id of visible) {
+                const el = tabRefs.current[id];
+                if (!el) continue;
+                const rect = el.getBoundingClientRect();
+                if (x < rect.left + rect.width / 2) return Math.max(0, rect.left - dockLeft);
+            }
+            const tailId = visible[visible.length - 1];
+            const tailEl = tailId ? tabRefs.current[tailId] : null;
+            return tailEl ? tailEl.getBoundingClientRect().right - dockLeft : 0;
+        },
+        [readSideTabs]
+    );
 
     const handleTabPointerDown = (id: WorkspacePanelId) => (e: React.PointerEvent<HTMLButtonElement>) => {
         if (e.button !== 0) return;
         suppressTabClickRef.current = false;
-        setDragSession({ id, startX: e.clientX, startY: e.clientY });
+        dragRef.current = { id, startX: e.clientX, startY: e.clientY, lastX: e.clientX, moved: false };
     };
 
-    // Track the drag on window so it keeps working when the pointer leaves the tab.
+    // Window-level listeners are attached once, so a drag keeps working when the
+    // pointer leaves the tab and the first move after pointerdown is never missed.
     useEffect(() => {
-        if (!dragSession) return;
-        const { id, startX, startY } = dragSession;
-        let moved = false;
-        let lastX = startX;
-
         const onMove = (e: PointerEvent) => {
-            lastX = e.clientX;
-            if (!moved) {
-                if (Math.hypot(e.clientX - startX, e.clientY - startY) < 4) return;
-                moved = true;
+            const session = dragRef.current;
+            if (!session) return;
+            session.lastX = e.clientX;
+            if (!session.moved) {
+                if (Math.hypot(e.clientX - session.startX, e.clientY - session.startY) < 4) return;
+                session.moved = true;
                 suppressTabClickRef.current = true;
-                setDragging(id);
+                setDragging(session.id);
             }
             const vw = window.innerWidth;
             const overOther = otherSide === 'left' ? e.clientX < vw * 0.25 : e.clientX > vw * 0.75;
@@ -210,19 +230,20 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
         };
 
         const finish = () => {
-            setDragSession(null);
-            if (moved) {
-                const vw = window.innerWidth;
-                const overOther = otherSide === 'left' ? lastX < vw * 0.25 : lastX > vw * 0.75;
-                if (overOther) {
-                    moveTab(id, otherSide, useWorkspacePanelsStore.getState().order[otherSide].length);
-                } else {
-                    moveTab(id, side, insertionIndexForX(lastX));
-                }
-            }
+            const session = dragRef.current;
+            if (!session) return;
+            dragRef.current = null;
             setDragging(null);
             setGuideLeft(null);
             setSideHover(false);
+            if (!session.moved) return;
+            const vw = window.innerWidth;
+            const overOther = otherSide === 'left' ? session.lastX < vw * 0.25 : session.lastX > vw * 0.75;
+            if (overOther) {
+                moveTab(session.id, otherSide, useWorkspacePanelsStore.getState().order[otherSide].length);
+            } else {
+                moveTab(session.id, side, insertionIndexForX(session.lastX));
+            }
         };
 
         window.addEventListener('pointermove', onMove);
@@ -233,7 +254,7 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
             window.removeEventListener('pointerup', finish);
             window.removeEventListener('pointercancel', finish);
         };
-    }, [dragSession, otherSide, side, moveTab, setDragging]);
+    }, [otherSide, side, moveTab, setDragging, guideLeftForX, insertionIndexForX]);
 
     const panelBody = useCallback(
         (id: WorkspacePanelId) => {
@@ -358,10 +379,11 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
         position: 'absolute',
         top: 0,
         bottom: 0,
-        width: 2,
+        width: 3,
+        marginLeft: -1,
         backgroundColor: '#3794ff',
         pointerEvents: 'none',
-        zIndex: 1,
+        zIndex: 30,
     };
 
     const panel = (

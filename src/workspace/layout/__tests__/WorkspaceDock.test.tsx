@@ -78,8 +78,12 @@ describe('WorkspaceDock tab dragging', () => {
             return el;
         })) as HTMLElement;
 
-        expect(guide.style.width).toBe('2px');
+        expect(guide.style.width).toBe('3px');
         expect(guide.style.position).toBe('absolute');
+        expect(guide.style.left).not.toBe('');
+
+        // The dragged tab is dimmed, which is how the gesture reads as active.
+        expect(tab.className).toContain('opacity-50');
     });
 
     it('reorders the dragged tab on release', async () => {
