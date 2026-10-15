@@ -25,6 +25,16 @@
         background: var(--twc-background);
         color: #fff;
         height: 100vh;
+        /* Text selection is off for non-interactive chrome; fields and drag sources opt back in below. */
+        user-select: none;
+    }
+
+    /* Form fields need selection, and Chromium will not start a native drag from a user-select: none node. */
+    input,
+    textarea,
+    [contenteditable='true'],
+    [draggable='true'] {
+        user-select: text;
     }
 
     a {
@@ -1437,6 +1447,10 @@
 
     .inspector-elements-scroll {
         @apply flex-1 overflow-y-auto p-1.5 min-h-0;
+    }
+
+    .dock-tab-guide {
+        @apply w-0.5 self-stretch rounded bg-neutral-400;
     }
 
     .scene-editor {

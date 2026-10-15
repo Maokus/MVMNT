@@ -840,8 +840,7 @@ async function hashExportFile(filePath: string): Promise<{ sha256: string; bytes
 
 function updateWindowTitle(): void {
     if (!mainWindow) return;
-    const documentName = activeDocumentPath ? basename(activeDocumentPath, PROJECT_EXTENSION) : 'Untitled';
-    mainWindow.setTitle(`${documentDirty ? '● ' : ''}${documentName} — MVMNT`);
+    // The renderer owns the window title (project name + dirty marker) via document.title.
     mainWindow.setDocumentEdited(process.platform === 'darwin' && documentDirty);
     if (process.platform === 'darwin') mainWindow.setRepresentedFilename(activeDocumentPath ?? '');
 }
@@ -893,6 +892,10 @@ function buildApplicationMenu(): Menu {
         {
             role: 'help',
             submenu: [
+                { label: 'Getting Started…', click: () => sendMenuCommand('help') },
+                { label: 'Controls…', click: () => sendMenuCommand('controls') },
+                { label: 'Community…', click: () => sendMenuCommand('community') },
+                { type: 'separator' },
                 {
                     label: 'MVMNT on GitHub',
                     click: () => void shell.openExternal('https://github.com/Maokus/MVMNT'),
@@ -1442,6 +1445,11 @@ async function createWindow(): Promise<void> {
         },
     });
     updateWindowTitle();
+
+    // The renderer drives the window title from the project name via document.title.
+    mainWindow.webContents.on('page-title-updated', (_event, title) => {
+        mainWindow?.setTitle(title);
+    });
 
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
         try {

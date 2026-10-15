@@ -6,7 +6,8 @@ import type {
 } from './automation.js';
 import type { BuildInfo, UpdateCheckResult } from './build-info.js';
 
-export type DesktopMenuCommand = 'new' | 'open' | 'save' | 'save-as' | 'undo' | 'redo' | 'recovery' | 'storage';
+export type DesktopMenuCommand =
+    'new' | 'open' | 'save' | 'save-as' | 'undo' | 'redo' | 'recovery' | 'storage' | 'help' | 'controls' | 'community';
 
 export type DesktopOpenKind = 'project' | 'plugin';
 

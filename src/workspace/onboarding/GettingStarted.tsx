@@ -135,8 +135,7 @@ export function GettingStarted({
                                 <p className="text-sm font-medium">{saved ? '✓' : '5.'} Save your project</p>
                                 {step === 'save' && (
                                     <p className="mt-1 text-xs leading-5 text-neutral-300">
-                                        Press Ctrl/Cmd+S to save, or open the highlighted Scene options menu and choose
-                                        Save.
+                                        Press Ctrl/Cmd+S to save, or use File ▸ Save in the app menu.
                                     </p>
                                 )}
                             </li>
