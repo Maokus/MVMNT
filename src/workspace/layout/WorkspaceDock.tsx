@@ -498,14 +498,6 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
                     backgroundColor: DOCK_ACCENT,
                 }}
             />
-            <div className="absolute inset-0 flex items-center justify-center">
-                <span
-                    className="rounded px-2 py-1 text-[11px] font-semibold"
-                    style={{ backgroundColor: 'rgba(0,0,0,0.55)', color: sideHover ? '#ffffff' : '#c8c8c8' }}
-                >
-                    {sideHover ? 'Release to dock on this side' : 'Drag here to dock on this side'}
-                </span>
-            </div>
         </div>
     ) : null;
 
