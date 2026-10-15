@@ -78,7 +78,6 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
         lastY: number;
         moved: boolean;
     }>(null);
-    const [guideLeft, setGuideLeft] = useState<number | null>(null);
     const [sideHover, setSideHover] = useState(false);
     const [dragPoint, setDragPoint] = useState<null | { x: number; y: number }>(null);
     const [dropRect, setDropRect] = useState<null | DockRect>(null);
@@ -198,26 +197,6 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
         [readSideTabs]
     );
 
-    // Horizontal offset, relative to the dock, where the snap guide should be drawn.
-    const guideLeftForX = useCallback(
-        (x: number): number => {
-            const dockEl = dockRef.current;
-            if (!dockEl) return 0;
-            const dockLeft = dockEl.getBoundingClientRect().left;
-            const { visible } = readSideTabs();
-            for (const id of visible) {
-                const el = tabRefs.current[id];
-                if (!el) continue;
-                const rect = el.getBoundingClientRect();
-                if (x < rect.left + rect.width / 2) return Math.max(0, rect.left - dockLeft);
-            }
-            const tailId = visible[visible.length - 1];
-            const tailEl = tailId ? tabRefs.current[tailId] : null;
-            return tailEl ? tailEl.getBoundingClientRect().right - dockLeft : 0;
-        },
-        [readSideTabs]
-    );
-
     // Real bounds of the opposite dock, so the drop highlight covers exactly where the
     // tab will land. Falls back to the strip the dock would occupy when that side has no
     // visible panel: this dock's vertical extent (never the timeline below it) and the
@@ -301,8 +280,6 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
             setSideHover(over);
             setDropLine(over ? otherDockInsertion(e.clientX).left : null);
             setDragPoint({ x: e.clientX, y: e.clientY });
-            // Track the in-dock snap position for the whole drag so its guide never disappears.
-            setGuideLeft(guideLeftForX(e.clientX));
         };
 
         const finish = () => {
@@ -310,7 +287,6 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
             if (!session) return;
             dragRef.current = null;
             setDragging(null);
-            setGuideLeft(null);
             setSideHover(false);
             setDropLine(null);
             setDragPoint(null);
@@ -323,15 +299,18 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
             }
         };
 
-        window.addEventListener('pointermove', onMove);
-        window.addEventListener('pointerup', finish);
-        window.addEventListener('pointercancel', finish);
+        // Capture phase: automation lanes and other panels stop propagation on
+        // pointermove, which would freeze the gesture as soon as it crossed them.
+        const listeners: Array<[string, EventListener]> = [
+            ['pointermove', onMove as EventListener],
+            ['pointerup', finish],
+            ['pointercancel', finish],
+        ];
+        for (const [type, handler] of listeners) window.addEventListener(type, handler, true);
         return () => {
-            window.removeEventListener('pointermove', onMove);
-            window.removeEventListener('pointerup', finish);
-            window.removeEventListener('pointercancel', finish);
+            for (const [type, handler] of listeners) window.removeEventListener(type, handler, true);
         };
-    }, [otherSide, side, moveTab, setDragging, guideLeftForX, insertionIndexForX, otherDockRect, otherDockInsertion]);
+    }, [otherSide, side, moveTab, setDragging, insertionIndexForX, otherDockRect, otherDockInsertion]);
 
     const panelBody = useCallback(
         (id: WorkspacePanelId) => {
@@ -450,19 +429,6 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
         </div>
     );
 
-    // Full-height drop guide, drawn across the whole dock so the snap position is
-    // unmistakable. Inline styles keep it independent of stylesheet state.
-    const guideStyle: React.CSSProperties = {
-        position: 'absolute',
-        top: 0,
-        bottom: 0,
-        width: 3,
-        marginLeft: -1,
-        backgroundColor: DOCK_ACCENT,
-        pointerEvents: 'none',
-        zIndex: 30,
-    };
-
     const panel = (
         <div
             ref={dockRef}
@@ -504,9 +470,6 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
                 ))}
             </div>
             <div className="flex min-h-0 flex-1 flex-col">{panelBody(activeId!)}</div>
-            {dragging && guideLeft != null ? (
-                <span data-dock-guide="true" aria-hidden style={{ ...guideStyle, left: guideLeft }} />
-            ) : null}
         </div>
     );
 

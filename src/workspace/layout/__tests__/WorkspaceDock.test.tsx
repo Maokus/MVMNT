@@ -54,17 +54,19 @@ const reset = () =>
 describe('WorkspaceDock tab dragging', () => {
     beforeEach(reset);
 
-    it('shows the snap guide while a tab is dragged', async () => {
+    it('shows the drag chip while a tab is dragged and no guide inside the dock', async () => {
         const { container, getByRole } = render(<WorkspaceDock side="right" />);
         const tab = getByRole('tab', { name: 'Properties' });
 
         fireEvent.pointerDown(tab, { button: 0, clientX: 690, clientY: 20 });
         fireEvent.pointerMove(window, { clientX: 700, clientY: 20 });
 
-        await waitFor(() => expect(container.querySelector('[data-dock-guide]')).not.toBeNull());
+        await waitFor(() => expect(container.querySelector('[data-drag-chip="true"]')).not.toBeNull());
+        // Same-dock reordering is deliberately unmarked: nothing else competes with it.
+        expect(container.querySelector('[data-dock-guide]')).toBeNull();
     });
 
-    it('keeps the snap guide visible when the pointer is over the opposite dock side', async () => {
+    it('keeps the drag active when the pointer is over the opposite dock side', async () => {
         const { container, getByRole } = render(<WorkspaceDock side="right" />);
         const tab = getByRole('tab', { name: 'Properties' });
 
@@ -72,15 +74,7 @@ describe('WorkspaceDock tab dragging', () => {
         // window.innerWidth is 1024 in jsdom, so x < 256 sits in the opposite (left) quarter.
         fireEvent.pointerMove(window, { clientX: 100, clientY: 20 });
 
-        const guide = (await waitFor(() => {
-            const el = container.querySelector('[data-dock-guide]');
-            if (!el) throw new Error('snap guide missing');
-            return el;
-        })) as HTMLElement;
-
-        expect(guide.style.width).toBe('3px');
-        expect(guide.style.position).toBe('absolute');
-        expect(guide.style.left).not.toBe('');
+        await waitFor(() => expect(container.querySelector('[data-drag-chip="true"]')).not.toBeNull());
 
         // The dragged tab is dimmed, which is how the gesture reads as active.
         expect(tab.className).toContain('opacity-50');
