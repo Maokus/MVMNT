@@ -78,8 +78,8 @@ describe('WorkspaceDock tab dragging', () => {
             return el;
         })) as HTMLElement;
 
-        expect(guide.style.width).toBe('3px');
-        expect(guide.style.height).toBe('22px');
+        expect(guide.style.width).toBe('2px');
+        expect(guide.style.position).toBe('absolute');
     });
 
     it('reorders the dragged tab on release', async () => {

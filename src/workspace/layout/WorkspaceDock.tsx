@@ -59,7 +59,7 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
     const [dragSession, setDragSession] = useState<null | { id: WorkspacePanelId; startX: number; startY: number }>(
         null
     );
-    const [dropIndex, setDropIndex] = useState<number | null>(null);
+    const [guideLeft, setGuideLeft] = useState<number | null>(null);
     const [sideHover, setSideHover] = useState(false);
     const resizeRef = useRef<null | { startX: number; startWidth: number }>(null);
     const [showAddElementDropdown, setShowAddElementDropdown] = useState(false);
@@ -164,6 +164,22 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
         return orderForSide.length;
     };
 
+    // Horizontal offset, relative to the dock, where the snap guide should be drawn.
+    const guideLeftForX = (x: number): number => {
+        const dockEl = dockRef.current;
+        if (!dockEl) return 0;
+        const dockLeft = dockEl.getBoundingClientRect().left;
+        for (const id of tabs) {
+            const el = tabRefs.current[id];
+            if (!el) continue;
+            const rect = el.getBoundingClientRect();
+            if (x < rect.left + rect.width / 2) return Math.max(0, rect.left - dockLeft);
+        }
+        const tailId = tabs[tabs.length - 1];
+        const tailEl = tailId ? tabRefs.current[tailId] : null;
+        return tailEl ? tailEl.getBoundingClientRect().right - dockLeft : 0;
+    };
+
     const handleTabPointerDown = (id: WorkspacePanelId) => (e: React.PointerEvent<HTMLButtonElement>) => {
         if (e.button !== 0) return;
         suppressTabClickRef.current = false;
@@ -188,9 +204,9 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
             const vw = window.innerWidth;
             const overOther = otherSide === 'left' ? e.clientX < vw * 0.25 : e.clientX > vw * 0.75;
             setSideHover(overOther);
-            // Track the insertion point for the whole drag so the snap guide never
-            // disappears. Whether the tab re-docks to the other side is decided on release.
-            setDropIndex(insertionIndexForX(e.clientX));
+            // Track the snap position for the whole drag so the guide never disappears.
+            // Whether the tab re-docks to the other side is decided on release.
+            setGuideLeft(guideLeftForX(e.clientX));
         };
 
         const finish = () => {
@@ -205,7 +221,7 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
                 }
             }
             setDragging(null);
-            setDropIndex(null);
+            setGuideLeft(null);
             setSideHover(false);
         };
 
@@ -336,59 +352,56 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
         </div>
     );
 
-    // Inline styles so the guide renders regardless of stylesheet state, and the
-    // accent colour keeps it obvious against the dark panel.
+    // Full-height drop guide, drawn across the whole dock so the snap position is
+    // unmistakable. Inline styles keep it independent of stylesheet state.
     const guideStyle: React.CSSProperties = {
-        width: 3,
-        height: 22,
-        flexShrink: 0,
-        borderRadius: 2,
+        position: 'absolute',
+        top: 0,
+        bottom: 0,
+        width: 2,
         backgroundColor: '#3794ff',
+        pointerEvents: 'none',
+        zIndex: 1,
     };
 
-    const guide = <span style={guideStyle} aria-hidden data-dock-guide="true" />;
-
     const panel = (
-        <div ref={dockRef} className="flex min-h-0 shrink-0 flex-col bg-panel border-border" style={{ width }}>
+        <div ref={dockRef} className="relative flex min-h-0 shrink-0 flex-col bg-panel border-border" style={{ width }}>
             <div
                 className="flex items-center gap-1 border-b border-neutral-800 px-1.5 py-1 shrink-0"
                 role="tablist"
                 aria-label="Workspace panels"
             >
-                {tabs.map((id) => {
-                    const fullIndex = orderForSide.indexOf(id);
-                    return (
-                        <React.Fragment key={id}>
-                            {dropIndex === fullIndex && dragging ? guide : null}
-                            <button
-                                ref={(el) => {
-                                    tabRefs.current[id] = el;
-                                }}
-                                type="button"
-                                role="tab"
-                                aria-selected={activeId === id}
-                                onPointerDown={handleTabPointerDown(id)}
-                                onClick={() => {
-                                    if (suppressTabClickRef.current) {
-                                        suppressTabClickRef.current = false;
-                                        return;
-                                    }
-                                    activate(id);
-                                }}
-                                className={`cursor-grab touch-none rounded px-2 py-1 text-[11px] font-semibold transition-colors ${
-                                    activeId === id
-                                        ? 'bg-neutral-800 text-white'
-                                        : 'text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100'
-                                } ${dragging === id ? 'cursor-grabbing opacity-50' : ''}`}
-                            >
-                                {WORKSPACE_PANEL_LABELS[id]}
-                            </button>
-                        </React.Fragment>
-                    );
-                })}
-                {dropIndex === orderForSide.length && dragging ? guide : null}
+                {tabs.map((id) => (
+                    <button
+                        key={id}
+                        ref={(el) => {
+                            tabRefs.current[id] = el;
+                        }}
+                        type="button"
+                        role="tab"
+                        aria-selected={activeId === id}
+                        onPointerDown={handleTabPointerDown(id)}
+                        onClick={() => {
+                            if (suppressTabClickRef.current) {
+                                suppressTabClickRef.current = false;
+                                return;
+                            }
+                            activate(id);
+                        }}
+                        className={`cursor-grab touch-none rounded px-2 py-1 text-[11px] font-semibold transition-colors ${
+                            activeId === id
+                                ? 'bg-neutral-800 text-white'
+                                : 'text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100'
+                        } ${dragging === id ? 'cursor-grabbing opacity-50' : ''}`}
+                    >
+                        {WORKSPACE_PANEL_LABELS[id]}
+                    </button>
+                ))}
             </div>
             <div className="flex min-h-0 flex-1 flex-col">{panelBody(activeId!)}</div>
+            {dragging && guideLeft != null ? (
+                <span data-dock-guide="true" aria-hidden style={{ ...guideStyle, left: guideLeft }} />
+            ) : null}
         </div>
     );
 
