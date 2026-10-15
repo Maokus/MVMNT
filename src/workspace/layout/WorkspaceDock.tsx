@@ -22,6 +22,7 @@ import { clamp } from '@math/transforms/numeric';
 import {
     useWorkspacePanelsStore,
     panelSide,
+    panelSectionIndex,
     WORKSPACE_PANEL_LABELS,
     type DockSide,
     type WorkspacePanelId,
@@ -43,20 +44,34 @@ interface DockRect {
 const isInsideRect = (x: number, y: number, rect: DockRect): boolean =>
     x >= rect.left && x <= rect.left + rect.width && y >= rect.top && y <= rect.top + rect.height;
 
+const dockElement = (side: DockSide): HTMLElement | null =>
+    document.querySelector<HTMLElement>(`[data-dock-side="${side}"]`);
+
+/** Where a dragged tab would land, and the area to mark as its destination. */
+interface DropTarget {
+    side: DockSide;
+    sectionIndex: number;
+    tabIndex: number;
+    /** True when the drop starts a new stacked section instead of joining one. */
+    split: boolean;
+    rect: DockRect;
+    /** Strip insertion offset inside the dock, or null when no marker is due. */
+    line: number | null;
+}
+
 interface WorkspaceDockProps {
     side: DockSide;
 }
 
 /**
  * One dock group (left or right) holding whichever tabs are assigned to that
- * side. Tabs drag within the strip to reorder (snap guide between tabs) or onto
- * the opposite workspace edge to re-dock just that tab (highlighted snap zone).
+ * side. A dock stacks one or more sections: tabs drag along a strip to reorder,
+ * onto another strip to re-dock, or onto a panel body to split the dock so the
+ * dropped panel and the existing one are visible at the same time.
  */
 const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
-    const order = useWorkspacePanelsStore((state) => state.order);
-    const orderForSide = useWorkspacePanelsStore((state) => state.order[side]);
+    const sections = useWorkspacePanelsStore((state) => state.sections);
     const hidden = useWorkspacePanelsStore((state) => state.hidden);
-    const activeId = useWorkspacePanelsStore((state) => state.active[side]);
     const width = useWorkspacePanelsStore((state) => state.widths[side]);
     const dragging = useWorkspacePanelsStore((state) => state.dragging);
     const activate = useWorkspacePanelsStore((state) => state.activate);
@@ -66,7 +81,6 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
 
     const otherSide: DockSide = side === 'left' ? 'right' : 'left';
     const dockRef = useRef<HTMLDivElement>(null);
-    const tabRefs = useRef<Partial<Record<WorkspacePanelId, HTMLButtonElement | null>>>({});
     const suppressTabClickRef = useRef(false);
     // The gesture lives in a ref so the window listeners can stay attached for the
     // whole drag; they are registered once on mount and never miss a pointermove.
@@ -78,15 +92,24 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
         lastY: number;
         moved: boolean;
     }>(null);
-    const [sideHover, setSideHover] = useState(false);
     const [dragPoint, setDragPoint] = useState<null | { x: number; y: number }>(null);
-    const [dropRect, setDropRect] = useState<null | DockRect>(null);
-    const [dropLine, setDropLine] = useState<number | null>(null);
+    const [dropTarget, setDropTarget] = useState<null | DropTarget>(null);
     const resizeRef = useRef<null | { startX: number; startWidth: number }>(null);
     const [showAddElementDropdown, setShowAddElementDropdown] = useState(false);
 
-    const tabs = useMemo(() => orderForSide.filter((id) => !hidden[id]), [orderForSide, hidden]);
-    const activeVisible = activeId != null && !hidden[activeId];
+    // Sections that have something to show, with the store index kept for drop targeting.
+    const dockSections = useMemo(
+        () =>
+            sections[side]
+                .map((section, index) => ({
+                    index,
+                    active: section.active,
+                    tabs: section.tabs.filter((id) => !hidden[id]),
+                }))
+                .filter((section) => section.tabs.length > 0),
+        [sections, side, hidden]
+    );
+    const hasVisiblePanel = dockSections.some((section) => section.active != null);
 
     const {
         exportSettings,
@@ -174,35 +197,11 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
         } catch {}
     };
 
-    // Visible tabs for this side, read from the store at call time so the drag
-    // handlers stay valid for the whole gesture without re-subscribing.
-    const readSideTabs = useCallback(() => {
-        const state = useWorkspacePanelsStore.getState();
-        const sideOrder = state.order[side];
-        return { sideOrder, visible: sideOrder.filter((id) => !state.hidden[id]) };
-    }, [side]);
-
-    // Snap position (index in the full side list) for a pointer at x, from the tab midpoints.
-    const insertionIndexForX = useCallback(
-        (x: number) => {
-            const { sideOrder, visible } = readSideTabs();
-            for (const id of visible) {
-                const el = tabRefs.current[id];
-                if (!el) continue;
-                const rect = el.getBoundingClientRect();
-                if (x < rect.left + rect.width / 2) return sideOrder.indexOf(id);
-            }
-            return sideOrder.length;
-        },
-        [readSideTabs]
-    );
-
-    // Real bounds of the opposite dock, so the drop highlight covers exactly where the
-    // tab will land. Falls back to the strip the dock would occupy when that side has no
-    // visible panel: this dock's vertical extent (never the timeline below it) and the
-    // width the panel is configured to take there.
+    // Real bounds of the opposite dock, so a tab can still be dropped into the strip that
+    // side will occupy when it has no visible panel. The height is this dock's vertical
+    // extent, so it never reaches over the timeline.
     const otherDockRect = useCallback((): DockRect => {
-        const el = document.querySelector<HTMLElement>(`[data-dock-side="${otherSide}"]`);
+        const el = dockElement(otherSide);
         if (el) {
             const r = el.getBoundingClientRect();
             if (r.width > 0 && r.height > 0) {
@@ -218,31 +217,88 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
         return otherSide === 'left' ? { left: 0, top, width, height } : { left: vw - width, top, width, height };
     }, [otherSide]);
 
-    // Where a release at x would insert into the opposite dock: the index to move to,
-    // plus where that boundary sits inside the dock for the guide. Reads that dock's own
-    // tabs, so the tab can land next to any tab rather than only at the end.
-    const otherDockInsertion = useCallback(
-        (x: number): { index: number; left: number | null } => {
-            const sideOrder = useWorkspacePanelsStore.getState().order[otherSide];
-            const root = document.querySelector<HTMLElement>(`[data-dock-side="${otherSide}"]`);
-            const tabs = root ? Array.from(root.querySelectorAll<HTMLElement>('[data-panel-id]')) : [];
-            const dockLeft = root ? root.getBoundingClientRect().left : 0;
-            for (const el of tabs) {
-                const rect = el.getBoundingClientRect();
-                if (x < rect.left + rect.width / 2) {
-                    return {
-                        index: sideOrder.indexOf(el.dataset.panelId as WorkspacePanelId),
-                        left: rect.left - dockLeft,
-                    };
-                }
+    // Where a tab released at (x, y) would land: over a tab strip it joins that strip at
+    // the tab boundary under the pointer; over a panel body it starts a new stacked
+    // section above or below, which is how a dock ends up showing two panels at once.
+    // A plain reorder inside the tab's own section gets no marker.
+    const dropTargetFor = useCallback(
+        (id: WorkspacePanelId, x: number, y: number): DropTarget | null => {
+            const state = useWorkspacePanelsStore.getState();
+            const from = panelSide(state.sections, id);
+            const fromSection = panelSectionIndex(state.sections, from, id);
+            const overDock = ([from, otherSide] as DockSide[]).find((which) => {
+                const el = dockElement(which);
+                return el ? isInsideRect(x, y, el.getBoundingClientRect()) : false;
+            });
+            if (!overDock) {
+                // The opposite dock is empty, so it has nothing to hit-test against.
+                if (dockElement(otherSide)) return null;
+                const rect = otherDockRect();
+                if (!isInsideRect(x, y, rect)) return null;
+                // Append to whatever the dock already holds, so it lands at the end there.
+                const sectionIndex = Math.max(0, state.sections[otherSide].length - 1);
+                const tabIndex = state.sections[otherSide][sectionIndex]?.tabs.length ?? 0;
+                return { side: otherSide, sectionIndex, tabIndex, split: false, rect, line: null };
             }
-            const tail = tabs[tabs.length - 1];
-            return {
-                index: sideOrder.length,
-                left: tail ? tail.getBoundingClientRect().right - dockLeft : null,
-            };
+            const root = dockElement(overDock)!;
+            const dockRect = root.getBoundingClientRect();
+            const sectionEls = Array.from(root.querySelectorAll<HTMLElement>('[data-dock-section]'));
+
+            for (const sectionEl of sectionEls) {
+                const strip = sectionEl.querySelector<HTMLElement>('[data-dock-strip]');
+                if (!strip) continue;
+                const stripRect = strip.getBoundingClientRect();
+                if (y < stripRect.top || y > stripRect.bottom) continue;
+                const index = Number(sectionEl.dataset.dockSection);
+                const sectionTabs = state.sections[overDock][index]?.tabs ?? [];
+                const localReorder = overDock === from && index === fromSection;
+                const tabEls = Array.from(strip.querySelectorAll<HTMLElement>('[data-panel-id]'));
+                for (const el of tabEls) {
+                    const r = el.getBoundingClientRect();
+                    if (x < r.left + r.width / 2) {
+                        return {
+                            side: overDock,
+                            sectionIndex: index,
+                            tabIndex: sectionTabs.indexOf(el.dataset.panelId as WorkspacePanelId),
+                            split: false,
+                            rect: dockRect,
+                            line: localReorder ? null : r.left - dockRect.left,
+                        };
+                    }
+                }
+                const tail = tabEls[tabEls.length - 1];
+                return {
+                    side: overDock,
+                    sectionIndex: index,
+                    tabIndex: sectionTabs.length,
+                    split: false,
+                    rect: dockRect,
+                    line: localReorder ? null : tail ? tail.getBoundingClientRect().right - dockRect.left : null,
+                };
+            }
+
+            for (const sectionEl of sectionEls) {
+                const r = sectionEl.getBoundingClientRect();
+                if (y < r.top || y > r.bottom) continue;
+                const index = Number(sectionEl.dataset.dockSection);
+                const above = y < r.top + r.height / 2;
+                return {
+                    side: overDock,
+                    sectionIndex: above ? index : index + 1,
+                    tabIndex: 0,
+                    split: true,
+                    rect: {
+                        left: r.left,
+                        top: above ? r.top : r.top + r.height / 2,
+                        width: r.width,
+                        height: r.height / 2,
+                    },
+                    line: null,
+                };
+            }
+            return null;
         },
-        [otherSide]
+        [otherSide, otherDockRect]
     );
 
     const handleTabPointerDown = (id: WorkspacePanelId) => (e: React.PointerEvent<HTMLButtonElement>) => {
@@ -272,13 +328,7 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
                 suppressTabClickRef.current = true;
                 setDragging(session.id);
             }
-            // The opposite dock is highlighted for the whole drag; it lights up fully
-            // once the pointer is actually inside it, which is where the tab will land.
-            const rect = otherDockRect();
-            const over = isInsideRect(e.clientX, e.clientY, rect);
-            setDropRect(rect);
-            setSideHover(over);
-            setDropLine(over ? otherDockInsertion(e.clientX).left : null);
+            setDropTarget(dropTargetFor(session.id, e.clientX, e.clientY));
             setDragPoint({ x: e.clientX, y: e.clientY });
         };
 
@@ -287,16 +337,17 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
             if (!session) return;
             dragRef.current = null;
             setDragging(null);
-            setSideHover(false);
-            setDropLine(null);
             setDragPoint(null);
-            setDropRect(null);
+            setDropTarget(null);
             if (!session.moved) return;
-            if (isInsideRect(session.lastX, session.lastY, otherDockRect())) {
-                moveTab(session.id, otherSide, otherDockInsertion(session.lastX).index);
-            } else {
-                moveTab(session.id, side, insertionIndexForX(session.lastX));
-            }
+            const target = dropTargetFor(session.id, session.lastX, session.lastY);
+            if (!target) return;
+            moveTab(session.id, {
+                side: target.side,
+                sectionIndex: target.sectionIndex,
+                tabIndex: target.tabIndex,
+                split: target.split,
+            });
         };
 
         // Capture phase: automation lanes and other panels stop propagation on
@@ -310,7 +361,7 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
         return () => {
             for (const [type, handler] of listeners) window.removeEventListener(type, handler, true);
         };
-    }, [otherSide, side, moveTab, setDragging, insertionIndexForX, otherDockRect, otherDockInsertion]);
+    }, [moveTab, setDragging, dropTargetFor]);
 
     const panelBody = useCallback(
         (id: WorkspacePanelId) => {
@@ -436,75 +487,74 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
             className="relative flex min-h-0 shrink-0 flex-col bg-panel border-border"
             style={{ width }}
         >
-            <div
-                className="flex items-center gap-1 border-b border-neutral-800 px-1.5 py-1 shrink-0"
-                role="tablist"
-                aria-label="Workspace panels"
-            >
-                {tabs.map((id) => (
-                    <button
-                        key={id}
-                        ref={(el) => {
-                            tabRefs.current[id] = el;
-                        }}
-                        type="button"
-                        role="tab"
-                        data-panel-id={id}
-                        aria-selected={activeId === id}
-                        onPointerDown={handleTabPointerDown(id)}
-                        onClick={() => {
-                            if (suppressTabClickRef.current) {
-                                suppressTabClickRef.current = false;
-                                return;
-                            }
-                            activate(id);
-                        }}
-                        className={`cursor-grab touch-none rounded px-2 py-1 text-[11px] font-semibold transition-colors ${
-                            activeId === id
-                                ? 'bg-neutral-800 text-white'
-                                : 'text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100'
-                        } ${dragging === id ? 'cursor-grabbing opacity-50' : ''}`}
+            {dockSections.map((section) => (
+                <div
+                    key={section.index}
+                    data-dock-section={section.index}
+                    className={`flex min-h-0 flex-1 flex-col ${section.index > 0 ? 'border-t border-neutral-800' : ''}`}
+                >
+                    <div
+                        data-dock-strip={section.index}
+                        className="flex items-center gap-1 border-b border-neutral-800 px-1.5 py-1 shrink-0"
+                        role="tablist"
+                        aria-label="Workspace panels"
                     >
-                        {WORKSPACE_PANEL_LABELS[id]}
-                    </button>
-                ))}
-            </div>
-            <div className="flex min-h-0 flex-1 flex-col">{panelBody(activeId!)}</div>
+                        {section.tabs.map((id) => (
+                            <button
+                                key={id}
+                                type="button"
+                                role="tab"
+                                data-panel-id={id}
+                                aria-selected={section.active === id}
+                                onPointerDown={handleTabPointerDown(id)}
+                                onClick={() => {
+                                    if (suppressTabClickRef.current) {
+                                        suppressTabClickRef.current = false;
+                                        return;
+                                    }
+                                    activate(id);
+                                }}
+                                className={`cursor-grab touch-none rounded px-2 py-1 text-[11px] font-semibold transition-colors ${
+                                    section.active === id
+                                        ? 'bg-neutral-800 text-white'
+                                        : 'text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100'
+                                } ${dragging === id ? 'cursor-grabbing opacity-50' : ''}`}
+                            >
+                                {WORKSPACE_PANEL_LABELS[id]}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="flex min-h-0 flex-1 flex-col">
+                        {section.active != null ? panelBody(section.active) : null}
+                    </div>
+                </div>
+            ))}
         </div>
     );
 
-    // The dock that owns the dragged tab draws the highlight for the opposite dock: it
-    // is the one that knows the pointer position. A soft tint marks the other side as a
-    // drop target for the whole drag, and the accent bar plus a stronger tint appear
-    // once the pointer is actually inside it, i.e. when releasing would re-dock.
-    const showDropZone = dragging != null && panelSide(order, dragging) === side;
-    const dropZone = dropRect ? (
+    // The dock that owns the dragged tab draws the destination marker: it is the one that
+    // knows the pointer position. The marker covers exactly the area the tab will take, so
+    // a strip drop tints the whole dock with a line at the tab boundary, and a body drop
+    // tints the half the new stacked section will occupy.
+    const showDropZone = dragging != null && panelSide(sections, dragging) === side && dropTarget != null;
+    const dropZone = dropTarget ? (
         <div
-            data-dock-target={otherSide}
+            data-dock-target={dropTarget.side}
             className="pointer-events-none fixed z-[1090] overflow-hidden"
-            style={{ left: dropRect.left, top: dropRect.top, width: dropRect.width, height: dropRect.height }}
+            style={{
+                left: dropTarget.rect.left,
+                top: dropTarget.rect.top,
+                width: dropTarget.rect.width,
+                height: dropTarget.rect.height,
+            }}
             aria-hidden
         >
-            <div
-                className="absolute inset-0 transition-colors"
-                style={{ backgroundColor: sideHover ? 'rgba(55,148,255,0.24)' : 'rgba(55,148,255,0.08)' }}
-            />
-            {sideHover && dropLine != null ? (
+            <div className="absolute inset-0" style={{ backgroundColor: 'rgba(55,148,255,0.20)' }} />
+            {dropTarget.line != null ? (
                 <div
                     data-drop-line="true"
-                    className="absolute top-0 bottom-0 transition-colors"
-                    style={{ left: dropLine, width: 3, marginLeft: -1, backgroundColor: DOCK_ACCENT }}
-                />
-            ) : null}
-            {sideHover ? (
-                <div
-                    data-drop-bar="true"
                     className="absolute top-0 bottom-0"
-                    style={{
-                        [otherSide === 'left' ? 'right' : 'left']: 0,
-                        width: 6,
-                        backgroundColor: DOCK_ACCENT,
-                    }}
+                    style={{ left: dropTarget.line, width: 3, marginLeft: -1, backgroundColor: DOCK_ACCENT }}
                 />
             ) : null}
         </div>
@@ -531,7 +581,7 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
 
     return (
         <>
-            {activeVisible ? (
+            {hasVisiblePanel ? (
                 side === 'left' ? (
                     <>
                         {panel}
@@ -544,7 +594,7 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
                     </>
                 )
             ) : null}
-            {showDropZone && dropRect ? dropZone : null}
+            {showDropZone ? dropZone : null}
             {dragChip}
         </>
     );
