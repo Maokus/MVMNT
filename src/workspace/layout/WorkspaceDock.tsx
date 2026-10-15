@@ -55,14 +55,10 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
     const otherSide: DockSide = side === 'left' ? 'right' : 'left';
     const dockRef = useRef<HTMLDivElement>(null);
     const tabRefs = useRef<Partial<Record<WorkspacePanelId, HTMLButtonElement | null>>>({});
-    const tabDragRef = useRef<null | {
-        id: WorkspacePanelId;
-        pointerId: number;
-        startX: number;
-        startY: number;
-        moved: boolean;
-    }>(null);
     const suppressTabClickRef = useRef(false);
+    const [dragSession, setDragSession] = useState<null | { id: WorkspacePanelId; startX: number; startY: number }>(
+        null
+    );
     const [dropIndex, setDropIndex] = useState<number | null>(null);
     const [sideHover, setSideHover] = useState(false);
     const resizeRef = useRef<null | { startX: number; startWidth: number }>(null);
@@ -171,44 +167,55 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
     const handleTabPointerDown = (id: WorkspacePanelId) => (e: React.PointerEvent<HTMLButtonElement>) => {
         if (e.button !== 0) return;
         suppressTabClickRef.current = false;
-        tabDragRef.current = { id, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, moved: false };
-        e.currentTarget.setPointerCapture(e.pointerId);
+        setDragSession({ id, startX: e.clientX, startY: e.clientY });
     };
 
-    const handleTabPointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
-        const drag = tabDragRef.current;
-        if (!drag) return;
-        if (!drag.moved) {
-            if (Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) < 4) return;
-            drag.moved = true;
-            setDragging(drag.id);
-        }
-        const overOtherSide =
-            otherSide === 'left' ? e.clientX < window.innerWidth * 0.25 : e.clientX > window.innerWidth * 0.75;
-        setSideHover(overOtherSide);
-        setDropIndex(overOtherSide ? null : insertionIndexForX(e.clientX));
-    };
+    // Track the drag on window so it keeps working when the pointer leaves the tab.
+    useEffect(() => {
+        if (!dragSession) return;
+        const { id, startX, startY } = dragSession;
+        let moved = false;
+        let lastX = startX;
 
-    const endTabDrag = (e?: React.PointerEvent<HTMLButtonElement>) => {
-        const drag = tabDragRef.current;
-        if (!drag) return;
-        tabDragRef.current = null;
-        if (e) {
-            try {
-                e.currentTarget.releasePointerCapture(drag.pointerId);
-            } catch {}
-        }
-        if (!drag.moved) return;
-        suppressTabClickRef.current = true;
-        if (sideHover) {
-            moveTab(drag.id, otherSide, useWorkspacePanelsStore.getState().order[otherSide].length);
-        } else if (dropIndex != null) {
-            moveTab(drag.id, side, dropIndex);
-        }
-        setDragging(null);
-        setDropIndex(null);
-        setSideHover(false);
-    };
+        const onMove = (e: PointerEvent) => {
+            lastX = e.clientX;
+            if (!moved) {
+                if (Math.hypot(e.clientX - startX, e.clientY - startY) < 4) return;
+                moved = true;
+                suppressTabClickRef.current = true;
+                setDragging(id);
+            }
+            const vw = window.innerWidth;
+            const overOther = otherSide === 'left' ? e.clientX < vw * 0.25 : e.clientX > vw * 0.75;
+            setSideHover(overOther);
+            setDropIndex(overOther ? null : insertionIndexForX(e.clientX));
+        };
+
+        const finish = () => {
+            setDragSession(null);
+            if (moved) {
+                const vw = window.innerWidth;
+                const overOther = otherSide === 'left' ? lastX < vw * 0.25 : lastX > vw * 0.75;
+                if (overOther) {
+                    moveTab(id, otherSide, useWorkspacePanelsStore.getState().order[otherSide].length);
+                } else {
+                    moveTab(id, side, insertionIndexForX(lastX));
+                }
+            }
+            setDragging(null);
+            setDropIndex(null);
+            setSideHover(false);
+        };
+
+        window.addEventListener('pointermove', onMove);
+        window.addEventListener('pointerup', finish);
+        window.addEventListener('pointercancel', finish);
+        return () => {
+            window.removeEventListener('pointermove', onMove);
+            window.removeEventListener('pointerup', finish);
+            window.removeEventListener('pointercancel', finish);
+        };
+    }, [dragSession, otherSide, side, moveTab, setDragging]);
 
     const panelBody = useCallback(
         (id: WorkspacePanelId) => {
@@ -349,9 +356,6 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
                                 role="tab"
                                 aria-selected={activeId === id}
                                 onPointerDown={handleTabPointerDown(id)}
-                                onPointerMove={handleTabPointerMove}
-                                onPointerUp={endTabDrag}
-                                onPointerCancel={endTabDrag}
                                 onClick={() => {
                                     if (suppressTabClickRef.current) {
                                         suppressTabClickRef.current = false;
@@ -381,10 +385,18 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
         <div
             data-dock-target={otherSide}
             className={`pointer-events-none fixed top-12 bottom-0 z-[1090] w-1/4 ${
-                otherSide === 'left' ? 'left-0' : 'right-0'
-            } ${sideHover ? 'bg-neutral-100/10' : 'bg-transparent'}`}
+                otherSide === 'left' ? 'left-0 border-r' : 'right-0 border-l'
+            } ${sideHover ? 'border-neutral-400 bg-neutral-100/15' : 'border-transparent bg-transparent'}`}
             aria-hidden
-        />
+        >
+            {sideHover ? (
+                <span
+                    className={`absolute top-1/2 -translate-y-1/2 h-16 w-[2px] rounded-full bg-neutral-200 ${
+                        otherSide === 'left' ? 'right-0' : 'left-0'
+                    }`}
+                />
+            ) : null}
+        </div>
     );
 
     return (

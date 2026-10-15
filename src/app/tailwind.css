@@ -1450,7 +1450,7 @@
     }
 
     .dock-tab-guide {
-        @apply w-0.5 self-stretch rounded bg-neutral-400;
+        @apply h-4 w-[2px] shrink-0 rounded-full bg-neutral-200;
     }
 
     .scene-editor {
