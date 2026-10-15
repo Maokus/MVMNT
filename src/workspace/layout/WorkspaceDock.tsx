@@ -218,7 +218,9 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
     );
 
     // Real bounds of the opposite dock, so the drop highlight covers exactly where the
-    // tab will land. Falls back to the workspace edge when that dock has no visible panel.
+    // tab will land. Falls back to the strip the dock would occupy when that side has no
+    // visible panel: this dock's vertical extent (never the timeline below it) and the
+    // width the panel is configured to take there.
     const otherDockRect = useCallback((): DockRect => {
         const el = document.querySelector<HTMLElement>(`[data-dock-side="${otherSide}"]`);
         if (el) {
@@ -227,12 +229,13 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
                 return { left: r.left, top: r.top, width: r.width, height: r.height };
             }
         }
+        const own = dockRef.current?.getBoundingClientRect();
+        const top = own && own.height > 0 ? own.top : MENUBAR_HEIGHT;
+        const height = own && own.height > 0 ? own.height : window.innerHeight - MENUBAR_HEIGHT;
         const vw = window.innerWidth;
-        const width = Math.max(160, Math.round(vw * 0.25));
-        const height = window.innerHeight - MENUBAR_HEIGHT;
-        return otherSide === 'left'
-            ? { left: 0, top: MENUBAR_HEIGHT, width, height }
-            : { left: vw - width, top: MENUBAR_HEIGHT, width, height };
+        const preferred = useWorkspacePanelsStore.getState().widths[otherSide];
+        const width = clamp(preferred || Math.round(vw * 0.25), MIN_WIDTH, MAX_WIDTH);
+        return otherSide === 'left' ? { left: 0, top, width, height } : { left: vw - width, top, width, height };
     }, [otherSide]);
 
     const handleTabPointerDown = (id: WorkspacePanelId) => (e: React.PointerEvent<HTMLButtonElement>) => {
@@ -476,8 +479,9 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
     );
 
     // The dock that owns the dragged tab draws the highlight for the opposite dock: it
-    // is the one that knows the pointer position. It is always shown while dragging so
-    // the other side is visibly a drop target, and becomes emphatic under the pointer.
+    // is the one that knows the pointer position. A soft tint marks the other side as a
+    // drop target for the whole drag, and the accent bar plus a stronger tint appear
+    // once the pointer is actually inside it, i.e. when releasing would re-dock.
     const showDropZone = dragging != null && panelSide(order, dragging) === side;
     const dropZone = dropRect ? (
         <div
@@ -490,14 +494,17 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
                 className="absolute inset-0 transition-colors"
                 style={{ backgroundColor: sideHover ? 'rgba(55,148,255,0.24)' : 'rgba(55,148,255,0.08)' }}
             />
-            <div
-                className="absolute top-0 bottom-0"
-                style={{
-                    [otherSide === 'left' ? 'right' : 'left']: 0,
-                    width: sideHover ? 6 : 3,
-                    backgroundColor: DOCK_ACCENT,
-                }}
-            />
+            {sideHover ? (
+                <div
+                    data-drop-bar="true"
+                    className="absolute top-0 bottom-0"
+                    style={{
+                        [otherSide === 'left' ? 'right' : 'left']: 0,
+                        width: 6,
+                        backgroundColor: DOCK_ACCENT,
+                    }}
+                />
+            ) : null}
         </div>
     ) : null;
 

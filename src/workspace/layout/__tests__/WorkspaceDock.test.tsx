@@ -105,9 +105,34 @@ describe('WorkspaceDock tab dragging', () => {
         })) as HTMLElement;
 
         // The left dock has no measurable panel in jsdom, so the highlight falls back
-        // to the workspace edge rather than collapsing to nothing.
+        // to the strip the dock would occupy: the dock's own width and the height of the
+        // dock band, so it can never spill over the timeline underneath.
         expect(zone.style.left).toBe('0px');
+        expect(zone.style.top).toBe('48px');
+        expect(zone.style.width).toBe('220px');
+        expect(zone.style.height).toBe('720px');
         expect(container.querySelector('[data-drag-chip="true"]')).not.toBeNull();
+    });
+
+    it('adds the accent bar only once the pointer is inside the opposite dock', async () => {
+        const { container, getByRole } = render(
+            <>
+                <WorkspaceDock side="left" />
+                <WorkspaceDock side="right" />
+            </>
+        );
+        const tab = getByRole('tab', { name: 'Properties' });
+
+        fireEvent.pointerDown(tab, { button: 0, clientX: 690, clientY: 20 });
+
+        // Reordering inside its own dock: the other side stays a quiet tinted hint.
+        fireEvent.pointerMove(window, { clientX: 700, clientY: 20 });
+        await waitFor(() => expect(container.querySelector('[data-dock-target="left"]')).not.toBeNull());
+        expect(container.querySelector('[data-drop-bar="true"]')).toBeNull();
+
+        // Moving into the left dock: the bar appears, confirming the re-dock.
+        fireEvent.pointerMove(window, { clientX: 100, clientY: 300 });
+        await waitFor(() => expect(container.querySelector('[data-drop-bar="true"]')).not.toBeNull());
     });
 
     it('reorders the dragged tab on release', async () => {
