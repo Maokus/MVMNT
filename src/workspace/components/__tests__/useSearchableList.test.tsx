@@ -16,7 +16,12 @@ function Harness({ onSelect, onEscape }: { onSelect: (item: string) => void; onE
     });
     return (
         <>
-            <input aria-label="search" value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={handleKeyDown} />
+            <input
+                aria-label="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={handleKeyDown}
+            />
             <div ref={listRef}>
                 {filtered.map((item, index) => (
                     <button key={item} type="button" onMouseEnter={() => setActiveIndex(index)}>
