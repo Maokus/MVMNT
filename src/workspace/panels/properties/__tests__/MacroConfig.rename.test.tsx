@@ -2,6 +2,8 @@ import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import MacroConfig from '../MacroConfig';
+import { useSceneStore } from '@state/sceneStore';
+import { elementPropertyTarget } from '@automation/types';
 
 const macroActions = vi.hoisted(() => ({
     create: vi.fn(),
@@ -16,6 +18,7 @@ const macros = vi.hoisted(() => [
     { name: 'first', type: 'number' as const, value: 1, options: {} },
     { name: 'second', type: 'number' as const, value: 2, options: {} },
 ]);
+const assignments = vi.hoisted(() => [] as Array<{ macroId: string; target: any }>);
 
 vi.mock('@context/MacroContext', () => ({
     useMacros: () => ({
@@ -26,15 +29,29 @@ vi.mock('@context/MacroContext', () => ({
 }));
 
 vi.mock('@state/scene', () => ({
-    useMacroAssignments: () => [],
+    useMacroAssignments: () => assignments,
 }));
 
 describe('MacroConfig macro name editing', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         macros.splice(2);
+        assignments.length = 0;
         vi.spyOn(window, 'alert').mockImplementation(() => undefined);
         macroActions.rename.mockReturnValueOnce(false).mockReturnValueOnce(true);
+    });
+
+    it('shows inherited numeric limits in the macro editor', () => {
+        macros.push({ name: 'Opacity', type: 'number', value: 0.5, options: {} } as any);
+        assignments.push({ macroId: 'Opacity', target: elementPropertyTarget('first', 'opacity') });
+        useSceneStore.setState({ elements: { first: { id: 'first', type: 'textOverlay' } } as any });
+
+        render(<MacroConfig />);
+
+        const input = screen.getByDisplayValue('0.5');
+        expect(input).toHaveAttribute('min', '0');
+        expect(input).toHaveAttribute('max', '1');
+        expect(input).toHaveAttribute('step', '0.01');
     });
 
     it('keeps the rename input editable after a duplicate name is rejected', () => {

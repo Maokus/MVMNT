@@ -7,6 +7,8 @@ import { useNumberDrag } from '@workspace/forms/inputs/useNumberDrag';
 import ColorAlphaInput from '@workspace/forms/inputs/ColorAlphaInput';
 import AssetSelect from '@workspace/forms/inputs/AssetSelect';
 import { useMacroAssignments } from '@state/scene';
+import { useSceneStore } from '@state/sceneStore';
+import { effectiveMacroInputOptions } from './macroInputOptions';
 
 interface MacroConfigProps {
     visualizer?: any; // Add visualizer prop to trigger rerenders
@@ -106,6 +108,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
         assignListener,
     } = useMacros();
     const storeAssignments = useMacroAssignments();
+    const sceneElements = useSceneStore((state) => state.elements);
     const assignmentMap = useMemo(() => {
         const map = new Map<string, MacroAssignment[]>();
         for (const entry of storeAssignments) {
@@ -313,7 +316,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
         }
     };
 
-    const handleNumberInputChange = (macroName: string, inputValue: string) => {
+    const handleNumberInputChange = (macroName: string, inputValue: string, options: Macro['options']) => {
         console.log(`MacroConfig: Number input change for '${macroName}':`, inputValue);
 
         // Update local input state immediately for responsive UI
@@ -324,7 +327,11 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
 
         // Try to parse and update the macro if valid
         const numericValue = parseFloat(inputValue);
-        if (!isNaN(numericValue)) {
+        if (
+            !isNaN(numericValue) &&
+            (typeof options.min !== 'number' || numericValue >= options.min) &&
+            (typeof options.max !== 'number' || numericValue <= options.max)
+        ) {
             console.log(`MacroConfig: Parsed numeric value for '${macroName}':`, numericValue);
             const success = updateValue(macroName, numericValue);
             if (!success) {
@@ -510,9 +517,9 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                     <MacroNumberInput
                         macro={macro}
                         value={inputValues[macro.name] ?? macro.value.toString()}
-                        onChange={(val) => handleNumberInputChange(macro.name, val)}
+                        onChange={(val) => handleNumberInputChange(macro.name, val, macro.options)}
                         onBlur={() => handleNumberInputBlur(macro.name)}
-                        onCommit={(next) => handleNumberInputChange(macro.name, next.toString())}
+                        onCommit={(next) => handleNumberInputChange(macro.name, next.toString(), macro.options)}
                         onKeyDown={handleKeyDown}
                     />
                 );
@@ -560,6 +567,8 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                 );
 
             case 'file':
+            case 'file-midi':
+            case 'file-image':
                 const fileName = macro.value && macro.value.name ? macro.value.name : 'No file selected';
                 const accept = macro.options.accept || '*';
                 return (
@@ -649,6 +658,11 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
 
     const renderMacroItem = (macro: Macro, index: number) => {
         const assignments = assignmentMap.get(macro.name) ?? [];
+        const options = effectiveMacroInputOptions(
+            macro,
+            storeAssignments.filter((entry) => entry.macroId === macro.name).map((entry) => entry.target),
+            sceneElements
+        );
         const isEditingName = editingMacroId === macro.name;
 
         return (
@@ -700,7 +714,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                             </div>
                         )}
                     </div>
-                    {renderMacroInput(macro)}
+                    {renderMacroInput({ ...macro, options })}
                     <div className="macro-actions">
                         <button
                             className="bg-transparent border-0 text-neutral-400 cursor-pointer px-1 py-0.5 rounded text-xs hover:text-neutral-300 hover:bg-[color:var(--twc-border)] flex items-center"

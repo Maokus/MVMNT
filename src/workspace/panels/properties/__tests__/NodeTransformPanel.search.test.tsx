@@ -6,6 +6,8 @@ import { useSceneStore } from '@state/sceneStore';
 import { useSelectionStore } from '@state/selectionStore';
 import { useSceneEditorStore } from '@state/sceneEditorStore';
 import { NodeTransformPanel } from '../NodeTransformPanel';
+import { dispatchSceneCommand, registerSceneCommandListener } from '@state/scene';
+import type { SceneCommandTelemetryEvent } from '@state/scene/sceneTelemetry';
 
 const selectionContext = vi.hoisted(() => ({
     visualizer: {
@@ -23,8 +25,13 @@ vi.mock('@context/SceneSelectionContext', () => ({
     useSceneSelection: () => selectionContext,
 }));
 
+vi.mock('@workspace/forms/inputs/FontInput', () => ({
+    default: () => <input aria-label="Font" />,
+}));
+
 describe('NodeTransformPanel multi-selection property search', () => {
     beforeEach(() => {
+        useSceneStore.getState().replaceMacros(null);
         const graph = createFlatSceneGraph(['one', 'two']);
         useSceneStore.setState({ graph, elements: {} });
         useSelectionStore.setState({
@@ -60,6 +67,77 @@ describe('NodeTransformPanel multi-selection property search', () => {
         expect(screen.getByText('Height')).toBeInTheDocument();
         expect(screen.getByText('Node State')).toBeInTheDocument();
         expect(screen.getByText('Effects')).toBeInTheDocument();
+    });
+
+    it('creates one macro for a common property across the selected elements', () => {
+        useSceneStore.getState().clearScene();
+        dispatchSceneCommand({
+            type: 'addElement',
+            elementType: 'textOverlay',
+            elementId: 'first',
+            config: { opacity: 0.4 },
+        });
+        dispatchSceneCommand({
+            type: 'addElement',
+            elementType: 'textOverlay',
+            elementId: 'second',
+            config: { opacity: 0.8 },
+        });
+        const state = useSceneStore.getState();
+        useSelectionStore.setState({
+            selectedNodeIds: [state.nodeIdByElementId.first, state.nodeIdByElementId.second],
+            selectionPivot: null,
+        });
+
+        render(<NodeTransformPanel />);
+        const events: SceneCommandTelemetryEvent[] = [];
+        const unsubscribe = registerSceneCommandListener((event) => events.push(event));
+        fireEvent.click(screen.getByRole('button', { name: 'opacity macro' }));
+        fireEvent.click(screen.getByRole('button', { name: '+ Assign to New Macro' }));
+        unsubscribe();
+
+        const result = useSceneStore.getState();
+        expect(result.macros.allIds).toEqual(['Opacity']);
+        expect(result.macros.byId.Opacity.value).toBe(0.4);
+        expect(result.bindings.byElement.first.opacity).toEqual({ type: 'macro', macroId: 'Opacity' });
+        expect(result.bindings.byElement.second.opacity).toEqual({ type: 'macro', macroId: 'Opacity' });
+        expect(events).toHaveLength(1);
+        expect(events[0].source).toBe('NodeTransformPanel.createMacro');
+        expect(events[0].patch?.undo).toHaveLength(1);
+        dispatchSceneCommand(events[0].patch!.undo[0]);
+        expect(useSceneStore.getState().macros.byId.Opacity).toBeUndefined();
+        expect(useSceneStore.getState().bindings.byElement.first.opacity?.type).not.toBe('macro');
+        expect(useSceneStore.getState().bindings.byElement.second.opacity?.type).not.toBe('macro');
+    });
+
+    it('assigns an existing macro to every selected element', () => {
+        useSceneStore.getState().clearScene();
+        for (const elementId of ['first', 'second']) {
+            dispatchSceneCommand({ type: 'addElement', elementType: 'textOverlay', elementId });
+        }
+        dispatchSceneCommand({
+            type: 'createMacro',
+            macroId: 'SharedOpacity',
+            definition: { type: 'number', value: 0.5 },
+        });
+        const state = useSceneStore.getState();
+        useSelectionStore.setState({
+            selectedNodeIds: [state.nodeIdByElementId.first, state.nodeIdByElementId.second],
+            selectionPivot: null,
+        });
+
+        render(<NodeTransformPanel />);
+        fireEvent.click(screen.getByRole('button', { name: 'opacity macro' }));
+        fireEvent.click(screen.getByRole('button', { name: 'SharedOpacity' }));
+
+        expect(useSceneStore.getState().bindings.byElement.first.opacity).toEqual({
+            type: 'macro',
+            macroId: 'SharedOpacity',
+        });
+        expect(useSceneStore.getState().bindings.byElement.second.opacity).toEqual({
+            type: 'macro',
+            macroId: 'SharedOpacity',
+        });
     });
 
     it('filters host properties for a single selected element', () => {
