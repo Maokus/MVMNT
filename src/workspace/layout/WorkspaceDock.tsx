@@ -151,7 +151,8 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
                 (node) => node instanceof HTMLElement && node.dataset?.preserveSelection === 'true'
             );
             if (preserveSelection) return;
-            const clickedInsideDock = dockRef.current?.contains(event.target as Node);
+            const clickedInsideDock =
+                event.target instanceof Element && event.target.closest('[data-dock-side]') !== null;
             const canvasEl: HTMLCanvasElement | null =
                 canvasRef?.current || (document.getElementById('canvas') as HTMLCanvasElement | null);
             const previewContainer =

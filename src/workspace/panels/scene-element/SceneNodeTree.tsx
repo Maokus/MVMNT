@@ -139,6 +139,14 @@ export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
             renameRef.current?.select();
         }
     }, [isRenaming]);
+    useEffect(() => {
+        if (renameValue === null) return;
+        const cancelOnOutsidePointerDown = (event: PointerEvent) => {
+            if (!renameRef.current?.contains(event.target as Node)) setRenameValue(null);
+        };
+        document.addEventListener('pointerdown', cancelOnOutsidePointerDown, true);
+        return () => document.removeEventListener('pointerdown', cancelOnOutsidePointerDown, true);
+    }, [renameValue]);
     useEffect(
         () => () => {
             if (expandTimerRef.current) clearTimeout(expandTimerRef.current);
@@ -295,9 +303,12 @@ export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
                         value={renameValue}
                         onClick={(event) => event.stopPropagation()}
                         onChange={(event) => setRenameValue(event.target.value)}
-                        onBlur={commitRename}
+                        onBlur={() => setRenameValue(null)}
                         onKeyDown={(event) => {
-                            if (event.key === 'Enter') event.currentTarget.blur();
+                            if (event.key === 'Enter') {
+                                event.preventDefault();
+                                commitRename();
+                            }
                             if (event.key === 'Escape') {
                                 setRenameValue(null);
                                 event.stopPropagation();
