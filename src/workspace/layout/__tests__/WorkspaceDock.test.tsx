@@ -3,7 +3,6 @@ import { fireEvent, render, waitFor } from '@testing-library/react';
 import { useWorkspacePanelsStore, type DockSections } from '@state/workspacePanelsStore';
 import WorkspaceDock from '../WorkspaceDock';
 
-// jsdom has no PointerEvent; a MouseEvent subclass carries button/clientX for fireEvent.
 if (typeof window !== 'undefined' && !('PointerEvent' in window)) {
     (window as unknown as { PointerEvent: typeof MouseEvent }).PointerEvent = MouseEvent;
 }
@@ -75,8 +74,6 @@ const stub = (el: Element | null | undefined, r: Rect) => {
 
 const DOCK: Record<'left' | 'right', Rect> = { left: rect(0, 48, 220, 570), right: rect(700, 48, 320, 570) };
 
-// jsdom lays nothing out, so give one dock the same geometry it has in the app: a strip
-// across the top and the panel body filling the rest, split evenly between sections.
 const layoutDock = (container: HTMLElement, side: 'left' | 'right') => {
     const dock = container.querySelector(`[data-dock-side="${side}"]`);
     stub(dock, DOCK[side]);
@@ -121,7 +118,6 @@ describe('WorkspaceDock tab dragging', () => {
         fireEvent.pointerMove(window, { clientX: 908, clientY: 80 });
 
         await waitFor(() => expect(container.querySelector('[data-drag-chip="true"]')).not.toBeNull());
-        // Reordering inside the strip a tab already lives in is deliberately unmarked.
         expect(container.querySelector('[data-drop-line="true"]')).toBeNull();
         expect(container.querySelector('[data-dock-guide]')).toBeNull();
     });
@@ -138,7 +134,6 @@ describe('WorkspaceDock tab dragging', () => {
         const tab = getByRole('tab', { name: 'Properties' });
 
         fireEvent.pointerDown(tab, { button: 0, clientX: 900, clientY: 80 });
-        // y=400 is below the middle of the left dock's only section, so the panel lands under it.
         fireEvent.pointerMove(window, { clientX: 100, clientY: 400 });
 
         const zone = (await waitFor(() => {
@@ -146,7 +141,6 @@ describe('WorkspaceDock tab dragging', () => {
             if (!el) throw new Error('drop highlight missing');
             return el;
         })) as HTMLElement;
-        // The marker covers exactly the half the new stacked section will occupy.
         expect(zone.style.left).toBe('0px');
         expect(zone.style.top).toBe('344px');
         expect(zone.style.width).toBe('220px');
@@ -191,7 +185,6 @@ describe('WorkspaceDock tab dragging', () => {
         );
         layoutDock(container, 'left');
         layoutDock(container, 'right');
-        // Elements spans 704-764 (mid 734) and Properties 764-824 (mid 794).
         const tabRects: Array<[string, number]> = [
             ['elements', 704],
             ['properties', 764],
@@ -201,7 +194,6 @@ describe('WorkspaceDock tab dragging', () => {
         }
         const tab = getByRole('tab', { name: 'Assets' });
 
-        // Released at x=760 on the right dock's strip: past Elements' midpoint, before Properties'.
         fireEvent.pointerDown(tab, { button: 0, clientX: 100, clientY: 80 });
         fireEvent.pointerMove(window, { clientX: 760, clientY: 80 });
         await waitFor(() => expect(container.querySelector('[data-drop-line="true"]')).not.toBeNull());
@@ -227,8 +219,6 @@ describe('WorkspaceDock tab dragging', () => {
             if (!el) throw new Error('drop highlight missing');
             return el;
         })) as HTMLElement;
-        // The empty dock has nothing to measure, so the marker falls back to the strip it
-        // would occupy: the configured width, and never taller than the dock band.
         expect(zone.style.left).toBe('0px');
         expect(zone.style.top).toBe('48px');
         expect(zone.style.width).toBe('220px');
@@ -294,7 +284,6 @@ describe('WorkspaceDock tab dragging', () => {
         expect(container.querySelector('[data-dock-guide-zone="top"][data-active="true"]')).not.toBeNull();
         const zone = container.querySelector('[data-dock-target="top"]') as HTMLElement;
         expect(zone).not.toBeNull();
-        // The empty top dock has nothing to measure yet, so the marker is its default band.
         expect(zone.style.top).toBe('48px');
         expect(zone.style.height).toBe('200px');
 
@@ -361,7 +350,6 @@ describe('WorkspaceDock tab dragging', () => {
 
         const tab = getByRole('tab', { name: 'Properties' });
         fireEvent.pointerDown(tab, { button: 0, clientX: 900, clientY: 80 });
-        // y=150 is on the body, below the strip: a body drop must not split the top dock.
         fireEvent.pointerMove(window, { clientX: 460, clientY: 150 });
         fireEvent.pointerUp(window, { clientX: 460, clientY: 150 });
 

@@ -2,12 +2,9 @@ import { create } from 'zustand';
 
 export type WorkspacePanelId = 'assets' | 'elements' | 'properties' | 'macros';
 export type DockSide = 'left' | 'right' | 'top' | 'bottom';
-/** Side docks run the full height of the workspace and resize by width. */
 export type VerticalDockSide = 'left' | 'right';
-/** Top and bottom docks live in the centre column and resize by height. */
 export type HorizontalDockSide = 'top' | 'bottom';
 
-/** Canonical dock order; also the hit-test order used while dragging a tab. */
 export const DOCK_SIDES: DockSide[] = ['left', 'right', 'top', 'bottom'];
 
 export const WORKSPACE_PANEL_IDS: WorkspacePanelId[] = ['assets', 'elements', 'properties', 'macros'];
@@ -19,7 +16,6 @@ export const WORKSPACE_PANEL_LABELS: Record<WorkspacePanelId, string> = {
     macros: 'Macros',
 };
 
-/** One stacked block of a dock: a tab strip plus the panel of its active tab. */
 export interface DockSection {
     tabs: WorkspacePanelId[];
     active: WorkspacePanelId | null;
@@ -27,19 +23,15 @@ export interface DockSection {
 
 export type DockSections = Record<DockSide, DockSection[]>;
 
-/** Where a dragged tab is released. `split` starts a new stacked section. */
 export interface TabDrop {
     side: DockSide;
-    /** Section the tab joins, or where a new section is inserted when splitting. */
     sectionIndex: number;
-    /** Position within that section's strip; ignored when splitting. */
     tabIndex: number;
     split: boolean;
 }
 
 const STORAGE_KEY = 'mvmnt.workspace-layout';
 const STORAGE_VERSION = 1;
-// Stored dock sizes are clamped back into range so a corrupt value cannot lock the UI.
 const MIN_STORED_SIZE = 120;
 const MAX_STORED_SIZE = 640;
 
@@ -71,7 +63,6 @@ const cloneSections = (sections: DockSections): DockSections =>
 const isPanelId = (value: unknown): value is WorkspacePanelId =>
     typeof value === 'string' && WORKSPACE_PANEL_IDS.includes(value as WorkspacePanelId);
 
-/** A panel belongs to whichever dock lists it. */
 export const panelSide = (sections: DockSections, id: WorkspacePanelId): DockSide =>
     DOCK_SIDES.find((side) => sections[side].some((section) => section.tabs.includes(id))) ?? 'right';
 
@@ -81,7 +72,6 @@ export const panelSectionIndex = (sections: DockSections, side: DockSide, id: Wo
 const firstVisible = (section: DockSection, hidden: Record<WorkspacePanelId, boolean>, exclude?: WorkspacePanelId) =>
     section.tabs.find((id) => id !== exclude && !hidden[id]) ?? null;
 
-/** Copy the sections with one section's active tab replaced. */
 const withActive = (
     sections: DockSections,
     side: DockSide,
@@ -89,7 +79,6 @@ const withActive = (
     active: WorkspacePanelId | null
 ): DockSections => ({ ...sections, [side]: sections[side].map((s, i) => (i === index ? { ...s, active } : s)) });
 
-/** Drop a tab column: remove the tab, hand the active tab on, and drop empty sections. */
 const withoutTab = (list: DockSection[], hidden: Record<WorkspacePanelId, boolean>, id: WorkspacePanelId) =>
     list
         .map((section) =>
@@ -131,7 +120,6 @@ const sanitizeSections = (input: unknown): DockSections => {
     return result;
 };
 
-/** Restore the docks, falling back to the factory layout if nothing usable was stored. */
 const sectionsFromStored = (input: unknown): DockSections => {
     const sections = sanitizeSections(input);
     return DOCK_SIDES.every((side) => sections[side].length === 0) ? cloneSections(DEFAULT_SECTIONS) : sections;
@@ -177,21 +165,16 @@ const readStoredLayout = (): PersistedLayout | null => {
 };
 
 interface WorkspacePanelsState {
-    /** Stacked panel sections per dock, top to bottom. */
     sections: DockSections;
     hidden: Record<WorkspacePanelId, boolean>;
     widths: Record<VerticalDockSide, number>;
     heights: Record<HorizontalDockSide, number>;
-    /** Panel currently being dragged; drives the drop overlays. */
     dragging: WorkspacePanelId | null;
-    /** Show + activate a panel, or hide it when it is already the active tab of its section. */
     toggle: (id: WorkspacePanelId) => void;
     activate: (id: WorkspacePanelId) => void;
-    /** Move a tab to where it was dropped; used for reordering, re-docking and splitting. */
     moveTab: (id: WorkspacePanelId, drop: TabDrop) => void;
     setWidth: (side: VerticalDockSide, width: number) => void;
     setHeight: (side: HorizontalDockSide, height: number) => void;
-    /** Restore the factory docking layout. */
     reset: () => void;
     setDragging: (id: WorkspacePanelId | null) => void;
 }
@@ -254,12 +237,10 @@ export const useWorkspacePanelsStore = create<WorkspacePanelsState>((set, get) =
                 } else {
                     const index = clamp(sectionIndex, 0, target.length);
                     if (index === target.length) {
-                        // Nothing to join (an empty dock): start its first section.
                         target.push({ tabs: [id], active: id });
                     } else {
                         const section = target[index];
                         section.tabs.splice(clamp(tabIndex, 0, section.tabs.length), 0, id);
-                        // Reordering inside one section must not steal focus from its active tab.
                         if (from !== side || fromSection !== index) section.active = id;
                     }
                 }
@@ -272,8 +253,6 @@ export const useWorkspacePanelsStore = create<WorkspacePanelsState>((set, get) =
     };
 });
 
-// Layout is a view preference, not document state: it never dirties the scene and it is
-// restored on the next launch. Only the persisted slice is written, and only when it changes.
 if (typeof localStorage !== 'undefined') {
     const saveLayout = (state: WorkspacePanelsState) => {
         try {
@@ -287,9 +266,7 @@ if (typeof localStorage !== 'undefined') {
                     heights: state.heights,
                 })
             );
-        } catch {
-            // Storage unavailable (private mode, quota): the in-memory layout still works.
-        }
+        } catch {}
     };
     useWorkspacePanelsStore.subscribe((state, previous) => {
         if (

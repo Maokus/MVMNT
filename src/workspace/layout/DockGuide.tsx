@@ -30,17 +30,10 @@ const ZoneCell: React.FC<ZoneCellProps> = ({ zone, active, arrow, label }) => (
 );
 
 interface DockGuideProps {
-    /** The centre column the compass is anchored to. */
     centerRect: GuideRect;
-    /** Zone the pointer is currently over, highlighted in the guide. */
     zone: DockZone;
 }
 
-/**
- * Roblox-style dock compass: five zones pinned to the centre of the workspace while a
- * panel tab is dragged, with the zone the pointer is over lit up. Purely an indicator —
- * the exact landing area is drawn separately by the drop marker.
- */
 export const DockGuide: React.FC<DockGuideProps> = ({ centerRect, zone }) => {
     const size = CELL * 3 + GAP * 2;
     const left = centerRect.left + centerRect.width / 2 - size / 2;
