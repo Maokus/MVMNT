@@ -24,8 +24,11 @@ import {
     useWorkspacePanelsStore,
     panelSide,
     panelSectionIndex,
+    normalizeSectionWeights,
+    dragSectionWeight,
     WORKSPACE_PANEL_LABELS,
     type DockSide,
+    type VerticalDockSide,
     type WorkspacePanelId,
 } from '@state/workspacePanelsStore';
 import { DockGuide } from './DockGuide';
@@ -35,6 +38,7 @@ const MIN_WIDTH = 180;
 const MAX_WIDTH = 640;
 const MIN_HEIGHT = 120;
 const MAX_HEIGHT = 480;
+const MIN_SECTION_HEIGHT = 96;
 const RESIZER_THICKNESS = 6;
 const MENUBAR_HEIGHT = 48;
 const DOCK_ACCENT = '#3794ff';
@@ -92,9 +96,12 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
     const moveTab = useWorkspacePanelsStore((state) => state.moveTab);
     const setWidth = useWorkspacePanelsStore((state) => state.setWidth);
     const setHeight = useWorkspacePanelsStore((state) => state.setHeight);
+    const sectionWeights = useWorkspacePanelsStore((state) => state.sectionWeights);
+    const setSectionWeights = useWorkspacePanelsStore((state) => state.setSectionWeights);
     const setDragging = useWorkspacePanelsStore((state) => state.setDragging);
 
     const isHorizontal = side === 'top' || side === 'bottom';
+    const verticalSide: VerticalDockSide | null = side === 'left' || side === 'right' ? side : null;
     const dockRef = useRef<HTMLDivElement>(null);
     const suppressTabClickRef = useRef(false);
     const dragRef = useRef<null | {
@@ -122,6 +129,10 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
         [sections, side, hidden]
     );
     const hasVisiblePanel = dockSections.some((section) => section.active != null);
+    const sectionWeight = useMemo(
+        () => normalizeSectionWeights(verticalSide ? sectionWeights[verticalSide] : undefined, dockSections.length),
+        [sectionWeights, verticalSide, dockSections.length]
+    );
 
     const {
         exportSettings,
@@ -209,6 +220,39 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
     const handleResizeUp = (e: React.PointerEvent<HTMLDivElement>) => {
         if (!resizeRef.current) return;
         resizeRef.current = null;
+        try {
+            (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+        } catch {}
+    };
+
+    const sectionResizeRef = useRef<null | { boundary: number; startY: number; height: number; weights: number[] }>(
+        null
+    );
+
+    const handleSectionResizeDown = (boundary: number) => (e: React.PointerEvent<HTMLDivElement>) => {
+        const height = dockRef.current?.getBoundingClientRect().height ?? 0;
+        if (!verticalSide || height <= 0) return;
+        sectionResizeRef.current = { boundary, startY: e.clientY, height, weights: sectionWeight };
+        try {
+            (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        } catch {}
+        e.preventDefault();
+    };
+    const handleSectionResizeMove = (e: React.PointerEvent<HTMLDivElement>) => {
+        const resize = sectionResizeRef.current;
+        if (!resize || !verticalSide) return;
+        const total = resize.weights.reduce((sum, weight) => sum + weight, 0);
+        if (!(total > 0)) return;
+        const perPixel = total / resize.height;
+        const delta = (e.clientY - resize.startY) * perPixel;
+        setSectionWeights(
+            verticalSide,
+            dragSectionWeight(resize.weights, resize.boundary, delta, MIN_SECTION_HEIGHT * perPixel)
+        );
+    };
+    const handleSectionResizeUp = (e: React.PointerEvent<HTMLDivElement>) => {
+        if (!sectionResizeRef.current) return;
+        sectionResizeRef.current = null;
         try {
             (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
         } catch {}
@@ -553,12 +597,28 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
             }`}
             style={isHorizontal ? { height: size } : { width: size }}
         >
-            {dockSections.map((section) => (
+            {dockSections.map((section, position) => (
                 <div
                     key={section.index}
                     data-dock-section={section.index}
-                    className={`flex min-h-0 flex-1 flex-col ${section.index > 0 ? 'border-t border-neutral-800' : ''}`}
+                    className="flex min-h-0 flex-col"
+                    style={{ flexGrow: sectionWeight[position] ?? 1, flexBasis: 0 }}
                 >
+                    {position > 0 && !isHorizontal ? (
+                        <div
+                            data-section-resizer={position}
+                            className="relative h-1.5 shrink-0 cursor-row-resize border-y border-neutral-800 bg-neutral-900 transition-colors hover:bg-neutral-800"
+                            role="separator"
+                            aria-orientation="horizontal"
+                            aria-label="Resize stacked panels"
+                            onPointerDown={handleSectionResizeDown(position - 1)}
+                            onPointerMove={handleSectionResizeMove}
+                            onPointerUp={handleSectionResizeUp}
+                            onPointerCancel={handleSectionResizeUp}
+                        >
+                            <div className="absolute top-1/2 left-1/2 h-[2px] w-16 -translate-x-1/2 -translate-y-1/2 rounded bg-neutral-500/80" />
+                        </div>
+                    ) : null}
                     <div
                         data-dock-strip={section.index}
                         className="flex items-center gap-1 border-b border-neutral-800 px-1.5 py-1 shrink-0"

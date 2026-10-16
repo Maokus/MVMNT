@@ -54,6 +54,7 @@ const reset = () =>
         hidden: { assets: false, elements: false, properties: false, macros: true },
         widths: { left: 220, right: 320 },
         heights: { top: 200, bottom: 200 },
+        sectionWeights: { left: [1], right: [1] },
         dragging: null,
     });
 
@@ -107,6 +108,38 @@ describe('WorkspaceDock tab dragging', () => {
         expect(container.querySelectorAll('[role="tablist"]')).toHaveLength(2);
         const tabs = Array.from(container.querySelectorAll('[role="tab"]')).map((tab) => tab.textContent);
         expect(tabs).toEqual(['Elements', 'Properties']);
+    });
+
+    it('has no divider when a dock holds a single section', () => {
+        const { container } = render(<WorkspaceDock side="right" />);
+        expect(container.querySelector('[data-section-resizer]')).toBeNull();
+    });
+
+    it('resizes two stacked sections by dragging the divider between them', () => {
+        useWorkspacePanelsStore.setState({
+            sections: {
+                ...sections(),
+                right: [
+                    { tabs: ['elements'], active: 'elements' },
+                    { tabs: ['properties'], active: 'properties' },
+                ],
+            },
+        });
+        const { container } = render(<WorkspaceDock side="right" />);
+        layoutDock(container, 'right');
+
+        const divider = container.querySelector('[data-section-resizer="1"]') as HTMLElement;
+        expect(divider).not.toBeNull();
+        expect(divider.getAttribute('role')).toBe('separator');
+
+        fireEvent.pointerDown(divider, { pointerId: 1, clientY: 300 });
+        fireEvent.pointerMove(divider, { pointerId: 1, clientY: 460 });
+        fireEvent.pointerUp(divider, { pointerId: 1, clientY: 460 });
+
+        const [top, bottom] = useWorkspacePanelsStore.getState().sectionWeights.right;
+        expect(top).toBeGreaterThan(1);
+        expect(bottom).toBeLessThan(1);
+        expect(top + bottom).toBeCloseTo(2, 5);
     });
 
     it('shows the drag chip and no insertion line while reordering inside its own section', async () => {

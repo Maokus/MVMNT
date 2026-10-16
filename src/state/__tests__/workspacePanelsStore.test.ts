@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
     useWorkspacePanelsStore,
+    dragSectionWeight,
     isPanelVisible,
+    normalizeSectionWeights,
     panelSide,
     WORKSPACE_PANEL_IDS,
     type DockSections,
@@ -20,6 +22,7 @@ const reset = () =>
         hidden: { assets: false, elements: false, properties: false, macros: true },
         widths: { left: 220, right: 320 },
         heights: { top: 200, bottom: 200 },
+        sectionWeights: { left: [1], right: [1] },
         dragging: null,
     });
 
@@ -73,7 +76,6 @@ describe('workspace panels store', () => {
             split: true,
         });
         const state = useWorkspacePanelsStore.getState();
-        // Both panels are now listed in their own section, so both stay visible.
         expect(state.sections.right).toEqual([
             { tabs: ['elements', 'macros'], active: 'elements' },
             { tabs: ['properties'], active: 'properties' },
@@ -229,5 +231,37 @@ describe('isPanelVisible', () => {
         const { sections, hidden } = useWorkspacePanelsStore.getState();
         expect(isPanelVisible(sections, hidden, 'properties')).toBe(true);
         expect(isPanelVisible(sections, hidden, 'elements')).toBe(true);
+    });
+});
+
+describe('stacked section weights', () => {
+    beforeEach(reset);
+
+    it('splits a stacked dock evenly by default', () => {
+        expect(normalizeSectionWeights(useWorkspacePanelsStore.getState().sectionWeights.right, 3)).toEqual([1, 1, 1]);
+    });
+
+    it('pads missing weights and ignores extras so the count can change', () => {
+        expect(normalizeSectionWeights([2, 1], 3)).toEqual([2, 1, 1]);
+        expect(normalizeSectionWeights([2, 1, 3], 2)).toEqual([2, 1]);
+    });
+
+    it('moves the shared boundary when a divider is dragged', () => {
+        const next = dragSectionWeight([1, 1], 0, 0.5, 0.1);
+        expect(next[0]).toBeCloseTo(1.5, 5);
+        expect(next[1]).toBeCloseTo(0.5, 5);
+    });
+
+    it('stops a divider before either stacked panel collapses', () => {
+        expect(dragSectionWeight([1, 1], 0, 10, 0.25)).toEqual([1.75, 0.25]);
+        expect(dragSectionWeight([1, 1], 0, -10, 0.25)).toEqual([0.25, 1.75]);
+    });
+
+    it('keeps divider weights per side and restores them on reset', () => {
+        useWorkspacePanelsStore.getState().setSectionWeights('right', [2, 1]);
+        expect(useWorkspacePanelsStore.getState().sectionWeights).toEqual({ left: [1], right: [2, 1] });
+
+        useWorkspacePanelsStore.getState().reset();
+        expect(useWorkspacePanelsStore.getState().sectionWeights).toEqual({ left: [1], right: [1] });
     });
 });

@@ -23,6 +23,8 @@ export interface DockSection {
 
 export type DockSections = Record<DockSide, DockSection[]>;
 
+export type DockSectionWeights = Record<VerticalDockSide, number[]>;
+
 export interface TabDrop {
     side: DockSide;
     sectionIndex: number;
@@ -44,6 +46,14 @@ const DEFAULT_SECTIONS: DockSections = {
 
 const DEFAULT_WIDTHS: Record<VerticalDockSide, number> = { left: 220, right: 320 };
 const DEFAULT_HEIGHTS: Record<HorizontalDockSide, number> = { top: 200, bottom: 200 };
+const DEFAULT_SECTION_WEIGHTS: DockSectionWeights = { left: [1], right: [1] };
+const MIN_SECTION_WEIGHT = 0.02;
+const MAX_SECTION_WEIGHT = 40;
+
+const cloneSectionWeights = (): DockSectionWeights => ({
+    left: [...DEFAULT_SECTION_WEIGHTS.left],
+    right: [...DEFAULT_SECTION_WEIGHTS.right],
+});
 
 const DEFAULT_HIDDEN: Record<WorkspacePanelId, boolean> = {
     assets: false,
@@ -82,6 +92,23 @@ export const isPanelVisible = (
 const firstVisible = (section: DockSection, hidden: Record<WorkspacePanelId, boolean>, exclude?: WorkspacePanelId) =>
     section.tabs.find((id) => id !== exclude && !hidden[id]) ?? null;
 
+export const normalizeSectionWeights = (weights: number[] | undefined, count: number): number[] =>
+    Array.from({ length: count }, (_, index) => {
+        const value = weights?.[index];
+        return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 1;
+    });
+
+export const dragSectionWeight = (weights: number[], index: number, delta: number, min: number): number[] => {
+    if (index < 0 || index + 1 >= weights.length) return weights;
+    const pairSum = weights[index] + weights[index + 1];
+    if (!(pairSum > 0)) return weights;
+    const floor = Math.min(min, pairSum / 2);
+    const next = [...weights];
+    next[index] = clamp(weights[index] + delta, floor, pairSum - floor);
+    next[index + 1] = pairSum - next[index];
+    return next;
+};
+
 const withActive = (
     sections: DockSections,
     side: DockSide,
@@ -107,6 +134,7 @@ interface PersistedLayout {
     hidden?: unknown;
     widths?: unknown;
     heights?: unknown;
+    sectionWeights?: unknown;
 }
 
 const sanitizeSections = (input: unknown): DockSections => {
@@ -162,6 +190,21 @@ const sanitizeSizes = <T extends string>(
     return result;
 };
 
+const sanitizeSectionWeights = (input: unknown): DockSectionWeights => {
+    const result = cloneSectionWeights();
+    if (!input || typeof input !== 'object') return result;
+    const source = input as Record<string, unknown>;
+    for (const side of ['left', 'right'] as VerticalDockSide[]) {
+        const list = source[side];
+        if (!Array.isArray(list)) continue;
+        const values = list
+            .filter((value): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0)
+            .map((value) => clamp(value, MIN_SECTION_WEIGHT, MAX_SECTION_WEIGHT));
+        if (values.length > 0) result[side] = values;
+    }
+    return result;
+};
+
 const readStoredLayout = (): PersistedLayout | null => {
     if (typeof localStorage === 'undefined') return null;
     try {
@@ -179,12 +222,14 @@ interface WorkspacePanelsState {
     hidden: Record<WorkspacePanelId, boolean>;
     widths: Record<VerticalDockSide, number>;
     heights: Record<HorizontalDockSide, number>;
+    sectionWeights: DockSectionWeights;
     dragging: WorkspacePanelId | null;
     toggle: (id: WorkspacePanelId) => void;
     activate: (id: WorkspacePanelId) => void;
     moveTab: (id: WorkspacePanelId, drop: TabDrop) => void;
     setWidth: (side: VerticalDockSide, width: number) => void;
     setHeight: (side: HorizontalDockSide, height: number) => void;
+    setSectionWeights: (side: VerticalDockSide, weights: number[]) => void;
     reset: () => void;
     setDragging: (id: WorkspacePanelId | null) => void;
 }
@@ -194,6 +239,7 @@ const createDefaultState = () => ({
     hidden: { ...DEFAULT_HIDDEN },
     widths: { ...DEFAULT_WIDTHS },
     heights: { ...DEFAULT_HEIGHTS },
+    sectionWeights: cloneSectionWeights(),
 });
 
 export const useWorkspacePanelsStore = create<WorkspacePanelsState>((set, get) => {
@@ -203,6 +249,7 @@ export const useWorkspacePanelsStore = create<WorkspacePanelsState>((set, get) =
         hidden: stored ? sanitizeHidden(stored.hidden) : { ...DEFAULT_HIDDEN },
         widths: stored ? sanitizeSizes(stored.widths, DEFAULT_WIDTHS, ['left', 'right']) : { ...DEFAULT_WIDTHS },
         heights: stored ? sanitizeSizes(stored.heights, DEFAULT_HEIGHTS, ['top', 'bottom']) : { ...DEFAULT_HEIGHTS },
+        sectionWeights: stored ? sanitizeSectionWeights(stored.sectionWeights) : cloneSectionWeights(),
         dragging: null,
         toggle: (id) => {
             const { hidden, sections } = get();
@@ -259,6 +306,8 @@ export const useWorkspacePanelsStore = create<WorkspacePanelsState>((set, get) =
             }),
         setWidth: (side, width) => set((state) => ({ widths: { ...state.widths, [side]: width } })),
         setHeight: (side, height) => set((state) => ({ heights: { ...state.heights, [side]: height } })),
+        setSectionWeights: (side, weights) =>
+            set((state) => ({ sectionWeights: { ...state.sectionWeights, [side]: weights } })),
         reset: () => set(createDefaultState()),
         setDragging: (dragging) => set({ dragging }),
     };
@@ -275,6 +324,7 @@ if (typeof localStorage !== 'undefined') {
                     hidden: state.hidden,
                     widths: state.widths,
                     heights: state.heights,
+                    sectionWeights: state.sectionWeights,
                 })
             );
         } catch {}
@@ -284,7 +334,8 @@ if (typeof localStorage !== 'undefined') {
             state.sections === previous.sections &&
             state.hidden === previous.hidden &&
             state.widths === previous.widths &&
-            state.heights === previous.heights
+            state.heights === previous.heights &&
+            state.sectionWeights === previous.sectionWeights
         ) {
             return;
         }
