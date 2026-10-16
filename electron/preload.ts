@@ -60,6 +60,7 @@ const api: MvmntDesktopApi = {
         getBuildInfo: () => ipcRenderer.invoke('app:get-build-info'),
         checkForUpdates: () => ipcRenderer.invoke('app:check-for-updates'),
         notify: (title: string, body: string) => ipcRenderer.send('app:notify', title, body),
+        fixDialogFocus: () => ipcRenderer.send('app:fix-dialog-focus'),
     },
     exports: {
         chooseDestination: (request: DesktopExportDestinationRequest) =>

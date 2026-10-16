@@ -1229,6 +1229,11 @@ function installIpcHandlers(): void {
         if (!Notification.isSupported()) return;
         new Notification({ title: title.slice(0, 100), body: body.slice(0, 500) }).show();
     });
+    ipcMain.on('app:fix-dialog-focus', () => {
+        if (process.platform !== 'win32' || !mainWindow) return;
+        mainWindow.blur();
+        mainWindow.focus();
+    });
     ipcMain.handle('exports:begin', (_event, request) => beginExport(request));
     ipcMain.handle('exports:choose-destination', (_event, request) => chooseExportDestination(request));
     ipcMain.handle('exports:write', (_event, request) => writeExport(request));

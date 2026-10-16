@@ -188,6 +188,7 @@ export interface MvmntDesktopApi {
         getBuildInfo(): Promise<BuildInfo>;
         checkForUpdates(): Promise<UpdateCheckResult>;
         notify(title: string, body: string): void;
+        fixDialogFocus(): void;
     };
     exports: {
         chooseDestination(request: DesktopExportDestinationRequest): Promise<DesktopExportDestinationResult>;
