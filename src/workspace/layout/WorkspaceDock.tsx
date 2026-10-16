@@ -20,6 +20,7 @@ import { useSceneSelection } from '@context/SceneSelectionContext';
 import { useVisualizer } from '@context/VisualizerContext';
 import { clamp } from '@math/transforms/numeric';
 import {
+    DOCK_SIDES,
     useWorkspacePanelsStore,
     panelSide,
     panelSectionIndex,
@@ -27,9 +28,13 @@ import {
     type DockSide,
     type WorkspacePanelId,
 } from '@state/workspacePanelsStore';
+import { DockGuide } from './DockGuide';
+import { resolveDockZone, type DockZone } from './dockZone';
 
 const MIN_WIDTH = 180;
 const MAX_WIDTH = 640;
+const MIN_HEIGHT = 120;
+const MAX_HEIGHT = 480;
 const RESIZER_THICKNESS = 6;
 const MENUBAR_HEIGHT = 48;
 const DOCK_ACCENT = '#3794ff';
@@ -47,6 +52,15 @@ const isInsideRect = (x: number, y: number, rect: DockRect): boolean =>
 const dockElement = (side: DockSide): HTMLElement | null =>
     document.querySelector<HTMLElement>(`[data-dock-side="${side}"]`);
 
+/** The workspace centre column, the region the dock compass is anchored to. */
+const centerColumnRect = (): DockRect | null => {
+    const el = document.querySelector<HTMLElement>('[data-center-column]');
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0) return null;
+    return { left: r.left, top: r.top, width: r.width, height: r.height };
+};
+
 /** Where a dragged tab would land, and the area to mark as its destination. */
 interface DropTarget {
     side: DockSide;
@@ -57,6 +71,10 @@ interface DropTarget {
     rect: DockRect;
     /** Strip insertion offset inside the dock, or null when no marker is due. */
     line: number | null;
+    /** Compass zone the pointer was over, when the drop came from the centre column. */
+    zone?: DockZone;
+    /** Centre column the compass was anchored to, for drawing the guide. */
+    zoneRect?: DockRect;
 }
 
 interface WorkspaceDockProps {
@@ -64,22 +82,32 @@ interface WorkspaceDockProps {
 }
 
 /**
- * One dock group (left or right) holding whichever tabs are assigned to that
- * side. A dock stacks one or more sections: tabs drag along a strip to reorder,
- * onto another strip to re-dock, or onto a panel body to split the dock so the
- * dropped panel and the existing one are visible at the same time.
+ * One dock (left, right, top or bottom) holding whichever tabs are assigned to that
+ * side. A dock stacks one or more sections: tabs drag along a strip to reorder, onto
+ * another strip to re-dock, or onto a panel body to split the dock so the dropped
+ * panel and the existing one are visible at the same time. Dragging a tab over the
+ * centre column opens the dock compass instead.
  */
 const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
     const sections = useWorkspacePanelsStore((state) => state.sections);
     const hidden = useWorkspacePanelsStore((state) => state.hidden);
-    const width = useWorkspacePanelsStore((state) => state.widths[side]);
+    const size = useWorkspacePanelsStore((state) =>
+        side === 'top'
+            ? state.heights.top
+            : side === 'bottom'
+              ? state.heights.bottom
+              : side === 'left'
+                ? state.widths.left
+                : state.widths.right
+    );
     const dragging = useWorkspacePanelsStore((state) => state.dragging);
     const activate = useWorkspacePanelsStore((state) => state.activate);
     const moveTab = useWorkspacePanelsStore((state) => state.moveTab);
     const setWidth = useWorkspacePanelsStore((state) => state.setWidth);
+    const setHeight = useWorkspacePanelsStore((state) => state.setHeight);
     const setDragging = useWorkspacePanelsStore((state) => state.setDragging);
 
-    const otherSide: DockSide = side === 'left' ? 'right' : 'left';
+    const isHorizontal = side === 'top' || side === 'bottom';
     const dockRef = useRef<HTMLDivElement>(null);
     const suppressTabClickRef = useRef(false);
     // The gesture lives in a ref so the window listeners can stay attached for the
@@ -94,7 +122,7 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
     }>(null);
     const [dragPoint, setDragPoint] = useState<null | { x: number; y: number }>(null);
     const [dropTarget, setDropTarget] = useState<null | DropTarget>(null);
-    const resizeRef = useRef<null | { startX: number; startWidth: number }>(null);
+    const resizeRef = useRef<null | { startX: number; startY: number; startSize: number }>(null);
     const [showAddElementDropdown, setShowAddElementDropdown] = useState(false);
 
     // Sections that have something to show, with the store index kept for drop targeting.
@@ -179,15 +207,21 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
     };
 
     const handleResizeDown = (e: React.PointerEvent<HTMLDivElement>) => {
-        resizeRef.current = { startX: e.clientX, startWidth: width };
+        resizeRef.current = { startX: e.clientX, startY: e.clientY, startSize: size };
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
         e.preventDefault();
     };
     const handleResizeMove = (e: React.PointerEvent<HTMLDivElement>) => {
         const state = resizeRef.current;
         if (!state) return;
+        if (side === 'top' || side === 'bottom') {
+            // The bottom dock grows upward, so dragging up (smaller clientY) makes it taller.
+            const delta = (e.clientY - state.startY) * (side === 'bottom' ? -1 : 1);
+            setHeight(side, clamp(state.startSize + delta, MIN_HEIGHT, MAX_HEIGHT));
+            return;
+        }
         const delta = (e.clientX - state.startX) * (side === 'right' ? -1 : 1);
-        setWidth(side, clamp(state.startWidth + delta, MIN_WIDTH, MAX_WIDTH));
+        setWidth(side, clamp(state.startSize + delta, MIN_WIDTH, MAX_WIDTH));
     };
     const handleResizeUp = (e: React.PointerEvent<HTMLDivElement>) => {
         if (!resizeRef.current) return;
@@ -197,52 +231,101 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
         } catch {}
     };
 
-    // Real bounds of the opposite dock, so a tab can still be dropped into the strip that
-    // side will occupy when it has no visible panel. The height is this dock's vertical
-    // extent, so it never reaches over the timeline.
-    const otherDockRect = useCallback((): DockRect => {
-        const el = dockElement(otherSide);
+    // Real bounds of a dock, or the band it would occupy when it has no visible panel, so a
+    // tab can still be dropped into a dock that is not on screen yet. Side docks span the
+    // full workspace height; top and bottom docks sit inside the centre column.
+    const dockRegionRect = useCallback((target: DockSide): DockRect => {
+        const el = dockElement(target);
         if (el) {
             const r = el.getBoundingClientRect();
-            if (r.width > 0 && r.height > 0) {
-                return { left: r.left, top: r.top, width: r.width, height: r.height };
-            }
+            if (r.width > 0 && r.height > 0) return { left: r.left, top: r.top, width: r.width, height: r.height };
+        }
+        const state = useWorkspacePanelsStore.getState();
+        const center = centerColumnRect();
+        const vw = window.innerWidth;
+        if (target === 'top' || target === 'bottom') {
+            const height = state.heights[target];
+            const left = center?.left ?? 0;
+            const width = center?.width ?? vw;
+            const top = center?.top ?? MENUBAR_HEIGHT;
+            const full = center?.height ?? window.innerHeight - MENUBAR_HEIGHT;
+            return target === 'top' ? { left, top, width, height } : { left, top: top + full - height, width, height };
         }
         const own = dockRef.current?.getBoundingClientRect();
-        const top = own && own.height > 0 ? own.top : MENUBAR_HEIGHT;
-        const height = own && own.height > 0 ? own.height : window.innerHeight - MENUBAR_HEIGHT;
-        const vw = window.innerWidth;
-        const preferred = useWorkspacePanelsStore.getState().widths[otherSide];
+        const top = center?.top ?? (own && own.height > 0 ? own.top : MENUBAR_HEIGHT);
+        const height = center?.height ?? (own && own.height > 0 ? own.height : window.innerHeight - MENUBAR_HEIGHT);
+        const preferred = state.widths[target];
         const width = clamp(preferred || Math.round(vw * 0.25), MIN_WIDTH, MAX_WIDTH);
-        return otherSide === 'left' ? { left: 0, top, width, height } : { left: vw - width, top, width, height };
-    }, [otherSide]);
+        return target === 'left' ? { left: 0, top, width, height } : { left: vw - width, top, width, height };
+    }, []);
 
-    // Where a tab released at (x, y) would land: over a tab strip it joins that strip at
-    // the tab boundary under the pointer; over a panel body it starts a new stacked
-    // section above or below, which is how a dock ends up showing two panels at once.
-    // A plain reorder inside the tab's own section gets no marker.
+    // Nearest dock to a point, backing the compass centre zone ("merge as a tab"). Only
+    // docks that are actually on screen compete, so the merge always lands somewhere real.
+    const nearestDockSide = useCallback(
+        (x: number, y: number): DockSide => {
+            const onScreen = DOCK_SIDES.filter((candidate) => dockElement(candidate));
+            const pool = onScreen.length > 0 ? onScreen : DOCK_SIDES;
+            let best = pool[0];
+            let bestDistance = Infinity;
+            for (const candidate of pool) {
+                const rect = dockRegionRect(candidate);
+                const dx = x - (rect.left + rect.width / 2);
+                const dy = y - (rect.top + rect.height / 2);
+                const distance = dx * dx + dy * dy;
+                if (distance < bestDistance) {
+                    bestDistance = distance;
+                    best = candidate;
+                }
+            }
+            return best;
+        },
+        [dockRegionRect]
+    );
+
+    // Append a tab to the end of a dock's last section. Every compass zone uses this, so an
+    // edge drop and a centre merge both land as a tab rather than splitting the dock.
+    const appendTarget = useCallback(
+        (target: DockSide, rect: DockRect, zone?: DockZone, zoneRect?: DockRect): DropTarget => {
+            const sections = useWorkspacePanelsStore.getState().sections[target];
+            const sectionIndex = Math.max(0, sections.length - 1);
+            const tabIndex = sections[sectionIndex]?.tabs.length ?? 0;
+            return { side: target, sectionIndex, tabIndex, split: false, rect, line: null, zone, zoneRect };
+        },
+        []
+    );
+
+    // Where a tab released at (x, y) would land. Over a dock's strip it joins that strip at
+    // the tab boundary under the pointer; over a panel body it starts a new stacked section
+    // above or below (left/right docks only). Over the centre column the compass decides: an
+    // edge docks there, the middle merges as a tab into the nearest dock. A plain reorder
+    // inside the tab's own section gets no marker.
     const dropTargetFor = useCallback(
         (id: WorkspacePanelId, x: number, y: number): DropTarget | null => {
             const state = useWorkspacePanelsStore.getState();
             const from = panelSide(state.sections, id);
             const fromSection = panelSectionIndex(state.sections, from, id);
-            const overDock = ([from, otherSide] as DockSide[]).find((which) => {
+            const overDock = DOCK_SIDES.find((which) => {
                 const el = dockElement(which);
                 return el ? isInsideRect(x, y, el.getBoundingClientRect()) : false;
             });
             if (!overDock) {
-                // The opposite dock is empty, so it has nothing to hit-test against.
-                if (dockElement(otherSide)) return null;
-                const rect = otherDockRect();
-                if (!isInsideRect(x, y, rect)) return null;
-                // Append to whatever the dock already holds, so it lands at the end there.
-                const sectionIndex = Math.max(0, state.sections[otherSide].length - 1);
-                const tabIndex = state.sections[otherSide][sectionIndex]?.tabs.length ?? 0;
-                return { side: otherSide, sectionIndex, tabIndex, split: false, rect, line: null };
+                const center = centerColumnRect();
+                if (center && isInsideRect(x, y, center)) {
+                    const zone = resolveDockZone(center, x, y);
+                    const target = zone === 'center' ? nearestDockSide(x, y) : zone;
+                    return appendTarget(target, dockRegionRect(target), zone, center);
+                }
+                // No centre column on screen: fall back to an empty dock's band.
+                const empty = DOCK_SIDES.find(
+                    (which) => !dockElement(which) && isInsideRect(x, y, dockRegionRect(which))
+                );
+                return empty ? appendTarget(empty, dockRegionRect(empty)) : null;
             }
             const root = dockElement(overDock)!;
             const dockRect = root.getBoundingClientRect();
             const sectionEls = Array.from(root.querySelectorAll<HTMLElement>('[data-dock-section]'));
+            // Top and bottom docks stay a single strip, so a body drop there appends.
+            const canSplit = overDock === 'left' || overDock === 'right';
 
             for (const sectionEl of sectionEls) {
                 const strip = sectionEl.querySelector<HTMLElement>('[data-dock-strip]');
@@ -281,6 +364,14 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
                 const r = sectionEl.getBoundingClientRect();
                 if (y < r.top || y > r.bottom) continue;
                 const index = Number(sectionEl.dataset.dockSection);
+                if (!canSplit) {
+                    return appendTarget(overDock, {
+                        left: dockRect.left,
+                        top: dockRect.top,
+                        width: dockRect.width,
+                        height: dockRect.height,
+                    });
+                }
                 const above = y < r.top + r.height / 2;
                 return {
                     side: overDock,
@@ -298,7 +389,7 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
             }
             return null;
         },
-        [otherSide, otherDockRect]
+        [appendTarget, dockRegionRect, nearestDockSide]
     );
 
     const handleTabPointerDown = (id: WorkspacePanelId) => (e: React.PointerEvent<HTMLButtonElement>) => {
@@ -466,17 +557,25 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
 
     const resizer = (
         <div
-            className="relative h-full shrink-0 cursor-col-resize bg-neutral-900 border-l border-r border-neutral-800 transition-colors hover:bg-neutral-800"
-            style={{ width: RESIZER_THICKNESS }}
+            className={`relative shrink-0 bg-neutral-900 border-neutral-800 transition-colors hover:bg-neutral-800 ${
+                isHorizontal
+                    ? 'dock-horizontal w-full cursor-row-resize border-t border-b'
+                    : 'h-full cursor-col-resize border-l border-r'
+            }`}
+            style={isHorizontal ? { height: RESIZER_THICKNESS } : { width: RESIZER_THICKNESS }}
             onPointerDown={handleResizeDown}
             onPointerMove={handleResizeMove}
             onPointerUp={handleResizeUp}
             onPointerCancel={handleResizeUp}
             role="separator"
-            aria-orientation="vertical"
+            aria-orientation={isHorizontal ? 'horizontal' : 'vertical'}
             aria-label="Resize panels"
         >
-            <div className="absolute top-1/2 left-1/2 w-[2px] h-12 -translate-x-1/2 -translate-y-1/2 rounded bg-neutral-500/80" />
+            <div
+                className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded bg-neutral-500/80 ${
+                    isHorizontal ? 'h-[2px] w-16' : 'w-[2px] h-12'
+                }`}
+            />
         </div>
     );
 
@@ -484,8 +583,10 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
         <div
             ref={dockRef}
             data-dock-side={side}
-            className="relative flex min-h-0 shrink-0 flex-col bg-panel border-border"
-            style={{ width }}
+            className={`relative flex min-h-0 shrink-0 flex-col bg-panel border-border ${
+                isHorizontal ? 'dock-horizontal w-full' : ''
+            }`}
+            style={isHorizontal ? { height: size } : { width: size }}
         >
             {dockSections.map((section) => (
                 <div
@@ -560,6 +661,13 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
         </div>
     ) : null;
 
+    // Compass guide: shown only while the pointer is over the centre column, so the four
+    // edge zones and the merge zone are discoverable during the drag.
+    const dockGuide =
+        dropTarget?.zone && dropTarget.zoneRect ? (
+            <DockGuide centerRect={dropTarget.zoneRect} zone={dropTarget.zone} />
+        ) : null;
+
     // Floating chip that follows the pointer, so the drag reads clearly even when the
     // tab itself is dimmed and the pointer has left the strip.
     const dragChip =
@@ -582,19 +690,13 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
     return (
         <>
             {hasVisiblePanel ? (
-                side === 'left' ? (
-                    <>
-                        {panel}
-                        {resizer}
-                    </>
-                ) : (
-                    <>
-                        {resizer}
-                        {panel}
-                    </>
-                )
+                <>
+                    {side === 'left' || side === 'top' ? panel : resizer}
+                    {side === 'left' || side === 'top' ? resizer : panel}
+                </>
             ) : null}
             {showDropZone ? dropZone : null}
+            {showDropZone ? dockGuide : null}
             {dragChip}
         </>
     );

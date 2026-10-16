@@ -72,6 +72,7 @@ const MenuBar: React.FC = () => {
 
     const hidden = useWorkspacePanelsStore((state) => state.hidden);
     const togglePanel = useWorkspacePanelsStore((state) => state.toggle);
+    const resetLayout = useWorkspacePanelsStore((state) => state.reset);
 
     const handleBrowseTemplates = useCallback(
         (template: TemplateDefinition) => applyTemplate(template),
@@ -204,6 +205,14 @@ const MenuBar: React.FC = () => {
                                 </button>
                             );
                         })}
+                        <button
+                            type="button"
+                            onClick={resetLayout}
+                            title="Restore the default panel layout"
+                            className="rounded px-2.5 py-1 text-[12px] font-semibold text-neutral-400 transition-colors outline-none hover:bg-neutral-800 hover:text-neutral-100 focus:outline-none"
+                        >
+                            Reset layout
+                        </button>
                     </nav>
                 </div>
 

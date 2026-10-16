@@ -45,6 +45,8 @@ vi.mock('@workspace/panels/properties/MacroConfig', () => ({ default: () => null
 const sections = (): DockSections => ({
     left: [{ tabs: ['assets'], active: 'assets' }],
     right: [{ tabs: ['elements', 'properties', 'macros'], active: 'elements' }],
+    top: [],
+    bottom: [],
 });
 
 const reset = () =>
@@ -52,6 +54,7 @@ const reset = () =>
         sections: sections(),
         hidden: { assets: false, elements: false, properties: false, macros: true },
         widths: { left: 220, right: 320 },
+        heights: { top: 200, bottom: 200 },
         dragging: null,
     });
 
@@ -94,7 +97,7 @@ describe('WorkspaceDock tab dragging', () => {
     it('renders one strip per section, so a split dock shows both panels at once', () => {
         useWorkspacePanelsStore.setState({
             sections: {
-                left: [{ tabs: ['assets'], active: 'assets' }],
+                ...sections(),
                 right: [
                     { tabs: ['elements'], active: 'elements' },
                     { tabs: ['properties'], active: 'properties' },
@@ -269,5 +272,103 @@ describe('WorkspaceDock tab dragging', () => {
 
         await waitFor(() => expect(useWorkspacePanelsStore.getState().sections.right[0].active).toBe('properties'));
         expect(useWorkspacePanelsStore.getState().sections.right[0].tabs).toEqual(['elements', 'properties', 'macros']);
+    });
+
+    it('docks to the top when a tab is dropped on the centre column top zone', async () => {
+        const { container, getByRole } = render(
+            <>
+                <WorkspaceDock side="left" />
+                <div data-center-column="true" />
+                <WorkspaceDock side="right" />
+            </>
+        );
+        layoutDock(container, 'left');
+        layoutDock(container, 'right');
+        stub(container.querySelector('[data-center-column]'), rect(220, 48, 480, 570));
+
+        const tab = getByRole('tab', { name: 'Properties' });
+        fireEvent.pointerDown(tab, { button: 0, clientX: 900, clientY: 80 });
+        fireEvent.pointerMove(window, { clientX: 460, clientY: 80 });
+
+        await waitFor(() => expect(container.querySelector('[data-dock-guide="true"]')).not.toBeNull());
+        expect(container.querySelector('[data-dock-guide-zone="top"][data-active="true"]')).not.toBeNull();
+        const zone = container.querySelector('[data-dock-target="top"]') as HTMLElement;
+        expect(zone).not.toBeNull();
+        // The empty top dock has nothing to measure yet, so the marker is its default band.
+        expect(zone.style.top).toBe('48px');
+        expect(zone.style.height).toBe('200px');
+
+        fireEvent.pointerUp(window, { clientX: 460, clientY: 80 });
+
+        await waitFor(() =>
+            expect(useWorkspacePanelsStore.getState().sections.top).toEqual([
+                { tabs: ['properties'], active: 'properties' },
+            ])
+        );
+        expect(useWorkspacePanelsStore.getState().sections.right).toEqual([
+            { tabs: ['elements', 'macros'], active: 'elements' },
+        ]);
+    });
+
+    it('merges a tab into the nearest dock when dropped in the middle of the centre column', async () => {
+        const { container, getByRole } = render(
+            <>
+                <WorkspaceDock side="left" />
+                <div data-center-column="true" />
+                <WorkspaceDock side="right" />
+            </>
+        );
+        layoutDock(container, 'left');
+        layoutDock(container, 'right');
+        stub(container.querySelector('[data-center-column]'), rect(220, 48, 480, 570));
+
+        const tab = getByRole('tab', { name: 'Assets' });
+        fireEvent.pointerDown(tab, { button: 0, clientX: 100, clientY: 80 });
+        fireEvent.pointerMove(window, { clientX: 500, clientY: 330 });
+
+        await waitFor(() => expect(container.querySelector('[data-dock-guide="true"]')).not.toBeNull());
+        expect(container.querySelector('[data-dock-guide-zone="center"][data-active="true"]')).not.toBeNull();
+        expect(container.querySelector('[data-dock-target="right"]')).not.toBeNull();
+
+        fireEvent.pointerUp(window, { clientX: 500, clientY: 330 });
+
+        await waitFor(() =>
+            expect(useWorkspacePanelsStore.getState().sections.right).toEqual([
+                { tabs: ['elements', 'properties', 'macros', 'assets'], active: 'assets' },
+            ])
+        );
+        expect(useWorkspacePanelsStore.getState().sections.left).toEqual([]);
+    });
+
+    it('keeps a top dock to a single strip when a tab is dropped on its body', async () => {
+        useWorkspacePanelsStore.setState({
+            sections: {
+                ...sections(),
+                top: [{ tabs: ['macros'], active: 'macros' }],
+            },
+            hidden: { assets: false, elements: false, properties: false, macros: false },
+        });
+        const { container, getByRole } = render(
+            <>
+                <WorkspaceDock side="right" />
+                <WorkspaceDock side="top" />
+            </>
+        );
+        const topDock = container.querySelector('[data-dock-side="top"]');
+        stub(topDock, rect(220, 48, 480, 200));
+        stub(topDock?.querySelector('[data-dock-section]'), rect(220, 48, 480, 200));
+        stub(topDock?.querySelector('[data-dock-strip]'), rect(220, 48, 480, 26));
+
+        const tab = getByRole('tab', { name: 'Properties' });
+        fireEvent.pointerDown(tab, { button: 0, clientX: 900, clientY: 80 });
+        // y=150 is on the body, below the strip: a body drop must not split the top dock.
+        fireEvent.pointerMove(window, { clientX: 460, clientY: 150 });
+        fireEvent.pointerUp(window, { clientX: 460, clientY: 150 });
+
+        await waitFor(() =>
+            expect(useWorkspacePanelsStore.getState().sections.top).toEqual([
+                { tabs: ['macros', 'properties'], active: 'properties' },
+            ])
+        );
     });
 });

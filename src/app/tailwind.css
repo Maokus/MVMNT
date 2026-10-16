@@ -2148,6 +2148,11 @@
             @apply flex-col;
         }
 
+        /* Below the desktop breakpoint the workspace falls back to the two side docks. */
+        .dock-horizontal {
+            display: none;
+        }
+
         .preview-panel {
             @apply border-r-0 border-b border-border;
         }

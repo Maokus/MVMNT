@@ -198,7 +198,11 @@ const MidiVisualizerInner: React.FC = () => {
                     <TrackInputPopupController />
                     <div className="main-workspace">
                         <WorkspaceDock side="left" />
-                        <div className="flex-1 min-w-[320px] lg:min-w-[520px] flex flex-col overflow-hidden min-h-0">
+                        <div
+                            className="flex-1 min-w-[320px] lg:min-w-[520px] flex flex-col overflow-hidden min-h-0"
+                            data-center-column="true"
+                        >
+                            <WorkspaceDock side="top" />
                             {onboarding.session && (
                                 <GettingStarted
                                     {...onboarding.session}
@@ -211,6 +215,7 @@ const MidiVisualizerInner: React.FC = () => {
                             <div className="flex min-h-0 flex-1 flex-col">
                                 <PreviewPanel />
                             </div>
+                            <WorkspaceDock side="bottom" />
                         </div>
                         <WorkspaceDock side="right" />
                     </div>
