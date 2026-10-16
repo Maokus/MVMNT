@@ -12,7 +12,12 @@ import { matchesShortcut, useGlobalShortcut } from '@context/shortcuts/shortcutR
 import { BUILD_INFO } from '@app/build-info';
 import { Button } from '@workspace/components/Button';
 import { useDocumentSaveStatusStore } from '@state/documentSaveStatusStore';
-import { useWorkspacePanelsStore, WORKSPACE_PANEL_IDS, WORKSPACE_PANEL_LABELS } from '@state/workspacePanelsStore';
+import {
+    useWorkspacePanelsStore,
+    WORKSPACE_PANEL_IDS,
+    WORKSPACE_PANEL_LABELS,
+    isPanelVisible,
+} from '@state/workspacePanelsStore';
 
 const DEFAULT_DOCUMENT_TITLE = 'MVMNT – Interactive MIDI Visualizer';
 
@@ -70,6 +75,7 @@ const MenuBar: React.FC = () => {
     const hasTemplates = templates.length > 0;
     const applyTemplate = useTemplateApply();
 
+    const sections = useWorkspacePanelsStore((state) => state.sections);
     const hidden = useWorkspacePanelsStore((state) => state.hidden);
     const togglePanel = useWorkspacePanelsStore((state) => state.toggle);
     const resetLayout = useWorkspacePanelsStore((state) => state.reset);
@@ -187,7 +193,7 @@ const MenuBar: React.FC = () => {
                     </div>
                     <nav className="flex items-center gap-1" aria-label="Workspace panels">
                         {WORKSPACE_PANEL_IDS.map((id) => {
-                            const visible = !hidden[id];
+                            const visible = isPanelVisible(sections, hidden, id);
                             return (
                                 <button
                                     key={id}

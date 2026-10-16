@@ -69,6 +69,16 @@ export const panelSide = (sections: DockSections, id: WorkspacePanelId): DockSid
 export const panelSectionIndex = (sections: DockSections, side: DockSide, id: WorkspacePanelId): number =>
     sections[side].findIndex((section) => section.tabs.includes(id));
 
+export const isPanelVisible = (
+    sections: DockSections,
+    hidden: Record<WorkspacePanelId, boolean>,
+    id: WorkspacePanelId
+): boolean => {
+    if (hidden[id]) return false;
+    const side = panelSide(sections, id);
+    return panelSectionIndex(sections, side, id) >= 0;
+};
+
 const firstVisible = (section: DockSection, hidden: Record<WorkspacePanelId, boolean>, exclude?: WorkspacePanelId) =>
     section.tabs.find((id) => id !== exclude && !hidden[id]) ?? null;
 
@@ -200,18 +210,19 @@ export const useWorkspacePanelsStore = create<WorkspacePanelsState>((set, get) =
             const index = panelSectionIndex(sections, side, id);
             if (index < 0) return;
             const section = sections[side][index];
-            if (hidden[id]) {
-                set({ hidden: { ...hidden, [id]: false }, sections: withActive(sections, side, index, id) });
-                return;
-            }
-            if (section.active === id) {
+            if (!hidden[id]) {
                 set({
                     hidden: { ...hidden, [id]: true },
-                    sections: withActive(sections, side, index, firstVisible(section, { ...hidden, [id]: true }, id)),
+                    sections: withActive(
+                        sections,
+                        side,
+                        index,
+                        section.active === id ? firstVisible(section, { ...hidden, [id]: true }, id) : section.active
+                    ),
                 });
                 return;
             }
-            set({ sections: withActive(sections, side, index, id) });
+            set({ hidden: { ...hidden, [id]: false }, sections: withActive(sections, side, index, id) });
         },
         activate: (id) =>
             set((state) => {

@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { useWorkspacePanelsStore, panelSide, type DockSections } from '../workspacePanelsStore';
+import {
+    useWorkspacePanelsStore,
+    isPanelVisible,
+    panelSide,
+    WORKSPACE_PANEL_IDS,
+    type DockSections,
+} from '../workspacePanelsStore';
 
 const baseSections = (): DockSections => ({
     left: [{ tabs: ['assets'], active: 'assets' }],
@@ -171,5 +177,57 @@ describe('workspace panels store', () => {
         expect(state.hidden).toEqual({ assets: false, elements: false, properties: false, macros: true });
         expect(state.widths).toEqual({ left: 220, right: 320 });
         expect(state.heights).toEqual({ top: 200, bottom: 200 });
+    });
+});
+
+describe('isPanelVisible', () => {
+    beforeEach(reset);
+
+    it('marks every open tab of a dock, not only its front tab', () => {
+        const { sections, hidden } = useWorkspacePanelsStore.getState();
+        expect(isPanelVisible(sections, hidden, 'assets')).toBe(true);
+        expect(isPanelVisible(sections, hidden, 'elements')).toBe(true);
+        expect(isPanelVisible(sections, hidden, 'properties')).toBe(true);
+        expect(isPanelVisible(sections, hidden, 'macros')).toBe(false);
+    });
+
+    it('closes an open panel on one click and reopens it on the next', () => {
+        const panels = () => {
+            const { sections, hidden } = useWorkspacePanelsStore.getState();
+            return WORKSPACE_PANEL_IDS.filter((id) => isPanelVisible(sections, hidden, id));
+        };
+        expect(panels()).toEqual(['assets', 'elements', 'properties']);
+
+        useWorkspacePanelsStore.getState().toggle('properties');
+        expect(panels()).toEqual(['assets', 'elements']);
+
+        useWorkspacePanelsStore.getState().toggle('properties');
+        expect(panels()).toEqual(['assets', 'elements', 'properties']);
+    });
+
+    it('closing a background tab keeps the section front tab', () => {
+        useWorkspacePanelsStore.getState().toggle('properties');
+        const { sections } = useWorkspacePanelsStore.getState();
+        expect(sections.right[0].active).toBe('elements');
+    });
+
+    it('is false for a docked but hidden panel', () => {
+        useWorkspacePanelsStore.setState({
+            hidden: { assets: false, elements: true, properties: false, macros: true },
+        });
+        const { sections, hidden } = useWorkspacePanelsStore.getState();
+        expect(isPanelVisible(sections, hidden, 'elements')).toBe(false);
+    });
+
+    it('follows a panel that was re-docked into another side', () => {
+        useWorkspacePanelsStore.getState().moveTab('properties', {
+            side: 'left',
+            sectionIndex: 0,
+            tabIndex: 1,
+            split: false,
+        });
+        const { sections, hidden } = useWorkspacePanelsStore.getState();
+        expect(isPanelVisible(sections, hidden, 'properties')).toBe(true);
+        expect(isPanelVisible(sections, hidden, 'elements')).toBe(true);
     });
 });
