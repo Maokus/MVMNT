@@ -7,9 +7,7 @@ export interface ModalShellProps {
     onCancel: () => void;
     children: ReactNode;
     widthClass?: string;
-    /** Full card class override for pixel-identical migration of non-standard shells. */
     cardClassName?: string;
-    /** Full outer overlay class override (e.g. legacy z-index or padding). */
     outerClassName?: string;
 }
 

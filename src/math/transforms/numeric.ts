@@ -14,7 +14,6 @@ export function clamp01(v: number): number {
     return v < 0 ? 0 : v > 1 ? 1 : v;
 }
 
-/** Clamp a number into [min, max]. Shared workspace-wide to avoid local copies. */
 export function clamp(value: number, min: number, max: number): number {
     return Math.min(max, Math.max(min, value));
 }
