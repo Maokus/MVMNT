@@ -29,6 +29,7 @@ const TimelineRuler: React.FC = () => {
     const meter = useTimelineStore((s) => s.timeline.timeSignature);
     const seekTick = useTimelineStore((s) => s.seekTick);
     const setCurrentTick = useTimelineStore((s) => s.setCurrentTick);
+    const playbackRange = useTimelineStore((s) => s.playbackRange);
     const setTimelineViewTicks = useTimelineStore((s) => s.setTimelineViewTicks);
     const snapTicks = useSnapTicks();
 
@@ -188,15 +189,13 @@ const TimelineRuler: React.FC = () => {
         const forceBar = !!e.shiftKey;
         const snapped = snapTicks(cand, { altKey: alt, forceBar });
         const d = dragState.current;
-        if (d.type === 'play-start') {
-            const newStart = Math.max(0, snapped);
-            const newEnd = typeof d.endSec === 'number' ? Math.max(newStart + 1, d.endSec) : d.endSec;
-            useTimelineStore.getState().setPlaybackRangeExplicitTicks(newStart, newEnd as number | undefined);
-        } else if (d.type === 'play-end') {
-            const newEnd = Math.max(1, snapped);
-            const newStart = typeof d.startSec === 'number' ? Math.min(d.startSec, newEnd - 1) : d.startSec;
-            useTimelineStore.getState().setPlaybackRangeExplicitTicks(newStart as number | undefined, newEnd);
-        }
+
+        const anchored = d.type === 'play-start' ? d.endSec : d.startSec;
+        if (typeof anchored !== 'number') return;
+        const moving = Math.max(0, snapped);
+        const start = Math.min(moving, anchored);
+        const end = Math.max(moving, anchored);
+        useTimelineStore.getState().setPlaybackRangeExplicitTicks(start, end - start < 1 ? start + 1 : end);
     };
 
     const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -210,9 +209,8 @@ const TimelineRuler: React.FC = () => {
     const playheadX = toX(currentTick, width);
     const loopStartX = null;
     const loopEndX = null;
-    const pr = useTimelineStore.getState().playbackRange;
-    const playStart = pr?.startTick ?? view.startTick;
-    const playEnd = pr?.endTick ?? view.endTick;
+    const playStart = playbackRange?.startTick ?? view.startTick;
+    const playEnd = playbackRange?.endTick ?? view.endTick;
     const playStartX = toX(playStart, width);
     const playEndX = toX(playEnd, width);
 
@@ -253,9 +251,14 @@ const TimelineRuler: React.FC = () => {
 
             {/* Loop UI removed for now */}
 
-            {/* Playback range markers (always visible) */}
+
             {playEnd > playStart && (
                 <>
+                    <div
+                        className="absolute top-0 bottom-0 bg-yellow-400/10 pointer-events-none"
+                        style={{ left: playStartX, width: Math.max(0, playEndX - playStartX) }}
+                        aria-hidden
+                    />
                     <div
                         className="absolute top-0 bottom-0 w-0 border-l-2 border-yellow-400"
                         style={{ left: playStartX }}
