@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render } from '@testing-library/react';
+import { fireEvent, render, waitFor } from '@testing-library/react';
 import { useWorkspacePanelsStore, type DockSections } from '@state/workspacePanelsStore';
 import WorkspaceDock from '../WorkspaceDock';
 
@@ -31,7 +31,7 @@ vi.mock('@context/SceneSelectionContext', () => ({
 }));
 
 vi.mock('@workspace/panels/scene-element', () => ({
-    SceneElementPanel: () => null,
+    SceneElementPanel: () => <div data-panel-autofocus tabIndex={-1} />,
     ElementDropdown: () => null,
 }));
 
@@ -81,5 +81,17 @@ describe('WorkspaceDock click-outside selection', () => {
         fireEvent.mouseDown(document.body);
 
         expect(clearSelection).toHaveBeenCalled();
+    });
+
+    it('focuses an opted-in panel body when its tab is activated', async () => {
+        const { container } = render(<WorkspaceDock side="right" />);
+        const tab = container.querySelector<HTMLElement>('[data-dock-side="right"] [role="tab"]');
+        if (!tab) throw new Error('expected a right-dock tab');
+
+        fireEvent.click(tab);
+
+        await waitFor(() => {
+            expect(container.querySelector('[data-panel-autofocus]')).toHaveFocus();
+        });
     });
 });

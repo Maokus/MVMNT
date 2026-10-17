@@ -201,6 +201,12 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
         setShowAddElementDropdown(false);
     };
 
+    const focusPanelBody = useCallback((id: WorkspacePanelId) => {
+        requestAnimationFrame(() => {
+            document.querySelector<HTMLElement>(`[data-panel-body="${id}"] [data-panel-autofocus]`)?.focus();
+        });
+    }, []);
+
     const handleResizeDown = (e: React.PointerEvent<HTMLDivElement>) => {
         resizeRef.current = { startX: e.clientX, startY: e.clientY, startSize: size };
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -639,6 +645,7 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
                                         return;
                                     }
                                     activate(id);
+                                    focusPanelBody(id);
                                 }}
                                 className={`cursor-grab touch-none rounded px-2 py-1 text-[11px] font-semibold transition-colors ${
                                     section.active === id
@@ -650,7 +657,7 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
                             </button>
                         ))}
                     </div>
-                    <div className="flex min-h-0 flex-1 flex-col">
+                    <div className="flex min-h-0 flex-1 flex-col" data-panel-body={section.active ?? undefined}>
                         {section.active != null ? panelBody(section.active) : null}
                     </div>
                 </div>

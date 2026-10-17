@@ -29,7 +29,10 @@ export const InsertKeyframeController: React.FC = () => {
         matches: (event) => {
             if (event.key.toLowerCase() !== 'i' || event.altKey || event.ctrlKey || event.metaKey || !activeNodeId)
                 return false;
-            return !isTextEditingTarget(event.target) && isCommandSurfaceActive(['preview', 'properties'], event);
+            return (
+                !isTextEditingTarget(event.target) &&
+                isCommandSurfaceActive(['preview', 'properties', 'scene-tree'], event)
+            );
         },
         handle: (event) => {
             event.preventDefault();
