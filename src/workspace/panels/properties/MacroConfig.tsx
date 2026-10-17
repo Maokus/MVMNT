@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { FaLink, FaTrash, FaPlus, FaPen, FaGripVertical } from 'react-icons/fa';
+import { FaLink, FaTrash, FaPlus, FaPen, FaGripVertical, FaFolderOpen } from 'react-icons/fa';
 import { useMacros } from '@context/MacroContext';
 import FontInput from '@workspace/forms/inputs/FontInput';
 import TimelineTrackSelect from '@workspace/forms/inputs/TimelineTrackSelect';
 import { useNumberDrag } from '@workspace/forms/inputs/useNumberDrag';
 import ColorAlphaInput from '@workspace/forms/inputs/ColorAlphaInput';
 import AssetSelect from '@workspace/forms/inputs/AssetSelect';
+import { Button } from '@workspace/components/Button';
+import { MACRO_CREATE_FAILED, MACRO_NAME_REQUIRED, MACRO_RENAME_FAILED } from '@workspace/userMessages';
 import { useMacroAssignments } from '@state/scene';
 
 interface MacroConfigProps {
@@ -201,7 +203,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
 
             const success = rename(macroName, trimmed);
             if (!success) {
-                alert('Failed to rename macro. Name might already exist.');
+                alert(MACRO_RENAME_FAILED);
                 return;
             }
 
@@ -237,7 +239,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
 
     const handleCreateMacro = () => {
         if (!newMacro.name.trim()) {
-            alert('Please enter a macro name');
+            alert(MACRO_NAME_REQUIRED);
             return;
         }
 
@@ -296,7 +298,7 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                 accept: '.mid,.midi',
             });
         } else {
-            alert('Failed to create macro. Name might already exist.');
+            alert(MACRO_CREATE_FAILED);
         }
     };
 
@@ -573,10 +575,10 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                         />
                         <button
                             type="button"
-                            className="px-2 py-1 bg-blue-600 text-white rounded text-[11px] hover:bg-blue-700"
+                            className="inline-flex items-center gap-1.5 px-2 py-1 bg-blue-600 text-white rounded text-[11px] hover:bg-blue-700"
                             onClick={() => document.getElementById(`macro-file-${macro.name}`)?.click()}
                         >
-                            📁 Choose File
+                            <FaFolderOpen size={12} aria-hidden="true" /> Choose File
                         </button>
                         <span className="file-name">{fileName}</span>
                     </div>
@@ -688,36 +690,38 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                                 >
                                     {macro.name}
                                 </span>
-                                <button
-                                    type="button"
-                                    className="bg-transparent border-0 text-neutral-400 cursor-pointer px-1 py-0.5 rounded text-xs hover:text-neutral-300 hover:bg-[color:var(--twc-border)] flex items-center"
+                                <Button
+                                    variant="quiet"
+                                    size="full"
                                     onClick={() => handleStartEditingName(macro.name)}
                                     title="Edit macro name"
                                     aria-label="Edit macro name"
                                 >
-                                    <FaPen />
-                                </button>
+                                    <FaPen size={14} />
+                                </Button>
                             </div>
                         )}
                     </div>
                     {renderMacroInput(macro)}
                     <div className="macro-actions">
-                        <button
-                            className="bg-transparent border-0 text-neutral-400 cursor-pointer px-1 py-0.5 rounded text-xs hover:text-neutral-300 hover:bg-[color:var(--twc-border)] flex items-center"
+                        <Button
+                            variant="quiet"
+                            size="full"
                             onClick={() => handleShowAssignmentDialog(macro.name)}
                             title="Manage Assignments"
                             aria-label="Manage Assignments"
                         >
-                            <FaLink />
-                        </button>
-                        <button
-                            className="bg-transparent border-0 text-neutral-400 cursor-pointer px-1 py-0.5 rounded text-xs hover:text-neutral-300 hover:bg-[color:var(--twc-border)] flex items-center"
+                            <FaLink size={14} />
+                        </Button>
+                        <Button
+                            variant="quiet"
+                            size="full"
                             onClick={() => handleDeleteMacro(macro.name)}
                             title="Delete Macro"
                             aria-label="Delete Macro"
                         >
-                            <FaTrash />
-                        </button>
+                            <FaTrash size={14} />
+                        </Button>
                     </div>
                 </div>
                 <div className="macro-assignments">
@@ -745,12 +749,14 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
             <div className="macro-header">
                 <h4 className="flex items-center gap-2">Macros</h4>
                 {showAddButton && (
-                    <button
-                        className="text-xs px-2 py-1 text-white rounded cursor-pointer bg-[color:var(--twc-accent)] hover:bg-[#1177bb] flex items-center gap-1"
+                    <Button
+                        variant="primary"
+                        size="sm"
                         onClick={() => setShowCreateDialog(true)}
+                        className="inline-flex items-center gap-1"
                     >
-                        <FaPlus /> <span>Add Macro</span>
-                    </button>
+                        <FaPlus size={14} /> <span>Add Macro</span>
+                    </Button>
                 )}
             </div>
 
@@ -889,18 +895,12 @@ const MacroConfig: React.FC<MacroConfigProps> = ({ visualizer, showAddButton = t
                             </div>
                         )}
                         <div className="dialog-actions">
-                            <button
-                                className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center bg-[#0e639c] border-[#1177bb] text-white hover:bg-[#1177bb] hover:border-[#1890d4]"
-                                onClick={handleCreateMacro}
-                            >
+                            <Button variant="navy" size="full" onClick={handleCreateMacro}>
                                 Create
-                            </button>
-                            <button
-                                className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center bg-neutral-600 border-neutral-500 text-neutral-100 hover:bg-neutral-500 hover:border-neutral-400"
-                                onClick={() => setShowCreateDialog(false)}
-                            >
+                            </Button>
+                            <Button variant="neutral" size="full" onClick={() => setShowCreateDialog(false)}>
                                 Cancel
-                            </button>
+                            </Button>
                         </div>
                     </div>
                 </div>

@@ -154,7 +154,7 @@ const HomePage: React.FC = () => {
                     </p>
                     {update?.status === 'available' ? (
                         <div
-                            className="mt-5 flex max-w-2xl flex-wrap items-center justify-between gap-3 rounded-lg border border-indigo-400/40 bg-indigo-950/50 px-4 py-3"
+                            className="mt-5 flex max-w-2xl flex-wrap items-center justify-between gap-3 rounded border border-indigo-800 bg-indigo-950 px-4 py-3"
                             role="status"
                         >
                             <span className="text-sm text-indigo-100">MVMNT v{update.latestVersion} is available.</span>
@@ -173,7 +173,7 @@ const HomePage: React.FC = () => {
                                 type="button"
                                 onClick={() => void handleNewDocument()}
                                 disabled={isOpening}
-                                className="rounded bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 px-5 py-2.5 text-sm font-medium tracking-[0.2rem] text-white transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-pink-400 focus:ring-offset-1 disabled:opacity-60"
+                                className="rounded bg-[#0e639c] px-5 py-2.5 text-sm font-medium tracking-[0.2rem] text-white transition hover:bg-[#1177bb] focus:outline-none focus:border-[#5cc8ff] disabled:opacity-60"
                             >
                                 NEW DOCUMENT
                             </button>
@@ -245,7 +245,7 @@ const HomePage: React.FC = () => {
                                     key={template.id}
                                     onClick={() => void handleTemplate(template)}
                                     disabled={isOpening}
-                                    className="group flex min-h-32 flex-col items-start rounded-lg border border-neutral-700 bg-neutral-900/60 p-4 text-left transition hover:border-neutral-500 hover:bg-neutral-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60"
+                                    className="group flex min-h-32 flex-col items-start rounded border border-neutral-800 bg-neutral-900 p-4 text-left transition hover:border-neutral-500 hover:bg-neutral-900 focus:outline-none focus:border-neutral-400 disabled:opacity-60"
                                 >
                                     <span className="mb-3 text-lg text-neutral-400 transition group-hover:text-white">
                                         <FaFileCirclePlus />
@@ -266,9 +266,9 @@ const HomePage: React.FC = () => {
 
                     <section
                         aria-labelledby="recent-title"
-                        className="rounded-lg border border-neutral-700 bg-neutral-900/60"
+                        className="rounded border border-neutral-800 bg-neutral-900"
                     >
-                        <div className="border-b border-neutral-700 px-4 py-3">
+                        <div className="border-b border-neutral-800 px-4 py-3">
                             <h2
                                 id="recent-title"
                                 className="flex items-center gap-2 text-sm font-medium text-neutral-200"
@@ -300,7 +300,7 @@ const HomePage: React.FC = () => {
             </div>
             {isOpening ? (
                 <div
-                    className="fixed bottom-4 right-4 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm shadow-lg"
+                    className="fixed bottom-4 right-4 rounded border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm "
                     role="status"
                 >
                     Opening document…

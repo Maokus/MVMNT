@@ -7,6 +7,7 @@ import {
 } from '@fonts/google-fonts-client';
 import { useSceneStore } from '@state/sceneStore';
 import { collectMissingFontReferences } from '@state/scene/fonts';
+import { Button } from '@workspace/components/Button';
 
 export const MissingFontsBanner: React.FC = () => {
     const bindings = useSceneStore((state) => state.bindings.byElement);
@@ -60,22 +61,23 @@ export const MissingFontsBanner: React.FC = () => {
 
     if (!families.length) return null;
     return (
-        <div className="border-b border-amber-700 bg-amber-950/80 px-4 py-2 text-xs text-amber-100">
+        <div className="border-b border-amber-800 bg-amber-950 px-4 py-2 text-xs text-amber-100">
             <div role="status">
                 Missing fonts: {families.join(', ')}. Open Scene Settings → Fonts to reconnect, download, or replace
                 them. Media export is disabled until every missing font is resolved.
             </div>
             {googleFamilies.length > 0 && (
-                <button
-                    type="button"
+                <Button
+                    variant="solid-amber"
+                    size="full"
                     disabled={retrying}
                     onClick={() => void retryGoogleFonts()}
-                    className="mt-2 rounded border border-amber-500/70 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-100 hover:bg-amber-900/60 disabled:cursor-wait disabled:opacity-60"
+                    className="mt-2 text-[10px] uppercase tracking-wide"
                 >
                     {retrying
                         ? `Retrying ${googleFamilies.length} Google ${googleFamilies.length === 1 ? 'font' : 'fonts'}…`
                         : `Retry ${googleFamilies.length} Google ${googleFamilies.length === 1 ? 'font' : 'fonts'}`}
-                </button>
+                </Button>
             )}
             {retryMessage && <p className="mt-2 text-[11px] text-amber-200">{retryMessage}</p>}
         </div>

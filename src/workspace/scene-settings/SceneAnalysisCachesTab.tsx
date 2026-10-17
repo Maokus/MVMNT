@@ -6,6 +6,7 @@ import { audioFeatureCalculatorRegistry } from '@audio/features/audioFeatureRegi
 import { formatCacheDiffDescriptor, useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
 import { useTimelineStore } from '@state/timelineStore';
 import { shallow } from 'zustand/shallow';
+import { Button } from '@workspace/components/Button';
 
 interface StatusMeta {
     label: string;
@@ -26,37 +27,37 @@ function getStatusMeta(status?: AudioFeatureCacheStatus): StatusMeta {
         case 'ready':
             return {
                 label: 'Analysed',
-                badgeClass: 'bg-emerald-500/60 text-emerald-50 border border-emerald-300/40',
+                badgeClass: 'bg-emerald-600 text-emerald-50 border border-emerald-800',
                 description: status?.message,
             };
         case 'pending':
             return {
                 label: 'Analysing…',
-                badgeClass: 'bg-amber-500/60 text-amber-50 border border-amber-300/40',
+                badgeClass: 'bg-amber-600 text-amber-50 border border-amber-800',
                 description: status?.message,
             };
         case 'failed':
             return {
                 label: 'Failed',
-                badgeClass: 'bg-rose-500/70 text-rose-50 border border-rose-300/40',
+                badgeClass: 'bg-rose-600 text-rose-50 border border-rose-800',
                 description: status.message,
             };
         case 'stale':
             return {
                 label: 'Queued',
-                badgeClass: 'bg-sky-500/60 text-sky-50 border border-sky-300/40',
+                badgeClass: 'bg-sky-600 text-sky-50 border border-sky-800',
                 description: status.message ?? 'Awaiting re-analysis',
             };
         case 'idle':
             return {
                 label: 'Not analysed',
-                badgeClass: 'bg-slate-600/70 text-slate-100 border border-slate-400/40',
+                badgeClass: 'bg-slate-600 text-slate-100 border border-slate-800',
                 description: status.message,
             };
         default:
             return {
                 label: 'Not analysed',
-                badgeClass: 'bg-slate-600/70 text-slate-100 border border-slate-400/40',
+                badgeClass: 'bg-slate-600 text-slate-100 border border-slate-800',
                 description: status?.message,
             };
     }
@@ -91,12 +92,12 @@ function formatUpdatedAt(value?: number): string | undefined {
 function getPendingStatusBadgeClass(status: PendingDescriptorSummary['status']): string {
     switch (status) {
         case 'bad-request':
-            return 'border border-rose-400/60 bg-rose-500/10 text-rose-100';
+            return 'border border-rose-800 bg-rose-600 text-rose-100';
         case 'missing':
-            return 'border border-amber-400/60 bg-amber-500/10 text-amber-100';
+            return 'border border-amber-800 bg-amber-600 text-amber-100';
         case 'stale':
         default:
-            return 'border border-sky-400/60 bg-sky-500/10 text-sky-100';
+            return 'border border-sky-800 bg-sky-600 text-sky-100';
     }
 }
 
@@ -282,7 +283,7 @@ const SceneAnalysisCachesTab: React.FC = () => {
             <p className="m-0 text-[12px] text-neutral-400">
                 Monitor audio feature processing progress and manually control analysis jobs.
             </p>
-            <div className="rounded border border-neutral-800 bg-neutral-950/50 p-3 text-[11px] text-neutral-300">
+            <div className="rounded border border-neutral-800 bg-neutral-950 p-3 text-[11px] text-neutral-300">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="text-neutral-400">
                         {pendingSummary}
@@ -300,35 +301,27 @@ const SceneAnalysisCachesTab: React.FC = () => {
                         )}
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                        <button
-                            type="button"
-                            className={`rounded border px-2 py-1 text-[11px] transition-colors ${
-                                deleteExtraneousDisabled
-                                    ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
-                                    : 'border-rose-500/60 text-rose-200 hover:bg-rose-500/10'
-                            }`}
+                        <Button
+                            variant="danger-outline"
+                            size="full"
                             onClick={deleteExtraneousCaches}
                             disabled={deleteExtraneousDisabled}
                         >
                             Delete extraneous caches
-                        </button>
-                        <button
-                            type="button"
-                            className={`rounded border px-2 py-1 text-[11px] transition-colors ${
-                                regenerateAllDisabled
-                                    ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
-                                    : 'border-emerald-500/60 text-emerald-200 hover:bg-emerald-500/10'
-                            }`}
+                        </Button>
+                        <Button
+                            variant="success-outline"
+                            size="full"
                             onClick={regenerateAll}
                             disabled={regenerateAllDisabled}
                         >
                             Calculate requested feature tracks
-                        </button>
+                        </Button>
                     </div>
                 </div>
             </div>
             {rows.length === 0 ? (
-                <div className="rounded border border-neutral-800 bg-neutral-900/40 px-3 py-4 text-[12px] text-neutral-400">
+                <div className="rounded border border-neutral-800 bg-neutral-900 px-3 py-4 text-[12px] text-neutral-400">
                     Add an audio track to begin analysing audio features.
                 </div>
             ) : (
@@ -351,7 +344,7 @@ const SceneAnalysisCachesTab: React.FC = () => {
                         return (
                             <div
                                 key={row.sourceId}
-                                className="rounded border border-neutral-800 bg-neutral-900/60 p-3 text-[12px] text-neutral-300"
+                                className="rounded border border-neutral-800 bg-neutral-900 p-3 text-[12px] text-neutral-300"
                             >
                                 <div className="flex flex-wrap items-center justify-between gap-3">
                                     <div>
@@ -407,35 +400,27 @@ const SceneAnalysisCachesTab: React.FC = () => {
                                             )}
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <button
-                                                type="button"
-                                                className={`rounded border px-2 py-1 transition-colors ${
-                                                    stopDisabled
-                                                        ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
-                                                        : 'border-rose-500/60 text-rose-200 hover:bg-rose-500/10'
-                                                }`}
+                                            <Button
+                                                variant="danger-outline"
+                                                size="full"
                                                 onClick={() => handleStop(row.sourceId)}
                                                 disabled={stopDisabled}
                                             >
                                                 Stop
-                                            </button>
-                                            <button
-                                                type="button"
-                                                className={`rounded border px-2 py-1 transition-colors ${
-                                                    restartDisabled
-                                                        ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
-                                                        : 'border-sky-500/60 text-sky-200 hover:bg-sky-500/10'
-                                                }`}
+                                            </Button>
+                                            <Button
+                                                variant="secondary"
+                                                size="full"
                                                 onClick={() => handleRestart(row.sourceId)}
                                                 disabled={restartDisabled}
                                                 title={restartTitle}
                                             >
                                                 Recalculate all
-                                            </button>
+                                            </Button>
                                         </div>
                                     </div>
                                     {pendingDescriptors.length > 0 && (
-                                        <div className="rounded border border-amber-500/40 bg-neutral-900/70 p-2">
+                                        <div className="rounded border border-amber-800 bg-neutral-900 p-2">
                                             <div className="mb-1 text-[11px] font-semibold text-amber-100">
                                                 Requested feature tracks awaiting analysis
                                             </div>
@@ -443,7 +428,7 @@ const SceneAnalysisCachesTab: React.FC = () => {
                                                 {pendingDescriptors.map((pending) => (
                                                     <div
                                                         key={`${row.sourceId}-${pending.id}-${pending.status}-${pending.profile}`}
-                                                        className="flex flex-col gap-1 rounded border border-neutral-800/70 bg-neutral-950/60 p-2"
+                                                        className="flex flex-col gap-1 rounded border border-neutral-800 bg-neutral-950 p-2"
                                                     >
                                                         <div className="flex flex-wrap items-center justify-between gap-2">
                                                             <span className="text-[11px] font-medium text-neutral-100">
@@ -474,7 +459,7 @@ const SceneAnalysisCachesTab: React.FC = () => {
                                         </div>
                                     )}
                                     {row.features.length > 0 && (
-                                        <div className="rounded border border-neutral-800 bg-neutral-950/50 p-2">
+                                        <div className="rounded border border-neutral-800 bg-neutral-950 p-2">
                                             <div className="mb-1 text-[11px] font-semibold text-neutral-200">
                                                 Cached feature tracks
                                             </div>
@@ -494,7 +479,7 @@ const SceneAnalysisCachesTab: React.FC = () => {
                                                     return (
                                                         <div
                                                             key={`${row.sourceId}-${feature.key}`}
-                                                            className="flex flex-wrap items-center justify-between gap-2 rounded border border-neutral-800/60 bg-neutral-900/60 px-2 py-1"
+                                                            className="flex flex-wrap items-center justify-between gap-2 rounded border border-neutral-800 bg-neutral-900 px-2 py-1"
                                                         >
                                                             <div className="flex flex-col">
                                                                 <span className="text-[11px] font-medium text-neutral-100">
@@ -516,13 +501,9 @@ const SceneAnalysisCachesTab: React.FC = () => {
                                                                     )}
                                                                 </span>
                                                             </div>
-                                                            <button
-                                                                type="button"
-                                                                className={`rounded border px-2 py-1 transition-colors ${
-                                                                    reanalyzeDisabled
-                                                                        ? 'cursor-not-allowed border-neutral-800 text-neutral-600'
-                                                                        : 'border-emerald-500/60 text-emerald-200 hover:bg-emerald-500/10'
-                                                                }`}
+                                                            <Button
+                                                                variant="success-outline"
+                                                                size="full"
                                                                 onClick={() =>
                                                                     feature.calculatorId &&
                                                                     handleReanalyzeFeature(
@@ -534,7 +515,7 @@ const SceneAnalysisCachesTab: React.FC = () => {
                                                                 title={reanalyzeTitle}
                                                             >
                                                                 Re-analyse
-                                                            </button>
+                                                            </Button>
                                                         </div>
                                                     );
                                                 })}

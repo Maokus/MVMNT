@@ -30,6 +30,7 @@ if (import.meta.env.DEV) {
     void import('@devtools/registerWindowTools');
 }
 import { setCanonicalPPQ } from '@core/timing/ppq';
+import { installDialogFocusFix } from '../desktop/dialogFocus';
 import { initializeSceneState } from './initializeSceneState';
 
 (globalThis as any).React = React;
@@ -68,6 +69,7 @@ try {
 
 initializeSceneState();
 registerBuiltInAudioFeatureCalculators();
+installDialogFocusFix();
 
 const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement);
 root.render(

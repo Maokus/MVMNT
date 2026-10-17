@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react';
 import type { NoteRaw } from '@state/timelineTypes';
 import { PreviewCanvas, type PreviewPainter } from './PreviewCanvas';
 import { getNoteVerticalBounds } from './previewGeometry';
+import { clamp } from '@math/transforms/numeric';
 
 interface MidiNotePreviewProps {
     notes: NoteRaw[];
@@ -52,7 +53,7 @@ const MidiNotePreview = ({ notes, visibleStartTick, visibleEndTick, bounds }: Mi
                 const x = ((start - visibleStartTick) / duration) * width;
                 const w = Math.min(width - x, Math.max(1 / scale, ((end - start) / duration) * width));
                 const vertical = getNoteVerticalBounds(height, note.note, pitchBounds[0], pitchBounds[1]);
-                const velocity = Math.max(0.2, Math.min(1, (note.velocity ?? 96) / 127));
+                const velocity = clamp((note.velocity ?? 96) / 127, 0.2, 1);
                 ctx.fillStyle = `rgba(125, 211, 252, ${0.4 + velocity * 0.5})`;
                 // Filled bars keep the lowest pitch and the onset inside the drawing bounds.
                 ctx.fillRect(x, vertical.y, w, vertical.height);

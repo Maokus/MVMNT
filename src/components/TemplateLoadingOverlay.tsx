@@ -1,5 +1,7 @@
 import React from 'react';
 import { useTemplateStatusStore } from '@state/templateStatusStore';
+import { LoadingSpinner } from '@workspace/components/LoadingSpinner';
+import { ProgressBar } from '@workspace/components/ProgressBar';
 
 export const TemplateLoadingOverlay: React.FC = () => {
     const { isTemplateLoading, message, progress, onAbort } = useTemplateStatusStore((state) => ({
@@ -15,25 +17,12 @@ export const TemplateLoadingOverlay: React.FC = () => {
 
     return (
         <div
-            className="pointer-events-none fixed inset-0 z-[10500] flex items-center justify-center bg-neutral-950/70 backdrop-blur"
+            className="pointer-events-none fixed inset-0 z-[10500] flex items-center justify-center bg-neutral-950/70"
             role="status"
             aria-live="polite"
         >
-            <div className="pointer-events-auto relative flex w-[min(90vw,24rem)] flex-col items-center gap-4 overflow-hidden rounded-2xl border border-neutral-700/75 bg-neutral-900/90 px-7 py-6 text-center text-neutral-100 shadow-[0_30px_90px_-35px_rgba(79,70,229,0.6)] backdrop-blur">
-                <div
-                    className="pointer-events-none absolute -inset-px rounded-[1.125rem] bg-gradient-to-br from-indigo-500/35 via-fuchsia-500/20 to-sky-500/30 opacity-80 blur"
-                    aria-hidden="true"
-                />
-                <div className="relative flex h-11 w-11 items-center justify-center">
-                    <span
-                        className="absolute h-11 w-11 animate-ping rounded-full bg-indigo-400/20"
-                        aria-hidden="true"
-                    />
-                    <span
-                        className="relative h-11 w-11 animate-spin rounded-full border-[3px] border-indigo-300/65 border-t-transparent"
-                        aria-hidden="true"
-                    />
-                </div>
+            <div className="pointer-events-auto relative flex w-[min(90vw,24rem)] flex-col items-center gap-4 overflow-hidden rounded border border-neutral-800 bg-neutral-900 px-7 py-6 text-center text-neutral-100 ">
+                <LoadingSpinner size={44} />
                 <div className="relative space-y-1">
                     <p className="text-sm font-semibold tracking-tight text-neutral-100">{message}</p>
                     <p className="text-xs font-normal text-neutral-400">
@@ -42,12 +31,10 @@ export const TemplateLoadingOverlay: React.FC = () => {
                 </div>
                 {typeof progress === 'number' && (
                     <div className="relative w-full" aria-label={`Loading progress ${Math.round(progress * 100)}%`}>
-                        <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-800">
-                            <div
-                                className="h-full rounded-full bg-indigo-300 transition-[width] duration-150 ease-out"
-                                style={{ width: `${Math.max(0, Math.min(1, progress)) * 100}%` }}
-                            />
-                        </div>
+                        <ProgressBar
+                            value={Math.max(0, Math.min(1, progress)) * 100}
+                            label="Template loading progress"
+                        />
                         <div className="mt-1 text-right text-[11px] text-neutral-400">
                             {Math.round(Math.max(0, Math.min(1, progress)) * 100)}%
                         </div>

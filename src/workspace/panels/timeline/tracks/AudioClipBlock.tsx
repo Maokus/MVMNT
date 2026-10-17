@@ -12,7 +12,9 @@ import { useSelectionStore } from '@state/selectionStore';
 import { useTimelineStore } from '@state/timelineStore';
 import AudioWaveform from '@workspace/components/AudioWaveform';
 import { getClipPreviewLayout, getPreviewViewport } from '@workspace/components/previewGeometry';
-import { getAudioClipsInTimelineSelection, type TimelineClipRef } from '../clipboard/midiClipClipboard';
+import { getTimelineClipsInSelection, type TimelineClipRef } from '../clipboard/midiClipClipboard';
+import { planDragMove, resolveDragGroup, type DragGroupEntry } from './clipDragGroup';
+import { nextCommitGroupKey } from '@state/timeline/commitGroup';
 import { useSnapTicks } from '../hooks/useSnapTicks';
 import { useTickScale } from '../hooks/useTickScale';
 import { formatClipStartLabel } from '../utils/clipLabelUtils';
@@ -32,7 +34,7 @@ type DragStart = {
     startY: number;
     baseOffsetTick: number;
     alt: boolean;
-    groupBaseOffsets: Array<{ trackId: string; clipId: string; offsetTicks: number; trackIndex: number }>;
+    groupBaseOffsets: DragGroupEntry[];
 };
 
 type ResizeStart = {
@@ -57,6 +59,8 @@ const AudioClipBlock: React.FC<Props> = ({
     const updateAudioClip = useTimelineStore((s) => s.updateAudioClip);
     const setMultipleAudioClipOffsets = useTimelineStore((s) => s.setMultipleAudioClipOffsets);
     const moveAudioClipsBetweenTracks = useTimelineStore((s) => s.moveAudioClipsBetweenTracks);
+    const setMultipleMidiClipOffsets = useTimelineStore((s) => s.setMultipleMidiClipOffsets);
+    const moveMidiClipsBetweenTracks = useTimelineStore((s) => s.moveMidiClipsBetweenTracks);
     const setCrossTrackDrag = useTimelineStore((s) => s._setCrossTrackDrag);
     const crossTrackDrag = useTimelineStore((s) => s._crossTrackDrag);
     const tracksOrder = useTimelineStore((s) => s.tracksOrder);
@@ -160,7 +164,7 @@ const AudioClipBlock: React.FC<Props> = ({
     const selectForPointer = (e: React.PointerEvent): TimelineClipRef[] => {
         const state = useTimelineStore.getState();
         const currentSelection = useSelectionStore.getState().clipTimelineSelection;
-        const selectedRefs = getAudioClipsInTimelineSelection(state, currentSelection);
+        const selectedRefs = getTimelineClipsInSelection(state, currentSelection);
         const alreadySelected = selectedRefs.some((entry) => entry.trackId === trackId && entry.clipId === clip.id);
         if (e.shiftKey || e.metaKey || e.ctrlKey) {
             const base: TimelineClipRef[] =
@@ -180,7 +184,8 @@ const AudioClipBlock: React.FC<Props> = ({
     };
 
     const selectRefsAsClips = (refs: TimelineClipRef[]) => {
-        if (refs.length) selectClipTimeline({ type: 'clips', clips: refs.map((ref) => ({ ...ref, kind: 'audio' })) });
+        if (refs.length)
+            selectClipTimeline({ type: 'clips', clips: refs.map((ref) => ({ ...ref, kind: ref.kind ?? 'audio' })) });
     };
 
     const releaseClipPointerCapture = (pointerId: number | null) => {
@@ -228,15 +233,29 @@ const AudioClipBlock: React.FC<Props> = ({
         setCrossTrackDrag(null);
         if (!drag || !didMove) return;
         if (activeCrossTrackDrag && activeCrossTrackDrag.previews.some((p) => p.sourceTrackId !== p.targetTrackId)) {
-            const moves = activeCrossTrackDrag.previews.map((p) => ({
-                sourceTrackId: p.sourceTrackId,
-                clipId: p.clipId,
-                destinationTrackId: p.targetTrackId,
-                newOffsetTicks: p.previewOffsetTicks,
-            }));
-            void moveAudioClipsBetweenTracks({ moves }).then(() => {
+            const toMove = (kind: 'midi' | 'audio') =>
+                activeCrossTrackDrag.previews
+                    .filter((p) => (p.kind ?? 'audio') === kind)
+                    .map((p) => ({
+                        sourceTrackId: p.sourceTrackId,
+                        clipId: p.clipId,
+                        destinationTrackId: p.targetTrackId,
+                        newOffsetTicks: p.previewOffsetTicks,
+                    }));
+            const midiMoves = toMove('midi');
+            const audioMoves = toMove('audio');
+            const jobs: Array<Promise<void>> = [];
+            // One shared key so a mixed-kind move undoes in a single step.
+            const mergeKey = midiMoves.length && audioMoves.length ? nextCommitGroupKey() : undefined;
+            if (midiMoves.length) jobs.push(moveMidiClipsBetweenTracks({ moves: midiMoves }, mergeKey));
+            if (audioMoves.length) jobs.push(moveAudioClipsBetweenTracks({ moves: audioMoves }, mergeKey));
+            void Promise.all(jobs).then(() => {
                 selectRefsAsClips(
-                    moves.map((m) => ({ trackId: m.destinationTrackId, clipId: m.clipId, kind: 'audio' }))
+                    activeCrossTrackDrag.previews.map((p) => ({
+                        trackId: p.targetTrackId,
+                        clipId: p.clipId,
+                        kind: p.kind ?? 'audio',
+                    }))
                 );
             });
             return;
@@ -244,18 +263,27 @@ const AudioClipBlock: React.FC<Props> = ({
         if (finalTick == null) return;
         if (drag.groupBaseOffsets.length > 1) {
             const delta = finalTick - drag.baseOffsetTick;
-            void setMultipleAudioClipOffsets({
-                offsets: drag.groupBaseOffsets.map((entry) => ({
-                    trackId: entry.trackId,
-                    clipId: entry.clipId,
-                    offsetTicks: entry.offsetTicks + delta,
-                })),
-            }).then(() => {
+            const toOffsets = (kind: 'midi' | 'audio') =>
+                drag.groupBaseOffsets
+                    .filter((entry) => entry.kind === kind)
+                    .map((entry) => ({
+                        trackId: entry.trackId,
+                        clipId: entry.clipId,
+                        offsetTicks: entry.offsetTicks + delta,
+                    }));
+            const midiOffsets = toOffsets('midi');
+            const audioOffsets = toOffsets('audio');
+            const jobs: Array<Promise<void>> = [];
+            // One shared key so a mixed-kind move undoes in a single step.
+            const mergeKey = midiOffsets.length && audioOffsets.length ? nextCommitGroupKey() : undefined;
+            if (midiOffsets.length) jobs.push(setMultipleMidiClipOffsets({ offsets: midiOffsets }, mergeKey));
+            if (audioOffsets.length) jobs.push(setMultipleAudioClipOffsets({ offsets: audioOffsets }, mergeKey));
+            void Promise.all(jobs).then(() => {
                 selectRefsAsClips(
                     drag.groupBaseOffsets.map((entry) => ({
                         trackId: entry.trackId,
                         clipId: entry.clipId,
-                        kind: 'audio',
+                        kind: entry.kind,
                     }))
                 );
             });
@@ -288,23 +316,7 @@ const AudioClipBlock: React.FC<Props> = ({
         (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
         const nextSelection = selectForPointer(e);
         const storeState = useTimelineStore.getState();
-        const groupBaseOffsets = nextSelection
-            .filter((entry) => (entry.kind ?? storeState.tracks[entry.trackId]?.type) === 'audio')
-            .map((entry) => {
-                const track = storeState.tracks[entry.trackId];
-                if (!track || track.type !== 'audio') return null;
-                const targetClip = getAudioClipsForTrack(track).find((candidate) => candidate.id === entry.clipId);
-                const ti = storeState.tracksOrder.indexOf(entry.trackId);
-                return targetClip
-                    ? {
-                          trackId: entry.trackId,
-                          clipId: entry.clipId,
-                          offsetTicks: targetClip.offsetTicks,
-                          trackIndex: ti,
-                      }
-                    : null;
-            })
-            .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+        const groupBaseOffsets = resolveDragGroup(storeState, nextSelection);
         dragRef.current = {
             startX: e.clientX,
             startY: e.clientY,
@@ -350,43 +362,26 @@ const AudioClipBlock: React.FC<Props> = ({
             true
         );
         const desiredBaseSeconds = ticksToSeconds(timingContext, desiredTrimmedStart) - sourceBounds.startSeconds;
-        const snapped = Math.round(secondsToTicks(timingContext, desiredBaseSeconds));
+        const desired = Math.round(secondsToTicks(timingContext, desiredBaseSeconds));
+        const trackDelta = Math.round(dy / Math.max(1, rowHeight));
+        // Clamp so the dragged clip (and its group) cannot land on a non-group clip.
+        const planned = planDragMove(
+            useTimelineStore.getState(),
+            drag.groupBaseOffsets,
+            trackDelta,
+            desired - drag.baseOffsetTick
+        );
+        const snapped = drag.baseOffsetTick + planned.delta;
         setDragTick(snapped);
-        onHoverSnapX(toX(desiredTrimmedStart, laneWidth));
+        // Keep the snap guide aligned with the clamped position.
+        const clampedTrimmedStart = desiredTrimmedStart + (snapped - desired);
+        onHoverSnapX(toX(clampedTrimmedStart, laneWidth));
         if (Math.abs(dx) > 2 || Math.abs(dy) > 2) setDidMove(true);
 
-        const trackDelta = Math.round(dy / Math.max(1, rowHeight));
-        if (trackDelta !== 0 && drag.groupBaseOffsets.length) {
-            const horizontalDelta = snapped - drag.baseOffsetTick;
-            const audioTrackIds = tracksOrder.filter((id) => useTimelineStore.getState().tracks[id]?.type === 'audio');
-            const previews = drag.groupBaseOffsets
-                .map((entry) => {
-                    const newTrackIndex = entry.trackIndex + trackDelta;
-                    const clampedIndex = Math.max(0, Math.min(tracksOrder.length - 1, newTrackIndex));
-                    let targetId = tracksOrder[clampedIndex];
-                    if (!targetId || !audioTrackIds.includes(targetId)) {
-                        targetId = audioTrackIds.reduce((best, id) => {
-                            const idx = tracksOrder.indexOf(id);
-                            return Math.abs(idx - newTrackIndex) < Math.abs(tracksOrder.indexOf(best) - newTrackIndex)
-                                ? id
-                                : best;
-                        }, audioTrackIds[0] ?? entry.trackId);
-                    }
-                    const t = useTimelineStore.getState().tracks[entry.trackId];
-                    const c =
-                        t?.type === 'audio' ? getAudioClipsForTrack(t).find((cl) => cl.id === entry.clipId) : undefined;
-                    return {
-                        kind: 'audio' as const,
-                        clipId: entry.clipId,
-                        sourceTrackId: entry.trackId,
-                        targetTrackId: targetId,
-                        previewOffsetTicks: entry.offsetTicks + horizontalDelta,
-                        sourceId: c?.sourceId ?? '',
-                        sourceStartSeconds: c?.sourceStartSeconds,
-                        sourceEndSeconds: c?.sourceEndSeconds,
-                    };
-                })
-                .filter((p) => !!p.sourceId);
+        // Move previews for the whole drag group (both clip kinds); they render
+        // as live ghosts and drive the drop commit below.
+        if (drag.groupBaseOffsets.length > 1 || trackDelta !== 0) {
+            const previews = planned.previews;
             if (previews.length) {
                 const primaryTarget =
                     previews.find((p) => p.clipId === clip.id)?.targetTrackId ?? previews[0].targetTrackId;

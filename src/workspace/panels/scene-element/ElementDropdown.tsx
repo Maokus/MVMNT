@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { FaChevronLeft } from 'react-icons/fa';
 import { sceneElementRegistry } from '@core/scene/registry';
+import { Button } from '@workspace/components/Button';
 
 interface ElementDropdownProps {
     onAddElement: (elementType: string) => void;
@@ -114,7 +115,7 @@ const ElementDropdown: React.FC<ElementDropdownProps> = ({ onAddElement, onClose
     return (
         <div
             ref={dropdownRef}
-            className={`relative z-[1000] overflow-visible rounded border border-control2 bg-menubar shadow-lg ${className ?? ''}`}
+            className={`relative z-[1000] overflow-visible rounded border border-control2 bg-menubar  ${className ?? ''}`}
             style={style}
             onMouseLeave={scheduleClose}
             onMouseEnter={clearCloseTimeout}
@@ -122,20 +123,19 @@ const ElementDropdown: React.FC<ElementDropdownProps> = ({ onAddElement, onClose
             <div ref={innerWrapperRef} className="relative flex items-start">
                 <div className="flex max-h-[320px] min-w-[200px] flex-col overflow-y-auto border-r border-control2 bg-menubar">
                     {categoryEntries.map(({ category }) => (
-                        <button
-                            type="button"
+                        <Button
+                            variant="menu"
+                            size="full"
                             key={category}
                             onMouseEnter={(event) => handleCategoryEnter(category, event)}
                             onFocus={(event) => handleCategoryFocus(category, event)}
-                            className={`flex items-center gap-2 px-3 py-2 text-left text-[13px] transition-colors ${
-                                openCategory === category
-                                    ? 'bg-neutral-800/80 text-white'
-                                    : 'text-neutral-300 hover:bg-neutral-800/70 hover:text-white'
+                            className={`gap-2 text-[13px] transition-colors ${
+                                openCategory === category ? 'text-white' : 'text-neutral-300 hover:text-white'
                             }`}
                         >
                             <FaChevronLeft className="text-xs opacity-70" />
                             <span className="font-medium">{formattedCategoryName(category)}</span>
-                        </button>
+                        </Button>
                     ))}
                 </div>
 
@@ -150,7 +150,7 @@ const ElementDropdown: React.FC<ElementDropdownProps> = ({ onAddElement, onClose
                             }}
                         />
                         <div
-                            className="absolute min-w-[220px] rounded border border-control2 bg-panel shadow-xl"
+                            className="absolute min-w-[220px] rounded border border-control2 bg-panel"
                             style={{
                                 top: submenuTop,
                                 left: 0,
@@ -159,15 +159,16 @@ const ElementDropdown: React.FC<ElementDropdownProps> = ({ onAddElement, onClose
                         >
                             <div className="rounded bg-panel/90 p-1">
                                 {openItems.map((type: any) => (
-                                    <button
-                                        type="button"
+                                    <Button
+                                        variant="menu"
+                                        size="full"
                                         key={type.type}
                                         onClick={() => handleItemClick(type.type)}
-                                        className="flex w-full items-center justify-between gap-2 rounded px-3 py-2 text-left text-[13px] text-neutral-200 transition-colors hover:bg-neutral-800/70 hover:text-white"
+                                        className="justify-between gap-2 text-[13px] hover:text-white"
                                         title={type.description}
                                     >
                                         <span>{type.name}</span>
-                                    </button>
+                                    </Button>
                                 ))}
                             </div>
                         </div>

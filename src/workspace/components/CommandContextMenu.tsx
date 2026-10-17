@@ -2,6 +2,7 @@ import React, { useEffect, useId, useLayoutEffect, useRef, useState } from 'reac
 import { createPortal } from 'react-dom';
 import { getCommandMetadata, getCommandState, executeCommand } from '@context/commands/commandRegistry';
 import { markContextMenuOpen } from '@context/commands/commandOverlay';
+import { clampPopupToViewport } from './popupPosition';
 
 export interface CommandMenuEntry {
     commandId?: string;
@@ -23,7 +24,6 @@ interface CommandContextMenuProps {
 }
 
 const OPEN_MENU_EVENT = 'mvmnt-context-menu-open';
-const VIEWPORT_PADDING = 8;
 
 function displayShortcut(shortcut: string | undefined): string | undefined {
     if (!shortcut) return undefined;
@@ -49,10 +49,9 @@ export function CommandContextMenu({
         const menu = menuRef.current;
         if (!menu) return;
         const rect = menu.getBoundingClientRect();
-        setAdjustedPosition({
-            x: Math.max(VIEWPORT_PADDING, Math.min(position.x, window.innerWidth - rect.width - VIEWPORT_PADDING)),
-            y: Math.max(VIEWPORT_PADDING, Math.min(position.y, window.innerHeight - rect.height - VIEWPORT_PADDING)),
-        });
+        setAdjustedPosition(
+            clampPopupToViewport(position, rect.width, window.innerWidth, rect.height, window.innerHeight)
+        );
         menu.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus({ preventScroll: true });
     }, [position]);
 

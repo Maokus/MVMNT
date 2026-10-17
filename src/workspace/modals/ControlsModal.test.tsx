@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { registerGlobalShortcut, resetGlobalShortcutsForTest } from '@context/shortcuts/shortcutRegistry';
 import { ControlsModal } from './ControlsModal';
@@ -40,6 +40,15 @@ describe('ControlsModal', () => {
         expect(screen.queryByRole('dialog', { name: 'Controls' })).not.toBeInTheDocument();
         expect(opener).toHaveFocus();
         unregister();
+    });
+
+    it('focuses the dialog surface rather than the close button on open', async () => {
+        render(<Harness />);
+        fireEvent.click(screen.getByRole('button', { name: 'controls' }));
+
+        const dialog = screen.getByRole('dialog', { name: 'Controls' });
+        await waitFor(() => expect(dialog).toHaveFocus());
+        expect(screen.getByRole('button', { name: 'Close controls' })).not.toHaveFocus();
     });
 
     it('labels preview reset, scaling, and pane-specific shortcuts', () => {

@@ -107,11 +107,11 @@ function HomeNotice({ children, ariaLabel }: { children: React.ReactNode; ariaLa
     return (
         <aside aria-label={ariaLabel} className="fixed bottom-4 right-4 z-[12000] flex items-end gap-2">
             <div className="relative">
-                <div className="max-w-xs rounded-lg border border-neutral-800 bg-neutral-900/85 p-3 text-neutral-100 shadow-lg backdrop-blur-sm">
+                <div className="max-w-xs rounded-lg border border-neutral-800 bg-neutral-900 p-3 text-neutral-100 shadow-lg">
                     {children}
                 </div>
                 <div
-                    className="absolute -right-2 bottom-3 h-3 w-3 rotate-45 border border-neutral-800 bg-neutral-900/85"
+                    className="absolute -right-2 bottom-3 h-3 w-3 rotate-45 border border-neutral-800 bg-neutral-900"
                     aria-hidden="true"
                 />
             </div>

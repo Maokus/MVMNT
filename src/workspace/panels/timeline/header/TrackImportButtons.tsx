@@ -12,10 +12,10 @@ interface TrackImportButtonsProps {
 const TrackImportButtons: React.FC<TrackImportButtonsProps> = ({ fileRef, audioFileRef, onAddFile, onAddAudio }) => (
     <div className="flex items-center gap-2">
         <label
-            className="px-2 py-1 border border-neutral-700 rounded cursor-pointer text-xs font-medium bg-neutral-900/50 hover:bg-neutral-800/60 flex items-center gap-1"
+            className="px-2 py-1 border border-neutral-800 rounded cursor-pointer text-xs font-medium bg-neutral-900 hover:bg-neutral-800 flex items-center gap-1"
             data-tutorial-target="import-midi"
         >
-            <FaPlus className="text-neutral-300" />
+            <FaPlus size={14} />
             <span>MIDI</span>
             <input ref={fileRef} type="file" accept=".mid,.midi" multiple className="hidden" onChange={onAddFile} />
         </label>

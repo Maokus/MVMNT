@@ -276,7 +276,7 @@ const CommunityUploadModal: React.FC<CommunityUploadModalProps> = ({
                         <button
                             type="submit"
                             disabled={uploading || !thumbnailFile || !mainFile || !title.trim() || pluginUidConflict}
-                            className="inline-flex items-center gap-1.5 rounded bg-indigo-600 px-4 py-1.5 text-[13px] font-semibold text-white shadow-sm transition-colors hover:bg-indigo-500 disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 rounded bg-indigo-600 px-4 py-1.5 text-[13px] font-semibold text-white transition-colors hover:bg-indigo-500 disabled:opacity-50"
                         >
                             <FaUpload className="text-[11px]" /> {uploading ? 'Uploading...' : 'Upload'}
                         </button>

@@ -14,7 +14,7 @@
  *   px/py → node pivot, sx/sy → element scale, t → opacity
  */
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { FloatingPortal } from '@floating-ui/react';
 import { dispatchSceneCommand } from '@state/scene';
 import { channelForTarget, createKeyframe, elementPropertyTarget } from '@automation/types';
@@ -25,6 +25,8 @@ import { resolveAutomationValueType } from './KeyframeControl';
 import type { RegisteredElementSchema as EnhancedConfigSchema } from '@core/scene/runtime/schema';
 import { effectiveValueForTarget } from '@state/scene';
 import { hostPropertyDescriptors } from '@state/scene/propertyCatalog';
+import { clampPopupToViewport } from '@workspace/components/popupPosition';
+import { useSearchableList } from '@workspace/components/useSearchableList';
 
 // ---------------------------------------------------------------------------
 // Shortcut data
@@ -120,9 +122,7 @@ interface InsertKeyframePopupProps {
 
 const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({ position, nodeId, elementId, schema, onClose }) => {
     const [search, setSearch] = useState('');
-    const [activeIndex, setActiveIndex] = useState(0);
     const searchRef = useRef<HTMLInputElement>(null);
-    const listRef = useRef<HTMLDivElement>(null);
     const tick = useCurrentTick();
     const automationChannels = useSceneStore((state) => state.automation.channels);
 
@@ -215,18 +215,6 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({ position, nod
         return result;
     }, [allProperties, search]);
 
-    // Reset active index when filter changes
-    useEffect(() => {
-        setActiveIndex(0);
-    }, [search]);
-
-    // Scroll active item into view
-    useEffect(() => {
-        if (!listRef.current) return;
-        const item = listRef.current.children[activeIndex] as HTMLElement | undefined;
-        item?.scrollIntoView?.({ block: 'nearest' });
-    }, [activeIndex]);
-
     const getCurrentValue = useCallback(
         (prop: AutomatableProperty): unknown => {
             return effectiveValueForTarget(useSceneStore.getState(), prop.target, tick) ?? prop.default;
@@ -288,33 +276,26 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({ position, nod
         [allProperties, insertKeyframeForProp, onClose]
     );
 
-    const handleKeyDown = useCallback(
-        (e: React.KeyboardEvent) => {
-            if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                setActiveIndex((i) => Math.min(i + 1, filteredItems.length - 1));
-            } else if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                setActiveIndex((i) => Math.max(i - 1, 0));
-            } else if (e.key === 'Enter') {
-                e.preventDefault();
-                const item = filteredItems[activeIndex];
-                if (!item) return;
-                if (item.kind === 'preset') handleSelectPreset(item.preset);
-                else handleSelect(item.prop);
-            } else if (e.key === 'Escape') {
-                e.preventDefault();
-                onClose();
-            }
+    const { activeIndex, setActiveIndex, listRef, handleKeyDown } = useSearchableList<ListItem>({
+        items: filteredItems,
+        search,
+        onSelect: (item) => {
+            if (item.kind === 'preset') handleSelectPreset(item.preset);
+            else handleSelect(item.prop);
         },
-        [filteredItems, activeIndex, handleSelect, handleSelectPreset, onClose]
-    );
+        onEscape: onClose,
+    });
 
     // Clamp position to stay within viewport
     const POPUP_WIDTH = 288;
     const POPUP_MAX_HEIGHT = 320;
-    const x = Math.min(position.x, window.innerWidth - POPUP_WIDTH - 8);
-    const y = Math.min(position.y, window.innerHeight - POPUP_MAX_HEIGHT - 8);
+    const { x, y } = clampPopupToViewport(
+        position,
+        POPUP_WIDTH,
+        window.innerWidth,
+        POPUP_MAX_HEIGHT,
+        window.innerHeight
+    );
 
     return (
         <FloatingPortal>
@@ -323,11 +304,11 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({ position, nod
 
             {/* Popup */}
             <div
-                className="fixed z-[1000] bg-[#252526] border border-neutral-700 rounded shadow-2xl overflow-hidden"
+                className="fixed z-[1000] bg-[#252526] border border-neutral-800 rounded  overflow-hidden"
                 style={{ left: x, top: y, width: POPUP_WIDTH }}
                 onMouseDown={(e) => e.stopPropagation()}
             >
-                <div className="px-3 pt-2.5 pb-2 border-b border-neutral-700/80">
+                <div className="px-3 pt-2.5 pb-2 border-b border-neutral-800/80">
                     <p className="text-[10px] font-semibold text-neutral-400 mb-1.5 uppercase tracking-wider select-none">
                         Insert Keyframe
                     </p>
@@ -350,7 +331,7 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({ position, nod
                     ) : (
                         filteredItems.map((item, i) => {
                             const isActive = i === activeIndex;
-                            const baseClass = `w-full text-left px-3 py-1.5 flex items-center gap-2 transition-colors ${isActive ? 'bg-neutral-700/70' : 'hover:bg-neutral-700/40'}`;
+                            const baseClass = `w-full text-left px-3 py-1.5 flex items-center gap-2 transition-colors ${isActive ? 'bg-neutral-800' : 'hover:bg-neutral-800'}`;
 
                             if (item.kind === 'preset') {
                                 return (

@@ -10,7 +10,9 @@ import { useExportEstimates } from './render-modal/useExportEstimates';
 import { FormField, inputCls } from './render-modal/FormField';
 import { loadExportPresets, type ExportPreset } from '@export/presets';
 import { updateDestinationExtension } from './render-modal/exportDestination';
-import { useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
+import { ModalShell } from './ModalShell';
+import { Button } from '@workspace/components/Button';
+import { EXPORT_DESTINATION_UNAVAILABLE } from '@workspace/userMessages';
 
 interface RenderModalProps {
     onClose: () => void;
@@ -33,17 +35,6 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
             return { ...prev, filename: sceneName || '' };
         });
     }, [sceneName]);
-
-    useGlobalShortcut({
-        id: 'modal.render.escape',
-        domain: 'modal',
-        matches: (event) => event.key === 'Escape',
-        handle: (event) => {
-            event.preventDefault();
-            onClose();
-            return true;
-        },
-    });
 
     const { videoCodecs, audioCodecs, capLoaded, getPreferredVideoCodec, getPreferredAudioCodec } =
         useCodecCapabilities();
@@ -308,444 +299,431 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
             updateForm({ outputPath, filename: result.displayName?.replace(/\.[^.]+$/, '') || form.filename });
             setExportSettings((prev) => ({ ...prev, outputPath }));
         } else if (result.status === 'error') {
-            alert(result.error || 'Could not choose an export destination.');
+            alert(result.error || EXPORT_DESTINATION_UNAVAILABLE);
         }
     };
 
     return (
-        <div
-            className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9700]"
-            role="dialog"
-            aria-modal="true"
+        <ModalShell
+            shortcutId="modal.render.escape"
+            label="Render / Export"
+            onCancel={onClose}
+            outerClassName="fixed inset-0 flex items-center justify-center z-[9700]"
+            cardClassName="border rounded w-[560px] max-w-[92vw] max-h-[90vh] overflow-y-auto p-5 [background-color:var(--twc-menubar)] [border-color:var(--twc-border)]  relative"
         >
-            <div className="border rounded-lg w-[560px] max-w-[92vw] max-h-[90vh] overflow-y-auto p-5 [background-color:var(--twc-menubar)] [border-color:var(--twc-border)] shadow-2xl relative">
-                <h2 className="m-0 text-xl font-semibold mb-2">Render / Export</h2>
-                <p className="m-0 mb-4 text-sm opacity-80">
-                    Choose output format and settings. Resolution is set in Global Properties.
-                </p>
+            <h2 className="m-0 text-xl font-semibold mb-2">Render / Export</h2>
+            <p className="m-0 mb-4 text-sm opacity-80">
+                Choose output format and settings. Resolution is set in Global Properties.
+            </p>
 
-                <div ref={presetMenuRef} className="absolute top-4 right-4">
-                    <button
-                        type="button"
+            <div ref={presetMenuRef} className="absolute top-4 right-4">
+                <Button
+                    variant="icon"
+                    size="full"
+                    aria-label="Export presets"
+                    aria-haspopup="menu"
+                    aria-expanded={presetMenuOpen}
+                    title="Export presets"
+                    onClick={() => setPresetMenuOpen((open) => !open)}
+                    className="border border-neutral-800"
+                >
+                    <FaEllipsisV aria-hidden="true" />
+                </Button>
+                {presetMenuOpen && (
+                    <div
+                        role="menu"
                         aria-label="Export presets"
-                        aria-haspopup="menu"
-                        aria-expanded={presetMenuOpen}
-                        title="Export presets"
-                        onClick={() => setPresetMenuOpen((open) => !open)}
-                        className="flex h-8 w-8 items-center justify-center rounded border border-neutral-600 bg-neutral-700 text-neutral-100 hover:bg-neutral-600"
+                        className="absolute right-0 top-10 z-10 w-56 rounded border border-neutral-800 bg-neutral-900 p-1 text-xs"
                     >
-                        <FaEllipsisV aria-hidden="true" />
-                    </button>
-                    {presetMenuOpen && (
-                        <div
-                            role="menu"
-                            aria-label="Export presets"
-                            className="absolute right-0 top-10 z-10 w-56 rounded border border-neutral-600 bg-neutral-800 p-1 shadow-xl text-xs"
-                        >
-                            <div className="px-2 py-1.5 text-neutral-400">Presets</div>
-                            {presets.map((preset) => (
-                                <button
-                                    key={preset.id}
-                                    type="button"
-                                    role="menuitem"
-                                    onClick={() => {
-                                        setSelectedPresetId(preset.id);
-                                        applyPreset(preset);
-                                        setPresetMenuOpen(false);
-                                    }}
-                                    className="flex w-full items-center rounded px-2 py-1.5 text-left text-neutral-100 hover:bg-neutral-700"
-                                >
-                                    <span className="flex-1">{preset.name}</span>
-                                    {selectedPresetId === preset.id && <span aria-label="Selected">✓</span>}
-                                </button>
-                            ))}
-                        </div>
-                    )}
-                </div>
+                        <div className="px-2 py-1.5 text-neutral-400">Presets</div>
+                        {presets.map((preset) => (
+                            <Button
+                                key={preset.id}
+                                variant="menu"
+                                size="full"
+                                role="menuitem"
+                                onClick={() => {
+                                    setSelectedPresetId(preset.id);
+                                    applyPreset(preset);
+                                    setPresetMenuOpen(false);
+                                }}
+                            >
+                                <span className="flex-1">{preset.name}</span>
+                                {selectedPresetId === preset.id && <span aria-label="Selected">✓</span>}
+                            </Button>
+                        ))}
+                    </div>
+                )}
+            </div>
 
-                <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
-                    <FormField
-                        label="Filename"
-                        span2
-                        hint="Extension is automatic. Templates: {scene}, {width}, {height}, {fps}, {range}, {date}."
-                    >
+            <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
+                <FormField
+                    label="Filename"
+                    span2
+                    hint="Extension is automatic. Templates: {scene}, {width}, {height}, {fps}, {range}, {date}."
+                >
+                    <input
+                        type="text"
+                        placeholder={sceneName || 'filename'}
+                        value={form.filename}
+                        onChange={(e) => updateForm({ filename: e.target.value })}
+                        className={inputCls}
+                    />
+                </FormField>
+
+                <FormField
+                    label="Export destination"
+                    span2
+                    hint="Choose the filename and location with the native file picker."
+                >
+                    <div className="flex gap-2">
                         <input
                             type="text"
-                            placeholder={sceneName || 'filename'}
-                            value={form.filename}
-                            onChange={(e) => updateForm({ filename: e.target.value })}
-                            className={inputCls}
+                            readOnly
+                            placeholder="No destination selected"
+                            value={form.outputPath}
+                            className={`${inputCls} flex-1 opacity-80`}
                         />
-                    </FormField>
+                        <Button variant="neutral" size="full" onClick={() => void chooseDestination()}>
+                            Choose…
+                        </Button>
+                    </div>
+                </FormField>
 
-                    <FormField
-                        label="Export destination"
-                        span2
-                        hint="Choose the filename and location with the native file picker."
+                <FormField label="Format">
+                    <select
+                        value={form.format}
+                        onChange={(e) => {
+                            const v = e.target.value;
+                            if (v === 'video' || v === 'png') handleFormatChange(v);
+                        }}
+                        className={inputCls}
                     >
-                        <div className="flex gap-2">
-                            <input
-                                type="text"
-                                readOnly
-                                placeholder="No destination selected"
-                                value={form.outputPath}
-                                className={`${inputCls} flex-1 opacity-80`}
-                            />
-                            <button
-                                type="button"
-                                className="rounded border border-neutral-600 px-3 text-sm text-neutral-100 hover:bg-neutral-700"
-                                onClick={() => void chooseDestination()}
-                            >
-                                Choose…
-                            </button>
-                        </div>
-                    </FormField>
+                        <option value="video">Video</option>
+                        <option value="png">PNG Sequence</option>
+                    </select>
+                </FormField>
 
-                    <FormField label="Format">
+                {form.format === 'video' && (
+                    <FormField label="Container">
                         <select
-                            value={form.format}
+                            value={form.container}
                             onChange={(e) => {
                                 const v = e.target.value;
-                                if (v === 'video' || v === 'png') handleFormatChange(v);
+                                if (v === 'mp4' || v === 'webm') handleContainerChange(v);
                             }}
                             className={inputCls}
                         >
-                            <option value="video">Video</option>
-                            <option value="png">PNG Sequence</option>
+                            <option value="mp4">MP4 (.mp4)</option>
+                            <option value="webm">WebM (.webm)</option>
                         </select>
                     </FormField>
+                )}
 
-                    {form.format === 'video' && (
-                        <FormField label="Container">
+                <label className="flex items-center gap-2 col-span-2 select-none">
+                    <input
+                        type="checkbox"
+                        checked={form.transparentBackground}
+                        onChange={(e) => handleTransparentBackgroundChange(e.target.checked)}
+                    />
+                    <span>Transparent background{form.format === 'video' ? ' (WebM/VP9)' : ''}</span>
+                </label>
+
+                <FormField label="Frame Rate">
+                    <div className="flex gap-2 items-center">
+                        <select
+                            value={form.fpsMode}
+                            onChange={(e) => updateForm({ fpsMode: e.target.value as FpsMode })}
+                            className={`${inputCls} flex-1`}
+                        >
+                            <option value="24">24 fps</option>
+                            <option value="30">30 fps</option>
+                            <option value="60">60 fps</option>
+                            <option value="custom">Custom…</option>
+                        </select>
+                        {form.fpsMode === 'custom' && (
+                            <input
+                                type="number"
+                                min={1}
+                                max={240}
+                                value={form.customFps}
+                                onChange={(e) => updateForm({ customFps: Math.max(1, Number(e.target.value) || 1) })}
+                                className={`w-20 ${inputCls}`}
+                            />
+                        )}
+                    </div>
+                </FormField>
+
+                <FormField label="Export Range">
+                    <select
+                        value={form.fullDuration ? 'full' : 'range'}
+                        onChange={(e) => updateForm({ fullDuration: e.target.value === 'full' })}
+                        className={inputCls}
+                    >
+                        <option value="full">Full</option>
+                        <option value="range">Range</option>
+                    </select>
+                </FormField>
+
+                {!form.fullDuration && (
+                    <>
+                        <FormField label="Start (s)">
+                            <input
+                                type="number"
+                                min={0}
+                                value={form.startTime}
+                                onChange={(e) => updateForm({ startTime: Number(e.target.value) || 0 })}
+                                className={inputCls}
+                            />
+                        </FormField>
+                        <FormField label="End (s)">
+                            <input
+                                type="number"
+                                min={0}
+                                value={form.endTime}
+                                onChange={(e) => updateForm({ endTime: Number(e.target.value) || 0 })}
+                                className={inputCls}
+                            />
+                        </FormField>
+                    </>
+                )}
+
+                {form.format === 'video' && (
+                    <>
+                        <FormField label="Video Codec">
                             <select
-                                value={form.container}
-                                onChange={(e) => {
-                                    const v = e.target.value;
-                                    if (v === 'mp4' || v === 'webm') handleContainerChange(v);
-                                }}
+                                disabled={!capLoaded}
+                                value={form.videoCodec}
+                                onChange={(e) => handleVideoCodecSelect(e.target.value)}
                                 className={inputCls}
                             >
-                                <option value="mp4">MP4 (.mp4)</option>
-                                <option value="webm">WebM (.webm)</option>
+                                {videoCodecs.map((c) => (
+                                    <option key={c} value={c}>
+                                        {c}
+                                    </option>
+                                ))}
                             </select>
                         </FormField>
-                    )}
 
-                    <label className="flex items-center gap-2 col-span-2 select-none">
-                        <input
-                            type="checkbox"
-                            checked={form.transparentBackground}
-                            onChange={(e) => handleTransparentBackgroundChange(e.target.checked)}
-                        />
-                        <span>Transparent background{form.format === 'video' ? ' (WebM/VP9)' : ''}</span>
-                    </label>
-
-                    <FormField label="Frame Rate">
-                        <div className="flex gap-2 items-center">
+                        <FormField label="Video Bitrate">
                             <select
-                                value={form.fpsMode}
-                                onChange={(e) => updateForm({ fpsMode: e.target.value as FpsMode })}
-                                className={`${inputCls} flex-1`}
+                                value={form.videoBitrateSetting}
+                                onChange={(e) =>
+                                    updateForm({ videoBitrateSetting: e.target.value as VideoBitrateSetting })
+                                }
+                                className={inputCls}
                             >
-                                <option value="24">24 fps</option>
-                                <option value="30">30 fps</option>
-                                <option value="60">60 fps</option>
-                                <option value="custom">Custom…</option>
+                                <option value="low">Low</option>
+                                <option value="medium">Medium</option>
+                                <option value="high">High</option>
+                                <option value="manual">Manual</option>
                             </select>
-                            {form.fpsMode === 'custom' && (
-                                <input
-                                    type="number"
-                                    min={1}
-                                    max={240}
-                                    value={form.customFps}
-                                    onChange={(e) =>
-                                        updateForm({ customFps: Math.max(1, Number(e.target.value) || 1) })
-                                    }
-                                    className={`w-20 ${inputCls}`}
-                                />
-                            )}
-                        </div>
-                    </FormField>
+                        </FormField>
 
-                    <FormField label="Export Range">
-                        <select
-                            value={form.fullDuration ? 'full' : 'range'}
-                            onChange={(e) => updateForm({ fullDuration: e.target.value === 'full' })}
-                            className={inputCls}
-                        >
-                            <option value="full">Full</option>
-                            <option value="range">Range</option>
-                        </select>
-                    </FormField>
-
-                    {!form.fullDuration && (
-                        <>
-                            <FormField label="Start (s)">
-                                <input
-                                    type="number"
-                                    min={0}
-                                    value={form.startTime}
-                                    onChange={(e) => updateForm({ startTime: Number(e.target.value) || 0 })}
-                                    className={inputCls}
-                                />
+                        {isManualVideoBitrate ? (
+                            <FormField label="Manual Bitrate">
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="number"
+                                        min={500000}
+                                        step={100000}
+                                        value={form.videoBitrate}
+                                        onChange={(e) => updateForm({ videoBitrate: Number(e.target.value) || 0 })}
+                                        className={`${inputCls} flex-1`}
+                                    />
+                                    <span className="text-[10px] opacity-60">bps</span>
+                                </div>
                             </FormField>
-                            <FormField label="End (s)">
-                                <input
-                                    type="number"
-                                    min={0}
-                                    value={form.endTime}
-                                    onChange={(e) => updateForm({ endTime: Number(e.target.value) || 0 })}
-                                    className={inputCls}
-                                />
+                        ) : (
+                            <FormField label="Estimated Bitrate">
+                                <div className="text-xs opacity-80 h-[32px] flex items-center">
+                                    {autoBitrateEstimate
+                                        ? `${Math.round((autoBitrateEstimate / 1_000_000) * 10) / 10} Mbps (${form.videoBitrateSetting})`
+                                        : 'Computing…'}
+                                </div>
                             </FormField>
-                        </>
-                    )}
+                        )}
 
-                    {form.format === 'video' && (
-                        <>
-                            <FormField label="Video Codec">
-                                <select
-                                    disabled={!capLoaded}
-                                    value={form.videoCodec}
-                                    onChange={(e) => handleVideoCodecSelect(e.target.value)}
-                                    className={inputCls}
-                                >
-                                    {videoCodecs.map((c) => (
-                                        <option key={c} value={c}>
-                                            {c}
-                                        </option>
-                                    ))}
-                                </select>
-                            </FormField>
+                        <label className="flex items-center gap-2 col-span-2 mt-1 select-none">
+                            <input
+                                type="checkbox"
+                                checked={form.includeAudio}
+                                onChange={(e) => updateForm({ includeAudio: e.target.checked })}
+                            />
+                            <span>Include Audio</span>
+                        </label>
 
-                            <FormField label="Video Bitrate">
-                                <select
-                                    value={form.videoBitrateSetting}
-                                    onChange={(e) =>
-                                        updateForm({ videoBitrateSetting: e.target.value as VideoBitrateSetting })
-                                    }
-                                    className={inputCls}
-                                >
-                                    <option value="low">Low</option>
-                                    <option value="medium">Medium</option>
-                                    <option value="high">High</option>
-                                    <option value="manual">Manual</option>
-                                </select>
-                            </FormField>
-
-                            {isManualVideoBitrate ? (
-                                <FormField label="Manual Bitrate">
-                                    <div className="flex items-center gap-2">
-                                        <input
-                                            type="number"
-                                            min={500000}
-                                            step={100000}
-                                            value={form.videoBitrate}
-                                            onChange={(e) => updateForm({ videoBitrate: Number(e.target.value) || 0 })}
-                                            className={`${inputCls} flex-1`}
-                                        />
-                                        <span className="text-[10px] opacity-60">bps</span>
-                                    </div>
+                        {form.includeAudio && (
+                            <>
+                                <FormField label="Audio Codec">
+                                    <select
+                                        disabled={!capLoaded}
+                                        value={form.audioCodec}
+                                        onChange={(e) => handleAudioCodecSelect(e.target.value)}
+                                        className={inputCls}
+                                    >
+                                        {audioCodecs.map((c) => (
+                                            <option key={c} value={c}>
+                                                {c}
+                                            </option>
+                                        ))}
+                                    </select>
                                 </FormField>
-                            ) : (
-                                <FormField label="Estimated Bitrate">
-                                    <div className="text-xs opacity-80 h-[32px] flex items-center">
-                                        {autoBitrateEstimate
-                                            ? `${Math.round((autoBitrateEstimate / 1_000_000) * 10) / 10} Mbps (${form.videoBitrateSetting})`
-                                            : 'Computing…'}
-                                    </div>
+
+                                <FormField label="Audio Bitrate" hint="bps (typical music 128k–320k)">
+                                    <input
+                                        type="number"
+                                        min={64000}
+                                        max={512000}
+                                        step={16000}
+                                        value={form.audioBitrate}
+                                        onChange={(e) => updateForm({ audioBitrate: Number(e.target.value) || 0 })}
+                                        className={inputCls}
+                                    />
                                 </FormField>
-                            )}
 
-                            <label className="flex items-center gap-2 col-span-2 mt-1 select-none">
-                                <input
-                                    type="checkbox"
-                                    checked={form.includeAudio}
-                                    onChange={(e) => updateForm({ includeAudio: e.target.checked })}
-                                />
-                                <span>Include Audio</span>
-                            </label>
+                                <FormField label="Sample Rate">
+                                    <select
+                                        value={form.audioSampleRate}
+                                        onChange={(e) =>
+                                            updateForm({
+                                                audioSampleRate:
+                                                    e.target.value === 'auto'
+                                                        ? 'auto'
+                                                        : (Number(e.target.value) as 44100 | 48000),
+                                            })
+                                        }
+                                        className={inputCls}
+                                    >
+                                        <option value="auto">Auto</option>
+                                        <option value={44100}>44.1 kHz</option>
+                                        <option value={48000}>48 kHz</option>
+                                    </select>
+                                </FormField>
 
-                            {form.includeAudio && (
-                                <>
-                                    <FormField label="Audio Codec">
-                                        <select
-                                            disabled={!capLoaded}
-                                            value={form.audioCodec}
-                                            onChange={(e) => handleAudioCodecSelect(e.target.value)}
-                                            className={inputCls}
-                                        >
-                                            {audioCodecs.map((c) => (
-                                                <option key={c} value={c}>
-                                                    {c}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </FormField>
+                                <FormField label="Channels">
+                                    <select
+                                        value={form.audioChannels}
+                                        onChange={(e) =>
+                                            updateForm({ audioChannels: Number(e.target.value) === 1 ? 1 : 2 })
+                                        }
+                                        className={inputCls}
+                                    >
+                                        <option value={1}>Mono</option>
+                                        <option value={2}>Stereo</option>
+                                    </select>
+                                </FormField>
+                            </>
+                        )}
+                    </>
+                )}
+            </div>
 
-                                    <FormField label="Audio Bitrate" hint="bps (typical music 128k–320k)">
-                                        <input
-                                            type="number"
-                                            min={64000}
-                                            max={512000}
-                                            step={16000}
-                                            value={form.audioBitrate}
-                                            onChange={(e) => updateForm({ audioBitrate: Number(e.target.value) || 0 })}
-                                            className={inputCls}
-                                        />
-                                    </FormField>
-
-                                    <FormField label="Sample Rate">
-                                        <select
-                                            value={form.audioSampleRate}
-                                            onChange={(e) =>
-                                                updateForm({
-                                                    audioSampleRate:
-                                                        e.target.value === 'auto'
-                                                            ? 'auto'
-                                                            : (Number(e.target.value) as 44100 | 48000),
-                                                })
-                                            }
-                                            className={inputCls}
-                                        >
-                                            <option value="auto">Auto</option>
-                                            <option value={44100}>44.1 kHz</option>
-                                            <option value={48000}>48 kHz</option>
-                                        </select>
-                                    </FormField>
-
-                                    <FormField label="Channels">
-                                        <select
-                                            value={form.audioChannels}
-                                            onChange={(e) =>
-                                                updateForm({ audioChannels: Number(e.target.value) === 1 ? 1 : 2 })
-                                            }
-                                            className={inputCls}
-                                        >
-                                            <option value={1}>Mono</option>
-                                            <option value={2}>Stereo</option>
-                                        </select>
-                                    </FormField>
-                                </>
-                            )}
-                        </>
-                    )}
-                </div>
-
-                <details className="mt-3 text-xs">
-                    <summary className="cursor-pointer opacity-80">Advanced settings</summary>
-                    <label className="mt-2 flex items-center gap-2 select-none">
-                        <input
-                            type="checkbox"
-                            checked={form.exportManifest}
-                            onChange={(e) => updateForm({ exportManifest: e.target.checked })}
-                        />
-                        <span>Write export manifest</span>
-                    </label>
-                    {form.format === 'video' && form.includeAudio && (
-                        <div className="mt-2 grid grid-cols-2 gap-3">
-                            <label className="flex items-center gap-2 col-span-2 select-none">
-                                <input
-                                    type="checkbox"
-                                    checked={form.exportAudioMaster}
-                                    onChange={(e) => updateForm({ exportAudioMaster: e.target.checked })}
-                                />
-                                <span>Write mixed WAV master beside video</span>
-                            </label>
-                            <label className="flex items-center gap-2 col-span-2 select-none">
-                                <input
-                                    type="checkbox"
-                                    checked={form.exportAudioStems}
-                                    onChange={(e) => updateForm({ exportAudioStems: e.target.checked })}
-                                />
-                                <span>Write one WAV stem per audio track</span>
-                            </label>
-                            {(form.exportAudioMaster || form.exportAudioStems) && (
-                                <>
-                                    <FormField label="WAV Bit Depth">
-                                        <select
-                                            value={form.audioWavBitDepth}
-                                            onChange={(e) =>
-                                                updateForm({ audioWavBitDepth: Number(e.target.value) as 16 | 24 | 32 })
-                                            }
-                                            className={inputCls}
-                                        >
-                                            <option value={16}>16-bit PCM</option>
-                                            <option value={24}>24-bit PCM</option>
-                                            <option value={32}>32-bit PCM</option>
-                                        </select>
-                                    </FormField>
-                                    <label className="flex items-center gap-2 select-none self-end pb-2">
-                                        <input
-                                            type="checkbox"
-                                            checked={form.normalizeAudio}
-                                            onChange={(e) => updateForm({ normalizeAudio: e.target.checked })}
-                                        />
-                                        <span>Normalize to −1 dBFS</span>
-                                    </label>
-                                </>
-                            )}
-                        </div>
-                    )}
-                </details>
-
-                {/* File size estimate */}
-                <div className="mt-4 p-3 bg-neutral-900/50 border border-neutral-700 rounded text-sm">
-                    <div className="flex items-center justify-between">
-                        <span className="text-neutral-400">Estimated file size:</span>
-                        <span className="font-medium text-neutral-200">
-                            {fileSizeEstimate ? (
-                                <>
-                                    {fileSizeEstimate.formatted}
-                                    {fileSizeEstimate.confidence !== 'high' && (
-                                        <span className="text-neutral-500 text-xs ml-1">
-                                            ({fileSizeEstimate.confidence === 'medium' ? 'approx' : 'rough'})
-                                        </span>
-                                    )}
-                                </>
-                            ) : (
-                                <span className="text-neutral-500">—</span>
-                            )}
-                        </span>
+            <details className="mt-3 text-xs">
+                <summary className="cursor-pointer opacity-80">Advanced settings</summary>
+                <label className="mt-2 flex items-center gap-2 select-none">
+                    <input
+                        type="checkbox"
+                        checked={form.exportManifest}
+                        onChange={(e) => updateForm({ exportManifest: e.target.checked })}
+                    />
+                    <span>Write export manifest</span>
+                </label>
+                {form.format === 'video' && form.includeAudio && (
+                    <div className="mt-2 grid grid-cols-2 gap-3">
+                        <label className="flex items-center gap-2 col-span-2 select-none">
+                            <input
+                                type="checkbox"
+                                checked={form.exportAudioMaster}
+                                onChange={(e) => updateForm({ exportAudioMaster: e.target.checked })}
+                            />
+                            <span>Write mixed WAV master beside video</span>
+                        </label>
+                        <label className="flex items-center gap-2 col-span-2 select-none">
+                            <input
+                                type="checkbox"
+                                checked={form.exportAudioStems}
+                                onChange={(e) => updateForm({ exportAudioStems: e.target.checked })}
+                            />
+                            <span>Write one WAV stem per audio track</span>
+                        </label>
+                        {(form.exportAudioMaster || form.exportAudioStems) && (
+                            <>
+                                <FormField label="WAV Bit Depth">
+                                    <select
+                                        value={form.audioWavBitDepth}
+                                        onChange={(e) =>
+                                            updateForm({ audioWavBitDepth: Number(e.target.value) as 16 | 24 | 32 })
+                                        }
+                                        className={inputCls}
+                                    >
+                                        <option value={16}>16-bit PCM</option>
+                                        <option value={24}>24-bit PCM</option>
+                                        <option value={32}>32-bit PCM</option>
+                                    </select>
+                                </FormField>
+                                <label className="flex items-center gap-2 select-none self-end pb-2">
+                                    <input
+                                        type="checkbox"
+                                        checked={form.normalizeAudio}
+                                        onChange={(e) => updateForm({ normalizeAudio: e.target.checked })}
+                                    />
+                                    <span>Normalize to −1 dBFS</span>
+                                </label>
+                            </>
+                        )}
                     </div>
-                    {fileSizeEstimate && (
-                        <div className="mt-2 text-xs text-neutral-500">
-                            {effectiveDuration > 0 && <span>Duration: {effectiveDuration.toFixed(1)}s • </span>}
-                            {form.width}×{form.height} @ {effectiveFps} fps
-                            {fileSizeEstimate.breakdown.video != null &&
-                                fileSizeEstimate.breakdown.audio != null &&
-                                form.includeAudio && (
-                                    <span className="block mt-1">
-                                        Video: ~{Math.round(fileSizeEstimate.breakdown.video / 1024 / 1024)} MB
-                                        {' • '}
-                                        Audio: ~{Math.round(fileSizeEstimate.breakdown.audio / 1024 / 1024)} MB
+                )}
+            </details>
+
+            {/* File size estimate */}
+            <div className="mt-4 p-3 bg-neutral-900 border border-neutral-800 rounded text-sm">
+                <div className="flex items-center justify-between">
+                    <span className="text-neutral-400">Estimated file size:</span>
+                    <span className="font-medium text-neutral-200">
+                        {fileSizeEstimate ? (
+                            <>
+                                {fileSizeEstimate.formatted}
+                                {fileSizeEstimate.confidence !== 'high' && (
+                                    <span className="text-neutral-500 text-xs ml-1">
+                                        ({fileSizeEstimate.confidence === 'medium' ? 'approx' : 'rough'})
                                     </span>
                                 )}
-                            {form.format === 'png' && fileSizeEstimate.breakdown.frames != null && (
-                                <span className="block mt-1">{Math.ceil(effectiveFps * effectiveDuration)} frames</span>
+                            </>
+                        ) : (
+                            <span className="text-neutral-500">—</span>
+                        )}
+                    </span>
+                </div>
+                {fileSizeEstimate && (
+                    <div className="mt-2 text-xs text-neutral-500">
+                        {effectiveDuration > 0 && <span>Duration: {effectiveDuration.toFixed(1)}s • </span>}
+                        {form.width}×{form.height} @ {effectiveFps} fps
+                        {fileSizeEstimate.breakdown.video != null &&
+                            fileSizeEstimate.breakdown.audio != null &&
+                            form.includeAudio && (
+                                <span className="block mt-1">
+                                    Video: ~{Math.round(fileSizeEstimate.breakdown.video / 1024 / 1024)} MB
+                                    {' • '}
+                                    Audio: ~{Math.round(fileSizeEstimate.breakdown.audio / 1024 / 1024)} MB
+                                </span>
                             )}
-                        </div>
-                    )}
-                </div>
-
-                <div className="flex gap-2 justify-end mt-2">
-                    <button
-                        disabled={isExporting}
-                        onClick={onClose}
-                        className="px-3 py-1 border rounded text-xs font-medium bg-neutral-700 border-neutral-600 text-neutral-200 hover:bg-neutral-600 hover:text-white disabled:opacity-50"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        disabled={isExporting}
-                        onClick={beginExport}
-                        className="px-4 py-1 rounded text-xs font-semibold bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 text-white shadow hover:opacity-90 disabled:opacity-50"
-                    >
-                        {isExporting ? 'Starting...' : 'Start export'}
-                    </button>
-                </div>
+                        {form.format === 'png' && fileSizeEstimate.breakdown.frames != null && (
+                            <span className="block mt-1">{Math.ceil(effectiveFps * effectiveDuration)} frames</span>
+                        )}
+                    </div>
+                )}
             </div>
-        </div>
+
+            <div className="flex gap-2 justify-end mt-2">
+                <Button variant="ghost" size="md" disabled={isExporting} onClick={onClose}>
+                    Cancel
+                </Button>
+                <Button variant="primary" size="md" disabled={isExporting} onClick={beginExport}>
+                    {isExporting ? 'Starting...' : 'Start export'}
+                </Button>
+            </div>
+        </ModalShell>
     );
 };
 

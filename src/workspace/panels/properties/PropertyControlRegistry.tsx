@@ -1,6 +1,7 @@
 import React from 'react';
 import type { ElementPropertyControlBindings } from '@mvmnt-app/plugin-sdk';
 import type { ElementPropertyDefinition as PropertyDefinition } from '@mvmnt-app/plugin-sdk';
+import { createDragSessionId } from '@workspace/components/dragSession';
 
 export interface PropertyControlProps<Ports extends string = string> {
     bindings: ElementPropertyControlBindings<Ports>;
@@ -82,8 +83,7 @@ const NumericControl: React.FC<PropertyControlProps & { ports: string[]; label: 
 }) => {
     const session = React.useRef<string | null>(null);
     const lastPatch = React.useRef<Record<string, unknown>>({});
-    const begin = () =>
-        (session.current ??= `property-control-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`);
+    const begin = () => (session.current ??= createDragSessionId('property-control'));
     const finish = () => {
         if (!session.current) return;
         setMany(lastPatch.current, { id: session.current, finalize: true });

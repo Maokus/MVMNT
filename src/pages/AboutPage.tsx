@@ -50,7 +50,7 @@ const AboutPage: React.FC = () => {
                 </div>
 
                 <div className="about-body">
-                    <section className="mb-8 rounded-lg border border-neutral-700 bg-neutral-900/50 p-4">
+                    <section className="mb-8 rounded border border-neutral-800 bg-neutral-900 p-4">
                         <h2 className="mb-3 text-lg font-semibold text-white">Build information</h2>
                         <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[8rem_1fr]">
                             <dt className="text-neutral-500">Version</dt>

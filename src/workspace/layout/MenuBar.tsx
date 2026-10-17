@@ -1,22 +1,25 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useScene } from '@context/SceneContext';
 import logo from '@assets/Logo_Transparent.png';
-import { FaSave, FaFileExport, FaFolderOpen, FaMagic, FaPen, FaEllipsisV, FaCog } from 'react-icons/fa';
+import { FaCog } from 'react-icons/fa';
 import SceneSettingsModal from '@workspace/modals/SceneSettingsModal';
-import { ControlsModal } from '@workspace/modals/ControlsModal';
 import { BrowseTemplatesButton } from '@workspace/templates/BrowseTemplatesButton';
 import { easyModeTemplates } from '@workspace/templates/easyModeTemplates';
 import { useTemplateApply } from '@workspace/templates/useTemplateApply';
 import type { TemplateDefinition } from '@workspace/templates/types';
-import { isTextEditingTarget, matchesShortcut, useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
+import { matchesShortcut, useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
 import { BUILD_INFO } from '@app/build-info';
-import { CommandContextMenu } from '@workspace/components/CommandContextMenu';
+import { Button } from '@workspace/components/Button';
 import { useDocumentSaveStatusStore } from '@state/documentSaveStatusStore';
+import {
+    useWorkspacePanelsStore,
+    WORKSPACE_PANEL_IDS,
+    WORKSPACE_PANEL_LABELS,
+    isPanelVisible,
+} from '@state/workspacePanelsStore';
 
-interface MenuBarProps {
-    onHelp?: () => void;
-}
+const DEFAULT_DOCUMENT_TITLE = 'MVMNT – Interactive MIDI Visualizer';
 
 export function DocumentSaveStatus() {
     const { phase, progress, message, details, queued } = useDocumentSaveStatusStore((state) => ({
@@ -30,10 +33,10 @@ export function DocumentSaveStatus() {
 
     const tone =
         phase === 'error'
-            ? 'border-red-700/70 bg-red-950/70 text-red-200'
+            ? 'border-red-800 bg-red-950 text-red-200'
             : phase === 'warning'
-              ? 'border-amber-700/70 bg-amber-950/70 text-amber-200'
-              : 'border-neutral-600/70 bg-neutral-800/80 text-neutral-200';
+              ? 'border-amber-800 bg-amber-950 text-amber-200'
+              : 'border-neutral-800 bg-neutral-800 text-neutral-200';
     const label = queued && phase === 'saving' ? `${message} · latest queued` : message;
 
     return (
@@ -60,23 +63,37 @@ export function DocumentSaveStatus() {
     );
 }
 
-const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
-    const { sceneName, renameScene, saveToLocal, saveAs, isDirty, loadScene, createNewDefaultScene, leaveWorkspace } =
-        useScene();
+const MenuBar: React.FC = () => {
+    const { sceneName, renameScene, isDirty, leaveWorkspace } = useScene();
     const navigate = useNavigate();
     const [isEditingName, setIsEditingName] = useState(false);
     // temporary local state while editing so user can clear the input fully
     const [tempSceneName, setTempSceneName] = useState<string>(sceneName || '');
-    const [showSceneMenu, setShowSceneMenu] = useState(false);
-    const sceneMenuButtonRef = useRef<HTMLButtonElement>(null);
+    const [showBrand, setShowBrand] = useState(false);
     const [showSettingsModal, setShowSettingsModal] = useState(false);
-    const [showControlsModal, setShowControlsModal] = useState(false);
     const templates = useMemo(() => easyModeTemplates, []);
     const hasTemplates = templates.length > 0;
     const applyTemplate = useTemplateApply();
+
+    const sections = useWorkspacePanelsStore((state) => state.sections);
+    const hidden = useWorkspacePanelsStore((state) => state.hidden);
+    const togglePanel = useWorkspacePanelsStore((state) => state.toggle);
+    const resetLayout = useWorkspacePanelsStore((state) => state.reset);
+
     const handleBrowseTemplates = useCallback(
         (template: TemplateDefinition) => applyTemplate(template),
         [applyTemplate]
+    );
+
+    // The window/document title tracks the project name; the native menu no longer owns it.
+    useEffect(() => {
+        document.title = `${isDirty ? '● ' : ''}${sceneName || 'Untitled'} — MVMNT`;
+    }, [sceneName, isDirty]);
+    useEffect(
+        () => () => {
+            document.title = DEFAULT_DOCUMENT_TITLE;
+        },
+        []
     );
 
     useGlobalShortcut({
@@ -85,26 +102,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
         matches: (event) => matchesShortcut(event, { key: ',', primary: true }),
         handle: (event) => {
             event.preventDefault();
-            setShowSceneMenu(false);
             setShowSettingsModal(true);
-            return true;
-        },
-    });
-
-    useGlobalShortcut({
-        id: 'document.controls',
-        domain: 'document',
-        enabled: !showControlsModal,
-        matches: (event) =>
-            !isTextEditingTarget(event.target) &&
-            !event.ctrlKey &&
-            !event.metaKey &&
-            !event.altKey &&
-            (event.key === '?' || (event.code === 'Slash' && event.shiftKey)),
-        handle: (event) => {
-            event.preventDefault();
-            setShowSceneMenu(false);
-            setShowControlsModal(true);
             return true;
         },
     });
@@ -118,221 +116,141 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp }) => {
 
     const handleSceneNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter') {
-            // commit on Enter
             void renameScene(tempSceneName);
             setIsEditingName(false);
         } else if (e.key === 'Escape') {
-            // revert temporary changes on Escape
             setTempSceneName(sceneName);
             setIsEditingName(false);
         }
     };
 
-    const handleSave = () => {
-        void saveToLocal();
-        setShowSceneMenu(false);
-    };
-    const handleSaveAs = () => {
-        void saveAs();
-        setShowSceneMenu(false);
-    };
-    const handleLoad = () => {
-        loadScene();
-        setShowSceneMenu(false);
-    };
-    const handleNew = () => {
-        void createNewDefaultScene();
-        setShowSceneMenu(false);
-    };
     const handleGoHome = async (event: React.MouseEvent<HTMLAnchorElement>) => {
         event.preventDefault();
         if (await leaveWorkspace()) navigate('/');
     };
-    const handleGoCommunity = async (event: React.MouseEvent<HTMLAnchorElement>) => {
-        event.preventDefault();
-        if (await leaveWorkspace()) navigate('/community');
-    };
+
+    const brandOpen = showBrand || isEditingName;
 
     return (
         <>
             <div className="menu-bar">
                 <div className="menu-section quick-actions" style={{ gap: 12 }}>
-                    <Link to="/" onClick={handleGoHome} title="Go to Home" style={{ display: 'inline-flex' }}>
-                        <img width="50" src={logo} style={{ cursor: 'pointer' }} />
-                    </Link>
-                    <h3 style={{ marginRight: 0 }}>
-                        <Link
-                            to="/"
-                            onClick={handleGoHome}
-                            style={{ textDecoration: 'none', color: 'inherit' }}
-                            title="Go to Home"
-                        >
-                            MVMNT v{BUILD_INFO.displayVersion}
+                    <div
+                        className="relative"
+                        onMouseEnter={() => setShowBrand(true)}
+                        onMouseLeave={() => {
+                            if (!isEditingName) setShowBrand(false);
+                        }}
+                    >
+                        <Link to="/" onClick={handleGoHome} title="Go to Home" style={{ display: 'inline-flex' }}>
+                            <img width="40" src={logo} style={{ cursor: 'pointer' }} alt="MVMNT" />
                         </Link>
-                    </h3>
-                    <nav style={{ display: 'flex', gap: 10, fontSize: 12 }} aria-label="Utility navigation">
+                        {brandOpen && (
+                            <div
+                                className="absolute left-0 top-full z-[1100] mt-2 min-w-[200px] rounded border border-neutral-800 bg-neutral-900 p-3 text-neutral-100 shadow-lg"
+                                role="dialog"
+                                aria-label="Project"
+                            >
+                                <div className="mb-2 text-xs font-medium text-neutral-300">
+                                    MVMNT <span className="text-neutral-500">v{BUILD_INFO.displayVersion}</span>
+                                </div>
+                                {isEditingName ? (
+                                    <form onSubmit={handleSceneNameSubmit}>
+                                        <input
+                                            type="text"
+                                            className="scene-name-input"
+                                            value={tempSceneName}
+                                            onChange={(e) => setTempSceneName(e.target.value)}
+                                            onBlur={() => {
+                                                void renameScene(tempSceneName);
+                                                setIsEditingName(false);
+                                            }}
+                                            onKeyDown={handleSceneNameKeyDown}
+                                            aria-label="Project name"
+                                            autoFocus
+                                        />
+                                    </form>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        className="scene-name-display"
+                                        title="Double-click to rename the project"
+                                        onDoubleClick={() => {
+                                            setTempSceneName(sceneName);
+                                            setIsEditingName(true);
+                                        }}
+                                    >
+                                        {sceneName}
+                                        {isDirty ? (
+                                            <span title="Unsaved changes" style={{ marginLeft: 2, opacity: 0.7 }}>
+                                                *
+                                            </span>
+                                        ) : null}
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                    <nav className="flex items-center gap-1" aria-label="Workspace panels">
+                        {WORKSPACE_PANEL_IDS.map((id) => {
+                            const visible = isPanelVisible(sections, hidden, id);
+                            return (
+                                <button
+                                    key={id}
+                                    type="button"
+                                    onClick={() => togglePanel(id)}
+                                    aria-pressed={visible}
+                                    title={`${visible ? 'Hide' : 'Show'} ${WORKSPACE_PANEL_LABELS[id]} panel`}
+                                    className={`rounded px-2.5 py-1 text-[12px] font-semibold transition-colors outline-none focus:outline-none ${
+                                        visible
+                                            ? 'bg-neutral-700 text-white'
+                                            : 'text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100'
+                                    }`}
+                                >
+                                    {WORKSPACE_PANEL_LABELS[id]}
+                                </button>
+                            );
+                        })}
                         <button
                             type="button"
-                            onClick={() => onHelp?.()}
-                            style={{
-                                background: 'none',
-                                border: 'none',
-                                color: '#cccccc',
-                                cursor: 'pointer',
-                                padding: '4px 6px',
-                                borderRadius: 4,
-                            }}
-                            title="Show onboarding / help"
+                            onClick={resetLayout}
+                            title="Restore the default panel layout"
+                            className="rounded px-2.5 py-1 text-[12px] font-semibold text-neutral-400 transition-colors outline-none hover:bg-neutral-800 hover:text-neutral-100 focus:outline-none"
                         >
-                            help
+                            Reset layout
                         </button>
-                        <button
-                            type="button"
-                            onClick={() => setShowControlsModal(true)}
-                            className="rounded px-1.5 py-1 text-neutral-300 hover:bg-white/10 hover:text-white"
-                            title="Show keyboard and mouse controls (?)"
-                        >
-                            controls
-                        </button>
-                        <Link
-                            to="/community"
-                            onClick={handleGoCommunity}
-                            style={{
-                                background: 'none',
-                                border: 'none',
-                                color: '#cccccc',
-                                cursor: 'pointer',
-                                padding: '4px 6px',
-                                borderRadius: 4,
-                                textDecoration: 'none',
-                                fontSize: 12,
-                            }}
-                            title="Browse community templates & plugins"
-                        >
-                            community
-                        </Link>
                     </nav>
                 </div>
 
-                <div className="menu-section scene-name-section">
-                    <div className="scene-name-container">
-                        {isEditingName ? (
-                            <form onSubmit={handleSceneNameSubmit}>
-                                <input
-                                    type="text"
-                                    className="scene-name-input"
-                                    value={tempSceneName}
-                                    onChange={(e) => setTempSceneName(e.target.value)}
-                                    onBlur={() => {
-                                        // commit on blur as well (matches Enter behaviour)
-                                        void renameScene(tempSceneName);
-                                        setIsEditingName(false);
-                                    }}
-                                    onKeyDown={handleSceneNameKeyDown}
-                                    autoFocus
-                                />
-                            </form>
-                        ) : (
-                            <span
-                                className="scene-name-display"
-                                onDoubleClick={() => {
-                                    setTempSceneName(sceneName);
-                                    setIsEditingName(true);
-                                }}
-                            >
-                                {sceneName}
-                                {isDirty ? (
-                                    <span title="Unsaved changes" style={{ marginLeft: 2, opacity: 0.7 }}>
-                                        *
-                                    </span>
-                                ) : null}
-                            </span>
-                        )}
-
-                        <DocumentSaveStatus />
-
-                        <button
-                            className="bg-transparent border-0 text-neutral-300 cursor-pointer p-1.5 rounded text-sm transition-colors flex items-center justify-center w-7 h-7 hover:bg-white/10 hover:text-white"
-                            onClick={() => {
-                                setShowSettingsModal(true);
-                                setShowSceneMenu(false);
-                            }}
-                            title="Scene settings"
-                            aria-label="Scene settings"
-                            type="button"
-                        >
-                            <FaCog />
-                        </button>
-                        <div className="relative">
-                            <button
-                                ref={sceneMenuButtonRef}
-                                className="bg-transparent border-0 text-neutral-300 cursor-pointer p-1.5 rounded text-sm font-bold transition-colors flex items-center justify-center w-6 h-6 hover:bg-white/10 hover:text-white"
-                                onClick={() => setShowSceneMenu(!showSceneMenu)}
-                                title="Scene options"
-                                data-tutorial-target="save"
-                                aria-haspopup="true"
-                                aria-expanded={showSceneMenu}
-                            >
-                                <FaEllipsisV />
-                            </button>
-                            {showSceneMenu && sceneMenuButtonRef.current ? (
-                                <CommandContextMenu
-                                    position={{
-                                        x: sceneMenuButtonRef.current.getBoundingClientRect().right - 180,
-                                        y: sceneMenuButtonRef.current.getBoundingClientRect().bottom + 4,
-                                    }}
-                                    onClose={() => setShowSceneMenu(false)}
-                                    ariaLabel="Scene options"
-                                    entries={[
-                                        { label: 'Save', shortcut: 'Mod+S', icon: <FaSave />, onSelect: handleSave },
-                                        {
-                                            label: 'Save As…',
-                                            shortcut: 'Mod+Shift+S',
-                                            icon: <FaFileExport />,
-                                            onSelect: handleSaveAs,
-                                        },
-                                        {
-                                            label: 'Load from File…',
-                                            shortcut: 'Mod+O',
-                                            icon: <FaFolderOpen />,
-                                            onSelect: handleLoad,
-                                        },
-                                        {
-                                            label: 'New Blank Scene',
-                                            shortcut: 'Mod+N',
-                                            icon: <FaMagic />,
-                                            onSelect: handleNew,
-                                        },
-                                    ]}
-                                />
-                            ) : null}
-                        </div>
-                    </div>
-                </div>
                 <div className="menu-section" style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-                    <div className="flex items-center gap-2 mr-2">
-                        <BrowseTemplatesButton
-                            templates={templates}
-                            onTemplateSelect={handleBrowseTemplates}
-                            className="px-3 py-1 rounded cursor-pointer text-[12px] font-semibold inline-flex items-center justify-center border border-neutral-600 bg-neutral-800/70 text-neutral-100 hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-500/40"
-                            disabled={!hasTemplates}
-                        >
-                            Browse Templates
-                        </BrowseTemplatesButton>
-                        <button
-                            type="button"
-                            onClick={() => window.dispatchEvent(new CustomEvent('open-render-modal'))}
-                            data-tutorial-target="render"
-                            className="px-3 py-1 rounded cursor-pointer text-[12px] font-semibold shadow-sm inline-flex items-center justify-center bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 text-white hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-pink-400"
-                            title="Render / Export Video"
-                        >
-                            Render
-                        </button>
-                    </div>
+                    <DocumentSaveStatus />
+                    <Button
+                        variant="icon-lg"
+                        onClick={() => setShowSettingsModal(true)}
+                        title="Scene settings"
+                        aria-label="Scene settings"
+                    >
+                        <FaCog size={16} />
+                    </Button>
+                    <BrowseTemplatesButton
+                        templates={templates}
+                        onTemplateSelect={handleBrowseTemplates}
+                        className="px-3 py-1 rounded cursor-pointer text-[12px] font-semibold inline-flex items-center justify-center border border-neutral-800 bg-neutral-900 text-neutral-100 hover:bg-neutral-800 focus:outline-none"
+                        disabled={!hasTemplates}
+                    >
+                        Browse Templates
+                    </BrowseTemplatesButton>
+                    <Button
+                        variant="primary"
+                        onClick={() => window.dispatchEvent(new CustomEvent('open-render-modal'))}
+                        data-tutorial-target="render"
+                        title="Render / Export Video"
+                    >
+                        Render
+                    </Button>
                 </div>
             </div>
             {showSettingsModal && <SceneSettingsModal onClose={() => setShowSettingsModal(false)} />}
-            {showControlsModal && <ControlsModal onClose={() => setShowControlsModal(false)} />}
         </>
     );
 };
