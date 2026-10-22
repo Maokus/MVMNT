@@ -136,6 +136,9 @@ export function CommandContextMenu({
                         role="menuitem"
                         className={entry.danger ? 'is-danger' : undefined}
                         disabled={disabled}
+                        // The menu focuses its first item on open; move focus with the pointer so
+                        // hover and keyboard share one highlight instead of lighting up both.
+                        onPointerEnter={(event) => event.currentTarget.focus({ preventScroll: true })}
                         onClick={invoke}
                     >
                         {entry.icon}

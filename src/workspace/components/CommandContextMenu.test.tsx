@@ -36,6 +36,32 @@ describe('CommandContextMenu', () => {
         expect(onClose).toHaveBeenCalled();
     });
 
+    it('moves the highlight to the hovered item instead of keeping the first one lit', () => {
+        const onClose = vi.fn();
+        render(
+            <CommandContextMenu
+                position={{ x: 10, y: 10 }}
+                entries={[
+                    { label: 'First', onSelect: vi.fn() },
+                    { label: 'Second', onSelect: vi.fn() },
+                ]}
+                onClose={onClose}
+            />
+        );
+
+        const first = screen.getByRole('menuitem', { name: 'First' });
+        const second = screen.getByRole('menuitem', { name: 'Second' });
+        expect(first).toHaveFocus();
+
+        fireEvent.pointerOver(second);
+        expect(second).toHaveFocus();
+        expect(first).not.toHaveFocus();
+
+        fireEvent.pointerOver(first);
+        expect(first).toHaveFocus();
+        expect(second).not.toHaveFocus();
+    });
+
     it('closes on Escape before global selection shortcuts can handle it', () => {
         const onClose = vi.fn();
         render(
