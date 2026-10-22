@@ -1,13 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { useWorkspacePanelsStore } from '@state/workspacePanelsStore';
+import { useWorkspacePanelsStore, isPanelVisible } from '@state/workspacePanelsStore';
 import MenuBar from '../MenuBar';
+
+const renameScene = vi.hoisted(() => vi.fn().mockResolvedValue(true));
+const saveToLocal = vi.hoisted(() => vi.fn().mockResolvedValue(true));
+const saveAs = vi.hoisted(() => vi.fn().mockResolvedValue(true));
 
 vi.mock('@context/SceneContext', () => ({
     useScene: () => ({
         sceneName: 'Untitled',
-        renameScene: vi.fn().mockResolvedValue(true),
+        renameScene,
+        saveToLocal,
+        saveAs,
         isDirty: false,
         leaveWorkspace: vi.fn().mockResolvedValue(true),
     }),
@@ -29,42 +35,126 @@ const resetLayout = () =>
         dragging: null,
     });
 
-const panelButton = (name: string) => screen.getByRole('button', { name });
+const store = () => useWorkspacePanelsStore.getState();
+const visible = (id: 'assets' | 'elements' | 'properties' | 'macros') =>
+    isPanelVisible(store().sections, store().hidden, id);
 
-const renderMenuBar = () =>
+const openMenu = (label: 'View' | 'Help') => fireEvent.click(screen.getByRole('button', { name: label }));
+
+const renderMenuBar = (props: { onHelp?: () => void; onControls?: () => void; onCommunity?: () => void } = {}) =>
     render(
         <MemoryRouter>
-            <MenuBar />
+            <MenuBar {...props} />
         </MemoryRouter>
     );
 
-describe('MenuBar panel toggles', () => {
-    beforeEach(resetLayout);
-
-    it('lights up every panel the docks are showing, including background tabs', () => {
-        renderMenuBar();
-
-        expect(panelButton('Assets')).toHaveAttribute('aria-pressed', 'true');
-        expect(panelButton('Elements')).toHaveAttribute('aria-pressed', 'true');
-        expect(panelButton('Properties')).toHaveAttribute('aria-pressed', 'true');
-        expect(panelButton('Macros')).toHaveAttribute('aria-pressed', 'false');
+describe('MenuBar View menu', () => {
+    beforeEach(() => {
+        resetLayout();
+        vi.clearAllMocks();
     });
 
-    it('closes an open panel on one click and reopens it on the next', () => {
+    it('lists every panel and ticks the ones the docks are showing, including background tabs', () => {
         renderMenuBar();
+        openMenu('View');
 
-        fireEvent.click(panelButton('Properties'));
-        expect(panelButton('Properties')).toHaveAttribute('aria-pressed', 'false');
-        expect(panelButton('Elements')).toHaveAttribute('aria-pressed', 'true');
-
-        fireEvent.click(panelButton('Properties'));
-        expect(panelButton('Properties')).toHaveAttribute('aria-pressed', 'true');
+        expect(screen.getByRole('menuitem', { name: '✓ Assets' })).toBeTruthy();
+        expect(screen.getByRole('menuitem', { name: '✓ Elements' })).toBeTruthy();
+        expect(screen.getByRole('menuitem', { name: '✓ Properties' })).toBeTruthy();
+        expect(screen.getByRole('menuitem', { name: 'Macros' })).toBeTruthy();
     });
 
-    it('shows a hidden panel again on one click', () => {
+    it('closes an open panel through the menu and reopens it on the next visit', () => {
+        renderMenuBar();
+        openMenu('View');
+        fireEvent.click(screen.getByRole('menuitem', { name: '✓ Properties' }));
+
+        expect(visible('properties')).toBe(false);
+        expect(visible('elements')).toBe(true);
+
+        openMenu('View');
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Properties' }));
+
+        expect(visible('properties')).toBe(true);
+    });
+
+    it('shows a hidden panel again through the menu', () => {
+        renderMenuBar();
+        openMenu('View');
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Macros' }));
+
+        expect(visible('macros')).toBe(true);
+    });
+
+    it('restores the default layout', () => {
+        useWorkspacePanelsStore.setState({ hidden: { assets: true, elements: true, properties: true, macros: false } });
+
+        renderMenuBar();
+        openMenu('View');
+        fireEvent.click(screen.getByRole('menuitem', { name: 'Reset layout' }));
+
+        expect(visible('assets')).toBe(true);
+        expect(visible('elements')).toBe(true);
+        expect(visible('properties')).toBe(true);
+        // Macros ships hidden in the default layout, so resetting leaves it hidden again.
+        expect(visible('macros')).toBe(false);
+    });
+});
+
+describe('MenuBar project name and save', () => {
+    beforeEach(() => {
+        resetLayout();
+        vi.clearAllMocks();
+    });
+
+    it('shows the project name in the bar and renames it from there', () => {
         renderMenuBar();
 
-        fireEvent.click(panelButton('Macros'));
-        expect(panelButton('Macros')).toHaveAttribute('aria-pressed', 'true');
+        fireEvent.doubleClick(screen.getByText('Untitled'));
+        const input = screen.getByLabelText('Project name');
+        fireEvent.change(input, { target: { value: 'My Song' } });
+        fireEvent.keyDown(input, { key: 'Enter' });
+
+        expect(renameScene).toHaveBeenCalledWith('My Song');
+    });
+
+    it('saves and saves as from the scene options menu', () => {
+        renderMenuBar();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Scene options' }));
+        fireEvent.click(screen.getByText('Save'));
+
+        fireEvent.click(screen.getByRole('button', { name: 'Scene options' }));
+        fireEvent.click(screen.getByText('Save As…'));
+
+        expect(saveToLocal).toHaveBeenCalledTimes(1);
+        expect(saveAs).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('MenuBar Help menu', () => {
+    beforeEach(() => {
+        resetLayout();
+        vi.clearAllMocks();
+    });
+
+    it('routes help, controls and community to the workspace handlers', () => {
+        const onHelp = vi.fn();
+        const onControls = vi.fn();
+        const onCommunity = vi.fn();
+        renderMenuBar({ onHelp, onControls, onCommunity });
+
+        openMenu('Help');
+        expect(screen.getByRole('menuitem', { name: /MVMNT v/ })).toBeDisabled();
+
+        fireEvent.click(screen.getByRole('menuitem', { name: /Getting Started/ }));
+        openMenu('Help');
+        fireEvent.click(screen.getByRole('menuitem', { name: /Controls/ }));
+        openMenu('Help');
+        fireEvent.click(screen.getByRole('menuitem', { name: /Community/ }));
+
+        expect(onHelp).toHaveBeenCalledTimes(1);
+        expect(onControls).toHaveBeenCalledTimes(1);
+        expect(onCommunity).toHaveBeenCalledTimes(1);
     });
 });

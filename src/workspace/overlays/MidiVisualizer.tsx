@@ -191,7 +191,11 @@ const MidiVisualizerInner: React.FC = () => {
     return (
         <div className="app-container" data-tutorial-step={onboarding.step ?? undefined}>
             <TemplateLoadingOverlay />
-            <MenuBar />
+            <MenuBar
+                onHelp={() => onboarding.openWelcome()}
+                onControls={() => setShowControlsModal(true)}
+                onCommunity={() => void handleGoCommunity()}
+            />
             <MissingFontsBanner />
             <SceneSelectionProvider>
                 <>

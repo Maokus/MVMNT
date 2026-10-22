@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useScene } from '@context/SceneContext';
 import logo from '@assets/Logo_Transparent.png';
-import { FaCog } from 'react-icons/fa';
+import { FaCog, FaEllipsisV, FaFileExport, FaSave } from 'react-icons/fa';
 import SceneSettingsModal from '@workspace/modals/SceneSettingsModal';
 import { BrowseTemplatesButton } from '@workspace/templates/BrowseTemplatesButton';
 import { easyModeTemplates } from '@workspace/templates/easyModeTemplates';
@@ -11,6 +11,7 @@ import type { TemplateDefinition } from '@workspace/templates/types';
 import { matchesShortcut, useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
 import { BUILD_INFO } from '@app/build-info';
 import { Button } from '@workspace/components/Button';
+import { CommandContextMenu, type CommandMenuEntry } from '@workspace/components/CommandContextMenu';
 import { useDocumentSaveStatusStore } from '@state/documentSaveStatusStore';
 import {
     useWorkspacePanelsStore,
@@ -63,13 +64,55 @@ export function DocumentSaveStatus() {
     );
 }
 
-const MenuBar: React.FC = () => {
-    const { sceneName, renameScene, isDirty, leaveWorkspace } = useScene();
+interface MenuBarProps {
+    onHelp?: () => void;
+    onControls?: () => void;
+    onCommunity?: () => void;
+}
+
+/** Menu-bar dropdown anchored under its trigger; the shared context menu owns outside-click and Escape. */
+const MenuButton: React.FC<{
+    label: string;
+    entries: readonly CommandMenuEntry[];
+    icon?: React.ReactNode;
+}> = ({ label, entries, icon }) => {
+    const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+    const open = position !== null;
+
+    return (
+        <>
+            <Button
+                variant={icon ? 'icon-lg' : 'ghost'}
+                aria-label={label}
+                title={label}
+                aria-haspopup="menu"
+                aria-expanded={open}
+                className={open ? 'bg-neutral-700 text-white' : undefined}
+                onClick={(event) => {
+                    const rect = event.currentTarget.getBoundingClientRect();
+                    setPosition((previous) => (previous ? null : { x: rect.left, y: rect.bottom + 4 }));
+                }}
+            >
+                {icon ?? label}
+            </Button>
+            {position ? (
+                <CommandContextMenu
+                    position={position}
+                    entries={entries}
+                    onClose={() => setPosition(null)}
+                    ariaLabel={`${label} menu`}
+                />
+            ) : null}
+        </>
+    );
+};
+
+const MenuBar: React.FC<MenuBarProps> = ({ onHelp, onControls, onCommunity }) => {
+    const { sceneName, renameScene, saveToLocal, saveAs, isDirty, leaveWorkspace } = useScene();
     const navigate = useNavigate();
     const [isEditingName, setIsEditingName] = useState(false);
     // temporary local state while editing so user can clear the input fully
     const [tempSceneName, setTempSceneName] = useState<string>(sceneName || '');
-    const [showBrand, setShowBrand] = useState(false);
     const [showSettingsModal, setShowSettingsModal] = useState(false);
     const templates = useMemo(() => easyModeTemplates, []);
     const hasTemplates = templates.length > 0;
@@ -129,109 +172,97 @@ const MenuBar: React.FC = () => {
         if (await leaveWorkspace()) navigate('/');
     };
 
-    const brandOpen = showBrand || isEditingName;
+    const viewEntries: CommandMenuEntry[] = [
+        ...WORKSPACE_PANEL_IDS.map((id) => ({
+            label: `${isPanelVisible(sections, hidden, id) ? '✓ ' : ''}${WORKSPACE_PANEL_LABELS[id]}`,
+            onSelect: () => togglePanel(id),
+        })),
+        { separator: true },
+        { label: 'Reset layout', onSelect: resetLayout },
+    ];
+
+    const helpEntries: CommandMenuEntry[] = [
+        { label: 'Getting Started', onSelect: () => onHelp?.() },
+        { label: 'Controls', shortcut: '?', onSelect: () => onControls?.() },
+        { label: 'Community', onSelect: () => onCommunity?.() },
+        { separator: true },
+        { label: `MVMNT v${BUILD_INFO.displayVersion}`, disabled: true },
+    ];
+
+    const sceneEntries: CommandMenuEntry[] = [
+        { label: 'Save', shortcut: 'Mod+S', icon: <FaSave size={14} />, onSelect: () => void saveToLocal() },
+        {
+            label: 'Save As…',
+            shortcut: 'Mod+Shift+S',
+            icon: <FaFileExport size={14} />,
+            onSelect: () => void saveAs(),
+        },
+    ];
 
     return (
         <>
             <div className="menu-bar">
-                <div className="menu-section quick-actions" style={{ gap: 12 }}>
-                    <div
-                        className="relative"
-                        onMouseEnter={() => setShowBrand(true)}
-                        onMouseLeave={() => {
-                            if (!isEditingName) setShowBrand(false);
-                        }}
-                    >
-                        <Link to="/" onClick={handleGoHome} title="Go to Home" style={{ display: 'inline-flex' }}>
-                            <img width="40" src={logo} style={{ cursor: 'pointer' }} alt="MVMNT" />
-                        </Link>
-                        {brandOpen && (
-                            <div
-                                className="absolute left-0 top-full z-[1100] mt-2 min-w-[200px] rounded border border-neutral-800 bg-neutral-900 p-3 text-neutral-100 shadow-lg"
-                                role="dialog"
-                                aria-label="Project"
+                <div className="menu-section quick-actions" style={{ gap: 8 }}>
+                    <Link to="/" onClick={handleGoHome} title="Go to Home" style={{ display: 'inline-flex' }}>
+                        <img width="40" src={logo} style={{ cursor: 'pointer' }} alt="MVMNT" />
+                    </Link>
+                    <MenuButton label="View" entries={viewEntries} />
+                    <MenuButton label="Help" entries={helpEntries} />
+                </div>
+
+                <div className="menu-section scene-name-section">
+                    <div className="scene-name-container">
+                        {isEditingName ? (
+                            <form onSubmit={handleSceneNameSubmit}>
+                                <input
+                                    type="text"
+                                    className="scene-name-input"
+                                    value={tempSceneName}
+                                    onChange={(e) => setTempSceneName(e.target.value)}
+                                    onBlur={() => {
+                                        void renameScene(tempSceneName);
+                                        setIsEditingName(false);
+                                    }}
+                                    onKeyDown={handleSceneNameKeyDown}
+                                    aria-label="Project name"
+                                    autoFocus
+                                />
+                            </form>
+                        ) : (
+                            <span
+                                className="scene-name-display"
+                                title="Double-click to rename the project"
+                                onDoubleClick={() => {
+                                    setTempSceneName(sceneName);
+                                    setIsEditingName(true);
+                                }}
                             >
-                                <div className="mb-2 text-xs font-medium text-neutral-300">
-                                    MVMNT <span className="text-neutral-500">v{BUILD_INFO.displayVersion}</span>
-                                </div>
-                                {isEditingName ? (
-                                    <form onSubmit={handleSceneNameSubmit}>
-                                        <input
-                                            type="text"
-                                            className="scene-name-input"
-                                            value={tempSceneName}
-                                            onChange={(e) => setTempSceneName(e.target.value)}
-                                            onBlur={() => {
-                                                void renameScene(tempSceneName);
-                                                setIsEditingName(false);
-                                            }}
-                                            onKeyDown={handleSceneNameKeyDown}
-                                            aria-label="Project name"
-                                            autoFocus
-                                        />
-                                    </form>
-                                ) : (
-                                    <button
-                                        type="button"
-                                        className="scene-name-display"
-                                        title="Double-click to rename the project"
-                                        onDoubleClick={() => {
-                                            setTempSceneName(sceneName);
-                                            setIsEditingName(true);
-                                        }}
-                                    >
-                                        {sceneName}
-                                        {isDirty ? (
-                                            <span title="Unsaved changes" style={{ marginLeft: 2, opacity: 0.7 }}>
-                                                *
-                                            </span>
-                                        ) : null}
-                                    </button>
-                                )}
-                            </div>
+                                {sceneName}
+                                {isDirty ? (
+                                    <span title="Unsaved changes" style={{ marginLeft: 2, opacity: 0.7 }}>
+                                        *
+                                    </span>
+                                ) : null}
+                            </span>
                         )}
-                    </div>
-                    <nav className="flex items-center gap-1" aria-label="Workspace panels">
-                        {WORKSPACE_PANEL_IDS.map((id) => {
-                            const visible = isPanelVisible(sections, hidden, id);
-                            return (
-                                <button
-                                    key={id}
-                                    type="button"
-                                    onClick={() => togglePanel(id)}
-                                    aria-pressed={visible}
-                                    title={`${visible ? 'Hide' : 'Show'} ${WORKSPACE_PANEL_LABELS[id]} panel`}
-                                    className={`rounded px-2.5 py-1 text-[12px] font-semibold transition-colors outline-none focus:outline-none ${
-                                        visible
-                                            ? 'bg-neutral-700 text-white'
-                                            : 'text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100'
-                                    }`}
-                                >
-                                    {WORKSPACE_PANEL_LABELS[id]}
-                                </button>
-                            );
-                        })}
-                        <button
-                            type="button"
-                            onClick={resetLayout}
-                            title="Restore the default panel layout"
-                            className="rounded px-2.5 py-1 text-[12px] font-semibold text-neutral-400 transition-colors outline-none hover:bg-neutral-800 hover:text-neutral-100 focus:outline-none"
+
+                        <DocumentSaveStatus />
+
+                        <span className="inline-flex" data-tutorial-target="save">
+                            <MenuButton label="Scene options" icon={<FaEllipsisV size={16} />} entries={sceneEntries} />
+                        </span>
+                        <Button
+                            variant="icon-lg"
+                            onClick={() => setShowSettingsModal(true)}
+                            title="Scene settings"
+                            aria-label="Scene settings"
                         >
-                            Reset layout
-                        </button>
-                    </nav>
+                            <FaCog size={16} />
+                        </Button>
+                    </div>
                 </div>
 
                 <div className="menu-section" style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-                    <DocumentSaveStatus />
-                    <Button
-                        variant="icon-lg"
-                        onClick={() => setShowSettingsModal(true)}
-                        title="Scene settings"
-                        aria-label="Scene settings"
-                    >
-                        <FaCog size={16} />
-                    </Button>
                     <BrowseTemplatesButton
                         templates={templates}
                         onTemplateSelect={handleBrowseTemplates}
