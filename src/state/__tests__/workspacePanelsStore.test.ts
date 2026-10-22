@@ -5,6 +5,7 @@ import {
     isPanelVisible,
     normalizeSectionWeights,
     panelSide,
+    sectionsFromStored,
     WORKSPACE_PANEL_IDS,
     type DockSections,
 } from '../workspacePanelsStore';
@@ -66,6 +67,30 @@ describe('workspace panels store', () => {
         const state = useWorkspacePanelsStore.getState();
         expect(state.sections.right[0].tabs).toEqual(['macros', 'elements', 'properties']);
         expect(state.sections.right[0].active).toBe('elements');
+    });
+
+    it('inserts a rightward-reordered tab before its target, not after', () => {
+        // dropTargetFor reports the slot from the strip before the dragged tab is removed.
+        useWorkspacePanelsStore.getState().moveTab('elements', {
+            side: 'right',
+            sectionIndex: 0,
+            tabIndex: 2,
+            split: false,
+        });
+        expect(useWorkspacePanelsStore.getState().sections.right[0].tabs).toEqual(['properties', 'elements', 'macros']);
+    });
+
+    it('leaves the previous sections untouched', () => {
+        const before = useWorkspacePanelsStore.getState().sections;
+        const beforeTabs = [...before.right[0].tabs];
+        useWorkspacePanelsStore.getState().moveTab('assets', {
+            side: 'right',
+            sectionIndex: 0,
+            tabIndex: 0,
+            split: false,
+        });
+        expect(before.right[0].tabs).toEqual(beforeTabs);
+        expect(before.left).toEqual([{ tabs: ['assets'], active: 'assets' }]);
     });
 
     it('splits a dock into two stacked sections when a tab is dropped on its body', () => {
@@ -263,5 +288,36 @@ describe('stacked section weights', () => {
 
         useWorkspacePanelsStore.getState().reset();
         expect(useWorkspacePanelsStore.getState().sectionWeights).toEqual({ left: [1], right: [1] });
+    });
+});
+
+describe('sectionsFromStored', () => {
+    it('falls back to the factory docks for an unreadable layout', () => {
+        expect(sectionsFromStored(null)).toEqual(baseSections());
+    });
+
+    it('re-docks a panel that the stored layout never mentions', () => {
+        const sections = sectionsFromStored({
+            left: [{ tabs: ['assets'], active: 'assets' }],
+            right: [{ tabs: ['elements'], active: 'elements' }],
+            top: [],
+            bottom: [],
+        });
+        expect(sections.right[0].tabs).toEqual(['elements', 'properties', 'macros']);
+        expect(sections.right[0].active).toBe('elements');
+    });
+
+    it('keeps only the first copy of a duplicated panel', () => {
+        const sections = sectionsFromStored({
+            left: [{ tabs: ['assets'], active: 'assets' }],
+            right: [
+                { tabs: ['elements', 'properties'], active: 'properties' },
+                { tabs: ['elements'], active: 'elements' },
+            ],
+            top: [],
+            bottom: [],
+        });
+        expect(sections.right.map((section) => section.tabs)).toEqual([['elements', 'properties', 'macros']]);
+        expect(sections.right[0].active).toBe('properties');
     });
 });

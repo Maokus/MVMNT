@@ -124,7 +124,7 @@ const withoutTab = (list: DockSection[], hidden: Record<WorkspacePanelId, boolea
                       tabs: section.tabs.filter((tab) => tab !== id),
                       active: section.active === id ? firstVisible(section, hidden, id) : section.active,
                   }
-                : section
+                : { tabs: [...section.tabs], active: section.active }
         )
         .filter((section) => section.tabs.length > 0);
 
@@ -141,6 +141,7 @@ const sanitizeSections = (input: unknown): DockSections => {
     const result: DockSections = { left: [], right: [], top: [], bottom: [] };
     if (!input || typeof input !== 'object') return result;
     const source = input as Record<string, unknown>;
+    const seen = new Set<WorkspacePanelId>();
     for (const side of DOCK_SIDES) {
         const list = source[side];
         if (!Array.isArray(list)) continue;
@@ -148,7 +149,12 @@ const sanitizeSections = (input: unknown): DockSections => {
             .map((raw): DockSection | null => {
                 if (!raw || typeof raw !== 'object') return null;
                 const entry = raw as { tabs?: unknown; active?: unknown };
-                const tabs = Array.isArray(entry.tabs) ? entry.tabs.filter(isPanelId) : [];
+                // Each panel may appear once in the whole layout, or two sections would mount it twice.
+                const tabs = (Array.isArray(entry.tabs) ? entry.tabs.filter(isPanelId) : []).filter((id) => {
+                    if (seen.has(id)) return false;
+                    seen.add(id);
+                    return true;
+                });
                 if (tabs.length === 0) return null;
                 const active = isPanelId(entry.active) && tabs.includes(entry.active) ? entry.active : tabs[0];
                 return { tabs, active };
@@ -158,10 +164,24 @@ const sanitizeSections = (input: unknown): DockSections => {
     return result;
 };
 
-const sectionsFromStored = (input: unknown): DockSections => {
-    const sections = sanitizeSections(input);
-    return DOCK_SIDES.every((side) => sections[side].length === 0) ? cloneSections(DEFAULT_SECTIONS) : sections;
+// A panel missing from a stored layout (older save, or a panel added in a later release) cannot be
+// recovered by activate(), so it is re-docked at the default dock's last section here.
+const withMissingPanels = (sections: DockSections): DockSections => {
+    const present = new Set(DOCK_SIDES.flatMap((side) => sections[side].flatMap((section) => section.tabs)));
+    const result = cloneSections(sections);
+    for (const id of WORKSPACE_PANEL_IDS) {
+        if (present.has(id)) continue;
+        const side =
+            DOCK_SIDES.find((candidate) => DEFAULT_SECTIONS[candidate].some((section) => section.tabs.includes(id))) ??
+            'right';
+        const last = result[side][result[side].length - 1];
+        if (last) last.tabs.push(id);
+        else result[side].push({ tabs: [id], active: id });
+    }
+    return result;
 };
+
+export const sectionsFromStored = (input: unknown): DockSections => withMissingPanels(sanitizeSections(input));
 
 const sanitizeHidden = (input: unknown): Record<WorkspacePanelId, boolean> => {
     const result = { ...DEFAULT_HIDDEN };
@@ -285,6 +305,7 @@ export const useWorkspacePanelsStore = create<WorkspacePanelsState>((set, get) =
             set((state) => {
                 const from = panelSide(state.sections, id);
                 const fromSection = panelSectionIndex(state.sections, from, id);
+                const sourceIndex = fromSection >= 0 ? state.sections[from][fromSection].tabs.indexOf(id) : -1;
                 const sections = DOCK_SIDES.reduce((accumulator, dockSide) => {
                     accumulator[dockSide] = withoutTab(state.sections[dockSide], state.hidden, id);
                     return accumulator;
@@ -298,7 +319,9 @@ export const useWorkspacePanelsStore = create<WorkspacePanelsState>((set, get) =
                         target.push({ tabs: [id], active: id });
                     } else {
                         const section = target[index];
-                        section.tabs.splice(clamp(tabIndex, 0, section.tabs.length), 0, id);
+                        // Reordering rightward in the same strip: removing the tab shifted every later slot left.
+                        const reorderShift = from === side && fromSection === index && sourceIndex < tabIndex ? 1 : 0;
+                        section.tabs.splice(clamp(tabIndex - reorderShift, 0, section.tabs.length), 0, id);
                         if (from !== side || fromSection !== index) section.active = id;
                     }
                 }

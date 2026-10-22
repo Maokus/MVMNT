@@ -2148,10 +2148,6 @@
             @apply flex-col;
         }
 
-        .dock-horizontal {
-            display: none;
-        }
-
         .preview-panel {
             @apply border-r-0 border-b border-border;
         }
