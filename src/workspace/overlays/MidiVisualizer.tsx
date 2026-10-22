@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import MenuBar from '@workspace/layout/MenuBar';
 import PreviewPanel from '@workspace/panels/preview/PreviewPanel';
 import WorkspaceDock from '@workspace/layout/WorkspaceDock';
+import { ClearSelectionOnBackgroundClick } from '@workspace/layout/ClearSelectionOnBackgroundClick';
 import { TimelinePanel } from '@workspace/panels/timeline';
 import SmallScreenWarning from '@workspace/layout/SmallScreenWarning';
 import { SceneSelectionProvider } from '@context/SceneSelectionContext';
@@ -195,6 +196,7 @@ const MidiVisualizerInner: React.FC = () => {
             <SceneSelectionProvider>
                 <>
                     <InsertKeyframeController />
+                    <ClearSelectionOnBackgroundClick />
                     <TrackInputPopupController />
                     <div className="main-workspace">
                         <WorkspaceDock side="left" />

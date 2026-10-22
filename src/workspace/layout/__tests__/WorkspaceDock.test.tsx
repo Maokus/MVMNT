@@ -314,7 +314,7 @@ describe('WorkspaceDock tab dragging', () => {
         fireEvent.pointerMove(window, { clientX: 460, clientY: 80 });
 
         await waitFor(() => expect(container.querySelector('[data-dock-guide="true"]')).not.toBeNull());
-        expect(container.querySelector('[data-dock-guide-zone="top"][data-active="true"]')).not.toBeNull();
+        expect(container.querySelector('[data-dock-guide-zone="top"]')).toHaveTextContent('Dock top');
         const zone = container.querySelector('[data-dock-target="top"]') as HTMLElement;
         expect(zone).not.toBeNull();
         expect(zone.style.top).toBe('48px');
@@ -349,7 +349,7 @@ describe('WorkspaceDock tab dragging', () => {
         fireEvent.pointerMove(window, { clientX: 500, clientY: 330 });
 
         await waitFor(() => expect(container.querySelector('[data-dock-guide="true"]')).not.toBeNull());
-        expect(container.querySelector('[data-dock-guide-zone="center"][data-active="true"]')).not.toBeNull();
+        expect(container.querySelector('[data-dock-guide-zone="center"]')).toHaveTextContent('Merge as tab');
         expect(container.querySelector('[data-dock-target="right"]')).not.toBeNull();
 
         fireEvent.pointerUp(window, { clientX: 500, clientY: 330 });

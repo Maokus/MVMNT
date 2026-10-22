@@ -1,23 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-    FloatingFocusManager,
-    FloatingPortal,
-    autoUpdate,
-    flip,
-    offset,
-    shift,
-    useDismiss,
-    useFloating,
-    useInteractions,
-    useRole,
-} from '@floating-ui/react';
-import { SceneElementPanel, ElementDropdown } from '@workspace/panels/scene-element';
-import { Button } from '@workspace/components/Button';
-import { PropertiesPanel } from '@workspace/panels/properties';
-import AssetManagerPanel from '@workspace/panels/asset-manager/AssetManagerPanel';
-import MacroConfig from '@workspace/panels/properties/MacroConfig';
-import { useSceneSelection } from '@context/SceneSelectionContext';
-import { useVisualizer } from '@context/VisualizerContext';
 import { clamp } from '@math/transforms/numeric';
 import {
     DOCK_SIDES,
@@ -32,6 +13,7 @@ import {
     type WorkspacePanelId,
 } from '@state/workspacePanelsStore';
 import { DockGuide } from './DockGuide';
+import { WorkspacePanelBody } from './WorkspacePanelBody';
 import { resolveDockZone, type DockZone } from './dockZone';
 
 const MIN_WIDTH = 180;
@@ -115,7 +97,6 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
     const [dragPoint, setDragPoint] = useState<null | { x: number; y: number }>(null);
     const [dropTarget, setDropTarget] = useState<null | DropTarget>(null);
     const resizeRef = useRef<null | { startX: number; startY: number; startSize: number }>(null);
-    const [showAddElementDropdown, setShowAddElementDropdown] = useState(false);
 
     const dockSections = useMemo(
         () =>
@@ -133,73 +114,6 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
         () => normalizeSectionWeights(verticalSide ? sectionWeights[verticalSide] : undefined, dockSections.length),
         [sectionWeights, verticalSide, dockSections.length]
     );
-
-    const {
-        exportSettings,
-        debugSettings,
-        exportSequence,
-        exportStatus,
-        visualizer,
-        setExportSettings,
-        setDebugSettings,
-        canvasRef,
-    } = useVisualizer() as any;
-    const canExport = !!(visualizer && visualizer.getCurrentDuration && visualizer.getCurrentDuration() > 0);
-    const {
-        selectedElementId,
-        selectedElement,
-        selectedElementSchema,
-        propertyPanelRefresh,
-        clearSelection,
-        updateElementConfig,
-        addElement,
-    } = useSceneSelection();
-
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            const composed = typeof event.composedPath === 'function' ? event.composedPath() : [];
-            const preserveSelection = (composed as EventTarget[]).some(
-                (node) => node instanceof HTMLElement && node.dataset?.preserveSelection === 'true'
-            );
-            if (preserveSelection) return;
-            const clickedInsideDock =
-                event.target instanceof Element && event.target.closest('[data-dock-side]') !== null;
-            const canvasEl: HTMLCanvasElement | null =
-                canvasRef?.current || (document.getElementById('canvas') as HTMLCanvasElement | null);
-            const previewContainer =
-                canvasEl?.closest('[data-preview-container]') ||
-                canvasEl?.closest('.canvas-container') ||
-                canvasEl?.closest('.preview-panel');
-            const clickedInsideCanvas = !!(
-                (canvasEl && canvasEl.contains(event.target as Node)) ||
-                (previewContainer && previewContainer.contains(event.target as Node))
-            );
-            if (!clickedInsideDock && !clickedInsideCanvas && selectedElementId) clearSelection();
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [selectedElementId, clearSelection, canvasRef]);
-
-    const {
-        refs: addElementRefs,
-        floatingStyles: addElementFloatingStyles,
-        context: addElementContext,
-    } = useFloating({
-        open: showAddElementDropdown,
-        onOpenChange: setShowAddElementDropdown,
-        placement: 'bottom-end',
-        whileElementsMounted: autoUpdate,
-        middleware: [offset(8), flip({ padding: 12 }), shift({ padding: 12 })],
-    });
-    const addElementDismiss = useDismiss(addElementContext, { outsidePressEvent: 'mousedown' });
-    const addElementRole = useRole(addElementContext, { role: 'menu' });
-    const { getReferenceProps: getAddElementReferenceProps, getFloatingProps: getAddElementFloatingProps } =
-        useInteractions([addElementDismiss, addElementRole]);
-
-    const handleAddElementAndCloseDropdown = (elementType: string) => {
-        addElement(elementType);
-        setShowAddElementDropdown(false);
-    };
 
     const focusPanelBody = useCallback((id: WorkspacePanelId) => {
         requestAnimationFrame(() => {
@@ -469,112 +383,11 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
         };
     }, [moveTab, setDragging, dropTargetFor]);
 
-    const panelBody = useCallback(
-        (id: WorkspacePanelId) => {
-            switch (id) {
-                case 'assets':
-                    return <AssetManagerPanel />;
-                case 'macros':
-                    return (
-                        <div className="flex-1 overflow-y-auto p-3">
-                            <MacroConfig visualizer={visualizer} />
-                        </div>
-                    );
-                case 'properties':
-                    return (
-                        <div className="flex-1 overflow-y-auto p-0 space-y-4">
-                            <div className="properties-config" id="propertiesConfig">
-                                <PropertiesPanel
-                                    element={selectedElement}
-                                    schema={selectedElementSchema || undefined}
-                                    refreshToken={propertyPanelRefresh}
-                                    onConfigChange={updateElementConfig}
-                                    onExport={exportSequence}
-                                    exportStatus={exportStatus}
-                                    canExport={canExport}
-                                    exportSettings={exportSettings}
-                                    onExportSettingsChange={setExportSettings}
-                                    debugSettings={debugSettings}
-                                    onDebugSettingsChange={setDebugSettings}
-                                />
-                            </div>
-                        </div>
-                    );
-                case 'elements':
-                default:
-                    return (
-                        <>
-                            <div className="inspector-panel-header">
-                                <h3 className="inspector-panel-header__title">Elements</h3>
-                                <div className="relative">
-                                    <Button
-                                        variant="primary"
-                                        size="sm"
-                                        {...getAddElementReferenceProps({
-                                            type: 'button',
-                                            onClick: () => setShowAddElementDropdown((prev) => !prev),
-                                            title: 'Add element',
-                                        })}
-                                        ref={addElementRefs.setReference}
-                                    >
-                                        + Add
-                                    </Button>
-                                    {showAddElementDropdown && (
-                                        <FloatingPortal>
-                                            <FloatingFocusManager
-                                                context={addElementContext}
-                                                modal={false}
-                                                initialFocus={-1}
-                                            >
-                                                <div
-                                                    {...getAddElementFloatingProps({})}
-                                                    ref={addElementRefs.setFloating}
-                                                    style={addElementFloatingStyles}
-                                                    className="z-[1000]"
-                                                >
-                                                    <ElementDropdown
-                                                        className="mt-2"
-                                                        onAddElement={handleAddElementAndCloseDropdown}
-                                                        onClose={() => setShowAddElementDropdown(false)}
-                                                    />
-                                                </div>
-                                            </FloatingFocusManager>
-                                        </FloatingPortal>
-                                    )}
-                                </div>
-                            </div>
-                            <div className="inspector-elements-scroll">
-                                <SceneElementPanel />
-                            </div>
-                        </>
-                    );
-            }
-        },
-        [
-            addElementContext,
-            addElementRefs,
-            canExport,
-            debugSettings,
-            exportSequence,
-            exportSettings,
-            exportStatus,
-            getAddElementFloatingProps,
-            getAddElementReferenceProps,
-            propertyPanelRefresh,
-            selectedElement,
-            selectedElementSchema,
-            setDebugSettings,
-            setExportSettings,
-            updateElementConfig,
-            visualizer,
-        ]
-    );
-
     const resizer = (
         <div
             className={`relative shrink-0 bg-neutral-900 border-neutral-800 transition-colors hover:bg-neutral-800 ${
                 isHorizontal
-                    ? 'dock-horizontal w-full cursor-row-resize border-t border-b'
+                    ? 'w-full cursor-row-resize border-t border-b'
                     : 'h-full cursor-col-resize border-l border-r'
             }`}
             style={isHorizontal ? { height: RESIZER_THICKNESS } : { width: RESIZER_THICKNESS }}
@@ -598,9 +411,7 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
         <div
             ref={dockRef}
             data-dock-side={side}
-            className={`relative flex min-h-0 shrink-0 flex-col bg-panel border-border ${
-                isHorizontal ? 'dock-horizontal w-full' : ''
-            }`}
+            className={`relative flex min-h-0 shrink-0 flex-col bg-panel border-border ${isHorizontal ? 'w-full' : ''}`}
             style={isHorizontal ? { height: size } : { width: size }}
         >
             {dockSections.map((section, position) => (
@@ -658,7 +469,9 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
                         ))}
                     </div>
                     <div className="flex min-h-0 flex-1 flex-col" data-panel-body={section.active ?? undefined}>
-                        {section.active != null ? panelBody(section.active) : null}
+                        {section.active != null ? (
+                            <WorkspacePanelBody key={section.active} id={section.active} />
+                        ) : null}
                     </div>
                 </div>
             ))}

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, waitFor } from '@testing-library/react';
 import { useWorkspacePanelsStore, type DockSections } from '@state/workspacePanelsStore';
 import WorkspaceDock from '../WorkspaceDock';
+import { ClearSelectionOnBackgroundClick } from '../ClearSelectionOnBackgroundClick';
 
 const clearSelection = vi.hoisted(() => vi.fn());
 
@@ -58,6 +59,7 @@ describe('WorkspaceDock click-outside selection', () => {
     it('keeps the selection when the click lands in another dock', () => {
         const { container } = render(
             <>
+                <ClearSelectionOnBackgroundClick />
                 <WorkspaceDock side="left" />
                 <WorkspaceDock side="right" />
             </>
@@ -73,6 +75,7 @@ describe('WorkspaceDock click-outside selection', () => {
     it('clears the selection when the click lands outside every dock', () => {
         render(
             <>
+                <ClearSelectionOnBackgroundClick />
                 <WorkspaceDock side="left" />
                 <WorkspaceDock side="right" />
             </>
