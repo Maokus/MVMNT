@@ -28,6 +28,18 @@ describe('Button', () => {
         expect(screen.getByRole('button', { name: 'Go' }).className).toContain('bg-rose-600');
     });
 
+    it('applies the shared accent gradient for prominent actions', () => {
+        render(
+            <Button variant="gradient" size="md">
+                Render
+            </Button>
+        );
+        const className = screen.getByRole('button', { name: 'Render' }).className;
+        expect(className).toContain('from-pink-500');
+        expect(className).toContain('via-red-500');
+        expect(className).toContain('to-yellow-500');
+    });
+
     it('forwards disabled and onClick', () => {
         const onClick = vi.fn();
         render(

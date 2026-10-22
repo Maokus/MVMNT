@@ -17,6 +17,7 @@ type ButtonVariant =
     | 'solid-blue'
     | 'solid-emerald'
     | 'solid-amber'
+    | 'gradient'
     | 'faint'
     | 'icon'
     | 'icon-lg'
@@ -60,6 +61,9 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
         'rounded border border-emerald-800 bg-emerald-600 px-3 py-1.5 font-semibold text-white transition-colors hover:bg-emerald-500',
     'solid-amber':
         'rounded border border-amber-800 bg-amber-600 px-3 py-1.5 font-semibold text-white transition-colors hover:bg-amber-500',
+    // The home page call-to-action gradient, reused wherever a primary-looking action should stand out.
+    gradient:
+        'rounded bg-gradient-to-r from-pink-500 via-red-500 to-yellow-500 font-semibold text-white transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-pink-400 disabled:opacity-60',
     icon: 'flex items-center justify-center w-7 h-7 rounded text-neutral-400 hover:text-white hover:bg-neutral-800',
     'icon-lg':
         'flex items-center justify-center w-9 h-9 rounded text-neutral-400 hover:text-white hover:bg-neutral-800',

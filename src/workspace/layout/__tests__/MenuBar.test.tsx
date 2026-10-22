@@ -138,11 +138,10 @@ describe('MenuBar Help menu', () => {
         vi.clearAllMocks();
     });
 
-    it('routes help, controls and community to the workspace handlers', () => {
+    it('routes help and controls from the Help menu', () => {
         const onHelp = vi.fn();
         const onControls = vi.fn();
-        const onCommunity = vi.fn();
-        renderMenuBar({ onHelp, onControls, onCommunity });
+        renderMenuBar({ onHelp, onControls });
 
         openMenu('Help');
         expect(screen.getByRole('menuitem', { name: /MVMNT v/ })).toBeDisabled();
@@ -150,11 +149,19 @@ describe('MenuBar Help menu', () => {
         fireEvent.click(screen.getByRole('menuitem', { name: /Getting Started/ }));
         openMenu('Help');
         fireEvent.click(screen.getByRole('menuitem', { name: /Controls/ }));
-        openMenu('Help');
-        fireEvent.click(screen.getByRole('menuitem', { name: /Community/ }));
 
         expect(onHelp).toHaveBeenCalledTimes(1);
         expect(onControls).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps community as its own top-bar button rather than a Help entry', () => {
+        const onCommunity = vi.fn();
+        renderMenuBar({ onCommunity });
+
+        fireEvent.click(screen.getByRole('button', { name: 'Community' }));
         expect(onCommunity).toHaveBeenCalledTimes(1);
+
+        openMenu('Help');
+        expect(screen.queryByRole('menuitem', { name: /Community/ })).toBeNull();
     });
 });

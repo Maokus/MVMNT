@@ -184,7 +184,6 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp, onControls, onCommunity }) =>
     const helpEntries: CommandMenuEntry[] = [
         { label: 'Getting Started', onSelect: () => onHelp?.() },
         { label: 'Controls', shortcut: '?', onSelect: () => onControls?.() },
-        { label: 'Community', onSelect: () => onCommunity?.() },
         { separator: true },
         { label: `MVMNT v${BUILD_INFO.displayVersion}`, disabled: true },
     ];
@@ -263,6 +262,9 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp, onControls, onCommunity }) =>
                 </div>
 
                 <div className="menu-section" style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+                    <Button variant="secondary" title="Community" onClick={() => onCommunity?.()}>
+                        Community
+                    </Button>
                     <BrowseTemplatesButton
                         templates={templates}
                         onTemplateSelect={handleBrowseTemplates}
@@ -272,7 +274,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp, onControls, onCommunity }) =>
                         Browse Templates
                     </BrowseTemplatesButton>
                     <Button
-                        variant="primary"
+                        variant="gradient"
                         onClick={() => window.dispatchEvent(new CustomEvent('open-render-modal'))}
                         data-tutorial-target="render"
                         title="Render / Export Video"

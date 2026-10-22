@@ -719,7 +719,7 @@ const RenderModal: React.FC<RenderModalProps> = ({ onClose }) => {
                 <Button variant="ghost" size="md" disabled={isExporting} onClick={onClose}>
                     Cancel
                 </Button>
-                <Button variant="primary" size="md" disabled={isExporting} onClick={beginExport}>
+                <Button variant="gradient" size="md" disabled={isExporting} onClick={beginExport}>
                     {isExporting ? 'Starting...' : 'Start export'}
                 </Button>
             </div>
