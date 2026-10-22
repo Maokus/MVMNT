@@ -68,7 +68,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = (props) => {
             onFocusCapture={() => activateCommandSurface('properties')}
         >
             <div className="p-4 text-[12px] text-neutral-400">
-                Select an element to edit its properties. Macros live in the Macros tab.
+                Select an element to edit its properties.
             </div>
         </div>
     );
