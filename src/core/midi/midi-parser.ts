@@ -2,6 +2,11 @@
 import { MIDIEvent, MIDIData, MIDITimeSignature, MIDITrackDetails, MIDITrackSummary } from '@core/types';
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 
+const MAX_IMPORT_BPM = 999;
+
+const isSupportedTempo = (tempo: number): boolean =>
+    Number.isFinite(tempo) && tempo > 0 && 60_000_000 / tempo <= MAX_IMPORT_BPM;
+
 interface MIDIHeader {
     format: number;
     numTracks: number;
@@ -395,10 +400,14 @@ export class MIDIParser {
                         (dataView.getUint8(dataOffset) << 16) |
                         (dataView.getUint8(dataOffset + 1) << 8) |
                         dataView.getUint8(dataOffset + 2);
-                    this.setTempo(tempo);
-                    console.log(`Found tempo meta event: ${tempo} (${Math.round(60000000 / tempo)} BPM)`);
-                    // Record tempo event at current absolute tick
-                    this.tempoEvents.push({ tick: absoluteTime, tempo });
+                    if (isSupportedTempo(tempo)) {
+                        this.setTempo(tempo);
+                        console.log(`Found tempo meta event: ${tempo} (${Math.round(60000000 / tempo)} BPM)`);
+                        // Record tempo event at current absolute tick
+                        this.tempoEvents.push({ tick: absoluteTime, tempo });
+                    } else {
+                        console.warn(`Ignoring unsupported MIDI tempo: ${tempo} μs per quarter note`);
+                    }
                 }
                 break;
 
@@ -705,7 +714,7 @@ export class MIDIParser {
                         const bpmMatch = event.text.match(/(\d+)\s*(?:bpm|BPM)/);
                         if (bpmMatch && bpmMatch[1]) {
                             const bpm = parseInt(bpmMatch[1]);
-                            if (!isNaN(bpm) && bpm > 0) {
+                            if (!isNaN(bpm) && bpm > 0 && bpm <= MAX_IMPORT_BPM) {
                                 console.log(`Found BPM in metadata: ${bpm}`);
                                 const tempo = 60000000 / bpm; // Convert to microseconds per quarter note
                                 this.setTempo(tempo);
