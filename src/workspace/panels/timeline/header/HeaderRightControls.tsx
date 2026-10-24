@@ -14,6 +14,8 @@ import {
 import { CANONICAL_PPQ } from '@core/timing/ppq';
 import { getSharedTimingManager, useTimelineStore } from '@state/timelineStore';
 import { FaMagnet, FaEllipsisV, FaExpand, FaObjectGroup, FaCrosshairs, FaArrowRight, FaMagic } from 'react-icons/fa';
+import { clamp01 } from '@math/transforms/numeric';
+import { Button } from '@workspace/components/Button';
 import {
     formatQuantizeLabel,
     TIMELINE_SNAP_OPTIONS,
@@ -101,11 +103,11 @@ const HeaderRightControls: React.FC<{
     const range = Math.max(1, view.endTick - view.startTick);
     const sliderFromRange = (r: number) => {
         const t = (Math.log(r) - Math.log(MIN_RANGE)) / (Math.log(MAX_RANGE) - Math.log(MIN_RANGE));
-        const clamped = Math.max(0, Math.min(1, t));
+        const clamped = clamp01(t);
         return Math.round(clamped * 100);
     };
     const rangeFromSlider = (v: number) => {
-        const t = Math.max(0, Math.min(1, v / 100));
+        const t = clamp01(v / 100);
         const logR = Math.log(MIN_RANGE) + t * (Math.log(MAX_RANGE) - Math.log(MIN_RANGE));
         return Math.exp(logR);
     };
@@ -197,7 +199,7 @@ const HeaderRightControls: React.FC<{
                 </label>
             </div>
             {/* Snap group: three-segment pill — [magnet | snap denominator | adaptive] */}
-            <div className="flex items-stretch rounded-md border border-neutral-700 overflow-hidden text-[11px]">
+            <div className="flex items-stretch rounded border border-neutral-800 overflow-hidden text-[11px]">
                 {/* Segment 1: Snap enable toggle */}
                 <button
                     aria-label={
@@ -213,19 +215,19 @@ const HeaderRightControls: React.FC<{
                     onClick={() => setQuantize(magnetActive ? 'off' : lastNonOffQuantizeRef.current)}
                     className={`px-2 py-1 flex items-center justify-center transition-colors ${
                         magnetActive
-                            ? 'bg-blue-600/70 text-white'
-                            : 'bg-neutral-900/60 text-neutral-400 hover:bg-neutral-800/60 hover:text-neutral-200'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-neutral-900 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200'
                     }`}
                 >
-                    <FaMagnet />
+                    <FaMagnet size={14} />
                 </button>
                 {/* Divider */}
-                <div className="w-px bg-neutral-700 self-stretch" />
+                <div className="w-px bg-neutral-800 self-stretch" />
                 {/* Segment 2: Snap denominator select */}
                 <select
                     aria-label="Snap quantize"
                     disabled={adaptiveSnap}
-                    className={`bg-neutral-900/60 px-1 py-[3px] cursor-pointer focus:outline-none transition-colors border-0 ${
+                    className={`bg-neutral-900 px-1 py-[3px] cursor-pointer focus:outline-none transition-colors border-0 ${
                         adaptiveSnap
                             ? 'text-neutral-600 cursor-not-allowed opacity-50'
                             : magnetActive
@@ -244,8 +246,8 @@ const HeaderRightControls: React.FC<{
                 {/* Arbitrary N input — only shown when arbitrary snap is selected */}
                 {snapSelectValue === 'arbitrary' && !adaptiveSnap && (
                     <>
-                        <div className="w-px bg-neutral-700 self-stretch" />
-                        <div className="flex items-center bg-neutral-900/60 px-1">
+                        <div className="w-px bg-neutral-800 self-stretch" />
+                        <div className="flex items-center bg-neutral-900 px-1">
                             <span
                                 className={`text-[10px] mr-0.5 ${magnetActive ? 'text-neutral-300' : 'text-neutral-500'}`}
                             >
@@ -272,7 +274,7 @@ const HeaderRightControls: React.FC<{
                     </>
                 )}
                 {/* Divider */}
-                <div className="w-px bg-neutral-700 self-stretch" />
+                <div className="w-px bg-neutral-800 self-stretch" />
                 {/* Segment 3: Adaptive snap toggle */}
                 <button
                     aria-label={
@@ -288,11 +290,11 @@ const HeaderRightControls: React.FC<{
                     onClick={() => setAdaptiveSnap(!adaptiveSnap)}
                     className={`px-2 py-1 flex items-center justify-center transition-colors ${
                         adaptiveSnap
-                            ? 'bg-blue-600/70 text-white'
-                            : 'bg-neutral-900/60 text-neutral-400 hover:bg-neutral-800/60 hover:text-neutral-200'
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-neutral-900 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-200'
                     }`}
                 >
-                    <FaMagic />
+                    <FaMagic size={14} />
                 </button>
             </div>
             {/* Auto-follow playhead button */}
@@ -304,13 +306,13 @@ const HeaderRightControls: React.FC<{
                         : 'Auto follow playhead: off (click to enable)'
                 }
                 onClick={() => setFollow && setFollow(!follow)}
-                className={`px-2 py-1 rounded border border-neutral-700 flex items-center justify-center transition-colors ${
+                className={`px-2 py-1 rounded border border-neutral-800 flex items-center justify-center transition-colors ${
                     follow
-                        ? 'bg-blue-600/70 text-white border-blue-400/70'
-                        : 'bg-neutral-900/60 text-neutral-200 hover:bg-neutral-800/60'
+                        ? 'bg-blue-600 text-white border-blue-800'
+                        : 'bg-neutral-900 text-neutral-200 hover:bg-neutral-800'
                 }`}
             >
-                <FaArrowRight />
+                <FaArrowRight size={14} />
             </button>
             {/* Ellipsis menu trigger */}
             <button
@@ -322,9 +324,9 @@ const HeaderRightControls: React.FC<{
                     title: 'Timeline options',
                 })}
                 ref={menuRefs.setReference}
-                className="px-2 py-1 rounded border border-border bg-menubar hover:bg-neutral-800/60 text-neutral-200 flex items-center justify-center text-[12px]"
+                className="px-2 py-1 rounded border border-neutral-800 bg-neutral-900 hover:bg-neutral-800 text-neutral-200 flex items-center justify-center text-[12px]"
             >
-                <FaEllipsisV />
+                <FaEllipsisV size={14} />
             </button>
             {menuOpen && (
                 <FloatingPortal>
@@ -334,7 +336,7 @@ const HeaderRightControls: React.FC<{
                                 role: 'menu',
                                 'aria-label': 'Timeline options menu',
                                 className:
-                                    'w-64 rounded border border-border bg-panel/95 p-3 shadow-lg shadow-black/40 flex flex-col gap-3 text-neutral-200 backdrop-blur-sm z-[1000] text-xs',
+                                    'w-64 rounded border border-neutral-800 bg-neutral-900 p-3 flex flex-col gap-3 text-neutral-200 z-[1000] text-xs',
                             })}
                             ref={menuRefs.setFloating}
                             style={menuFloatingStyles}
@@ -363,36 +365,39 @@ const HeaderRightControls: React.FC<{
                             </label>
                             {/* View preset buttons */}
                             <div className="flex items-center gap-1" role="none">
-                                <button
-                                    className="flex-1 px-2 py-1 rounded border border-neutral-700 bg-neutral-900/50 text-neutral-200 hover:bg-neutral-800/60 flex items-center justify-center gap-1"
+                                <Button
+                                    variant="toolbar"
+                                    size="full"
                                     title="Fit all content (Shift+1)"
                                     onClick={() => {
                                         onFitAll?.();
                                         setMenuOpen(false);
                                     }}
                                 >
-                                    <FaExpand className="text-neutral-300" />
-                                </button>
-                                <button
-                                    className="flex-1 px-2 py-1 rounded border border-neutral-700 bg-neutral-900/50 text-neutral-200 hover:bg-neutral-800/60 flex items-center justify-center gap-1"
+                                    <FaExpand size={14} />
+                                </Button>
+                                <Button
+                                    variant="toolbar"
+                                    size="full"
                                     title="Zoom to selection (Shift+2)"
                                     onClick={() => {
                                         onZoomToSelection?.();
                                         setMenuOpen(false);
                                     }}
                                 >
-                                    <FaObjectGroup className="text-neutral-300" />
-                                </button>
-                                <button
-                                    className="flex-1 px-2 py-1 rounded border border-neutral-700 bg-neutral-900/50 text-neutral-200 hover:bg-neutral-800/60 flex items-center justify-center gap-1"
+                                    <FaObjectGroup size={14} />
+                                </Button>
+                                <Button
+                                    variant="toolbar"
+                                    size="full"
                                     title="Center on playhead (F)"
                                     onClick={() => {
                                         onCenterOnPlayhead?.();
                                         setMenuOpen(false);
                                     }}
                                 >
-                                    <FaCrosshairs className="text-neutral-300" />
-                                </button>
+                                    <FaCrosshairs size={14} />
+                                </Button>
                             </div>
                         </div>
                     </FloatingFocusManager>

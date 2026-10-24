@@ -1,5 +1,6 @@
 import { FloatingFocusManager, FloatingOverlay, useFloating } from '@floating-ui/react';
 import { useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
+import { Button } from '@workspace/components/Button';
 
 const sections = [
     {
@@ -14,7 +15,7 @@ const sections = [
             ['Middle-button drag', 'Pan preview'],
             ['Double middle-click', 'Reset zoom and pan'],
             ['Shift + A', 'Add element'],
-            ['I', 'Insert keyframe for selected node (also in properties)'],
+            ['I', 'Insert keyframe for the selected node'],
             ['Alt + drag element', 'Duplicate dragged selection'],
             ['Alt + drag scale handle', 'Scale around the pivot'],
             ['Shift + drag rotation handle', 'Snap rotation to 15°'],
@@ -49,6 +50,10 @@ const sections = [
     {
         title: 'Scene editing',
         rows: [
+            ['↑ / ↓', 'Move selection in the scene hierarchy'],
+            ['← / →', 'Collapse, expand, or step in and out of a group'],
+            ['Home / End', 'Jump to the first or last hierarchy row'],
+            ['F2', 'Rename the selected hierarchy row'],
             ['⌘/Ctrl + G', 'Group selected elements'],
             ['⌘/Ctrl + Shift + G', 'Ungroup selected elements'],
             ['⌘/Ctrl + D', 'Duplicate selected elements'],
@@ -99,39 +104,35 @@ export function ControlsModal({ onClose }: { onClose: () => void }) {
                 if (event.target === event.currentTarget) onClose();
             }}
         >
-            <FloatingFocusManager context={context} outsideElementsInert returnFocus>
+            <FloatingFocusManager context={context} outsideElementsInert returnFocus initialFocus={refs.floating}>
                 <section
                     ref={refs.setFloating}
                     role="dialog"
                     aria-modal="true"
                     aria-labelledby="controls-title"
-                    className="flex max-h-[85vh] w-[760px] max-w-[95vw] flex-col rounded-xl border border-neutral-700 bg-neutral-900 text-neutral-100 shadow-2xl"
+                    tabIndex={-1}
+                    className="flex max-h-[85vh] w-[1040px] max-w-[95vw] flex-col overflow-hidden rounded border border-neutral-800 bg-neutral-900 text-neutral-100 outline-none"
                 >
-                    <div className="flex items-center justify-between border-b border-neutral-700 px-5 py-4">
-                        <div>
-                            <h2 id="controls-title" className="m-0 text-xl font-semibold">
-                                Controls
-                            </h2>
-                            <p className="m-0 mt-1 text-xs text-neutral-400">
-                                Panel shortcuts follow focus; project shortcuts work throughout the editor.
-                            </p>
+                    <div className="flex items-center justify-between border-b border-neutral-800 px-5 py-3">
+                        <h2 id="controls-title" className="m-0 text-lg font-semibold">
+                            Controls
+                        </h2>
+                        <div className="flex items-center gap-2">
+                            <kbd className="rounded border border-neutral-700 bg-neutral-800 px-1.5 py-0.5 font-mono text-[10px] text-neutral-400">
+                                Esc
+                            </kbd>
+                            <Button variant="ghost" size="full" onClick={onClose} aria-label="Close controls">
+                                ×
+                            </Button>
                         </div>
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            aria-label="Close controls"
-                            className="rounded px-2 py-1 text-lg text-neutral-300 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                        >
-                            ×
-                        </button>
                     </div>
-                    <div className="grid gap-6 overflow-y-auto p-5 sm:grid-cols-2">
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-4 overflow-y-auto p-5 lg:grid-cols-4">
                         {sections.map((section) => (
                             <div key={section.title}>
                                 <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-blue-300">
                                     {section.title}
                                 </h3>
-                                <dl className="m-0 space-y-2">
+                                <dl className="m-0 space-y-1.5">
                                     {section.rows.map(([keys, label]) => (
                                         <div
                                             key={`${keys}:${label}`}
@@ -147,9 +148,6 @@ export function ControlsModal({ onClose }: { onClose: () => void }) {
                             </div>
                         ))}
                     </div>
-                    <p className="m-0 border-t border-neutral-700 px-5 py-3 text-xs text-neutral-400">
-                        Press ? to open this guide and Esc to close it.
-                    </p>
                 </section>
             </FloatingFocusManager>
         </FloatingOverlay>

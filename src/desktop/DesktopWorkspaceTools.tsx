@@ -20,13 +20,13 @@ function Modal({ title, children, onClose }: { title: string; children: React.Re
             aria-modal="true"
             aria-label={title}
         >
-            <div className="max-h-[80vh] w-full max-w-2xl overflow-auto rounded-xl border border-neutral-700 bg-neutral-900 p-5 text-neutral-100 shadow-2xl">
+            <div className="max-h-[80vh] w-full max-w-2xl overflow-auto rounded border border-neutral-800 bg-neutral-900 p-5 text-neutral-100 ">
                 <div className="mb-4 flex items-center justify-between gap-4">
                     <h2 className="text-lg font-semibold">{title}</h2>
                     <button
                         type="button"
                         onClick={onClose}
-                        className="rounded border border-neutral-700 px-2 py-1 text-sm hover:bg-neutral-800"
+                        className="rounded border border-neutral-800 px-2 py-1 text-sm hover:bg-neutral-800"
                     >
                         Close
                     </button>
@@ -120,7 +120,7 @@ export function DesktopWorkspaceTools() {
                         {versions.map((version) => (
                             <div
                                 key={version.id}
-                                className="flex items-center gap-3 rounded border border-neutral-800 bg-neutral-950/60 p-3"
+                                className="flex items-center gap-3 rounded border border-neutral-800 bg-neutral-950 p-3"
                             >
                                 <div className="min-w-0 flex-1">
                                     <div className="truncate text-sm font-medium">{version.documentName}</div>
@@ -168,7 +168,7 @@ export function DesktopWorkspaceTools() {
                 <div className="flex items-center justify-between rounded border border-neutral-800 p-3">
                     <span>Current recovery package</span>
                     <button
-                        className="rounded border border-neutral-700 px-2 py-1 text-xs"
+                        className="rounded border border-neutral-800 px-2 py-1 text-xs"
                         disabled={currentFileBytes === 0}
                         onClick={() => {
                             if (confirm('Delete the current recovery package? Saved project files are not affected.'))
@@ -185,7 +185,7 @@ export function DesktopWorkspaceTools() {
                 <div className="flex items-center justify-between rounded border border-neutral-800 p-3">
                     <span>Interrupted temporary exports</span>
                     <button
-                        className="rounded border border-neutral-700 px-2 py-1 text-xs"
+                        className="rounded border border-neutral-800 px-2 py-1 text-xs"
                         onClick={() =>
                             void window.mvmntDesktop?.storage.cleanup('temporary-exports').then(setNativeStorage)
                         }
@@ -197,7 +197,7 @@ export function DesktopWorkspaceTools() {
                     <span>Old application/update cache</span>
                     <button
                         disabled={!nativeStorage?.updateCache.available}
-                        className="rounded border border-neutral-700 px-2 py-1 text-xs disabled:opacity-40"
+                        className="rounded border border-neutral-800 px-2 py-1 text-xs disabled:opacity-40"
                         onClick={() => void window.mvmntDesktop?.storage.cleanup('update-cache').then(setNativeStorage)}
                     >
                         Clean {formatBytes(nativeStorage?.updateCache.bytes ?? 0)}
@@ -205,7 +205,7 @@ export function DesktopWorkspaceTools() {
                 </div>
                 <div className="flex items-center justify-between rounded border border-neutral-800 p-3">
                     <span>Decoded audio and feature caches</span>
-                    <button className="rounded border border-neutral-700 px-2 py-1 text-xs" onClick={clearMemoryCaches}>
+                    <button className="rounded border border-neutral-800 px-2 py-1 text-xs" onClick={clearMemoryCaches}>
                         Clear memory caches
                     </button>
                 </div>

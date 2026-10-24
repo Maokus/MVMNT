@@ -1,4 +1,7 @@
 import React, { useState } from 'react';
+import { FaFilm, FaImage, FaDownload } from 'react-icons/fa';
+import { Button } from '@workspace/components/Button';
+import { ProgressBar } from '@workspace/components/ProgressBar';
 import { isExportJobActive, useExportJobStore } from '@export/jobs';
 import { createExportDiagnostics } from '@export/diagnostics';
 
@@ -47,52 +50,49 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
     return (
         <>
             <div className="fixed bottom-4 right-4 z-[10000] w-[420px] max-w-[calc(100vw-2rem)]">
-                <div className="border rounded-lg p-4 text-left shadow-2xl [background-color:var(--twc-menubar)] [border-color:var(--twc-border)]">
+                <div className="border rounded p-4 text-left  [background-color:var(--twc-menubar)] [border-color:var(--twc-border)]">
                     <div className={`flex items-center justify-between${isCollapsed ? ' mb-2' : ' mb-3'}`}>
                         <div className="flex min-w-0 items-center gap-2">
                             {!active && !isCollapsed && (
-                                <button
-                                    className="-ml-1 text-sm leading-none opacity-60 hover:opacity-100"
+                                <Button
+                                    variant="faint"
+                                    size="full"
                                     onClick={onClose}
                                     aria-label="Close export progress"
                                 >
                                     ×
-                                </button>
+                                </Button>
                             )}
-                            <h3 className="truncate text-white font-semibold">
-                                {kind === 'video' ? '🎬 Exporting Video' : '📸 Exporting PNG Sequence'}
+                            <h3 className="flex items-center gap-1.5 truncate font-semibold text-white">
+                                {kind === 'video' ? (
+                                    <>
+                                        <FaFilm size={14} aria-hidden="true" /> Exporting Video
+                                    </>
+                                ) : (
+                                    <>
+                                        <FaImage size={14} aria-hidden="true" /> Exporting PNG Sequence
+                                    </>
+                                )}
                             </h3>
                         </div>
                         {isCollapsed ? (
-                            <button
-                                className="text-xs opacity-70 hover:opacity-100"
+                            <Button
+                                variant="faint"
+                                size="full"
                                 onClick={() => setIsCollapsed(false)}
                                 aria-label="Expand export progress"
                             >
                                 Expand
-                            </button>
+                            </Button>
                         ) : (
-                            <button
-                                className="text-xs opacity-70 hover:opacity-100"
-                                onClick={() => setIsCollapsed(true)}
-                            >
+                            <Button variant="faint" size="full" onClick={() => setIsCollapsed(true)}>
                                 Hide
-                            </button>
+                            </Button>
                         )}
                     </div>
 
-                    <div
-                        className={`w-full h-2 rounded overflow-hidden [background-color:var(--twc-control)]${isCollapsed ? '' : ' mb-2'}`}
-                        role="progressbar"
-                        aria-label="Export progress"
-                        aria-valuemin={0}
-                        aria-valuemax={100}
-                        aria-valuenow={Math.round(progress)}
-                    >
-                        <div
-                            className="h-full bg-gradient-to-r from-[#0e639c] to-[#1177bb] transition-[width] duration-300"
-                            style={{ width: `${progress}%` }}
-                        />
+                    <div className={isCollapsed ? '' : ' mb-2'}>
+                        <ProgressBar value={progress} label="Export progress" />
                     </div>
 
                     {!isCollapsed &&
@@ -106,12 +106,9 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
                                             : 'Finishing…'}
                                     </span>
                                     {active && onCancel && (
-                                        <button
-                                            className="px-2 py-1 rounded bg-red-900/70 hover:bg-red-800 text-red-100"
-                                            onClick={() => onCancel(active.id)}
-                                        >
+                                        <Button variant="danger" size="full" onClick={() => onCancel(active.id)}>
                                             Cancel
-                                        </button>
+                                        </Button>
                                     )}
                                 </div>
                             </div>
@@ -119,41 +116,33 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
                             <div className="download-section">
                                 <a
                                     href={downloadUrl}
-                                    className="inline-block px-4 py-2 bg-[#196127] text-white no-underline rounded font-semibold text-[13px] hover:bg-[#2d7a3d]"
+                                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#196127] text-white no-underline rounded font-semibold text-[13px] hover:bg-[#2d7a3d]"
                                     download={filename}
                                 >
-                                    ⬇ Download {kind === 'video' ? 'Video' : 'PNG Sequence'}
+                                    <FaDownload size={14} aria-hidden="true" /> Download{' '}
+                                    {kind === 'video' ? 'Video' : 'PNG Sequence'}
                                 </a>
-                                <button
-                                    className="px-3 py-1 border rounded cursor-pointer text-xs font-medium transition inline-flex items-center justify-center bg-neutral-600 border-neutral-500 text-neutral-100 hover:bg-neutral-500 hover:border-neutral-400 ml-[10px]"
-                                    onClick={onClose}
-                                >
+                                <Button variant="neutral" size="full" className="ml-[10px]" onClick={onClose}>
                                     Close
-                                </button>
+                                </Button>
                             </div>
                         ))}
                     {!isCollapsed && visibleJobs.length > 0 && (
-                        <div className="mt-3 pt-3 border-t border-neutral-700 space-y-1">
+                        <div className="mt-3 pt-3 border-t border-neutral-800 space-y-1">
                             {visibleJobs.map((job) => (
                                 <div key={job.id} className="min-w-0 text-xs">
                                     <div className="flex items-center justify-between gap-2">
                                         <span className="truncate">{job.outputName ?? job.snapshot.sceneName}</span>
                                         <span className="opacity-60 capitalize">{job.status}</span>
                                         {job.outputId && onReveal && (
-                                            <button
-                                                className="text-sky-300 hover:text-sky-200"
-                                                onClick={() => onReveal(job.outputId!)}
-                                            >
+                                            <Button variant="faint" size="full" onClick={() => onReveal(job.outputId!)}>
                                                 Reveal
-                                            </button>
+                                            </Button>
                                         )}
                                         {!isExportJobActive(job.status) && onRemove && (
-                                            <button
-                                                className="opacity-60 hover:opacity-100"
-                                                onClick={() => onRemove(job.id)}
-                                            >
+                                            <Button variant="faint" size="full" onClick={() => onRemove(job.id)}>
                                                 ×
-                                            </button>
+                                            </Button>
                                         )}
                                     </div>
                                     {job.status === 'failed' && job.error && (
@@ -166,12 +155,14 @@ const ExportProgressOverlay: React.FC<ProgressOverlayProps> = ({
                         </div>
                     )}
                     {!isCollapsed && !active && jobs.length > 0 && (
-                        <button
-                            className="mt-3 text-[11px] opacity-60 hover:opacity-100"
+                        <Button
+                            variant="faint"
+                            size="full"
                             onClick={() => void downloadDiagnostics()}
+                            className="mt-3 text-[11px]"
                         >
                             Download diagnostics
-                        </button>
+                        </Button>
                     )}
                 </div>
             </div>

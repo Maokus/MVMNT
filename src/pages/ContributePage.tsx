@@ -35,7 +35,7 @@ const ContributePage: React.FC = () => {
                                 href="https://github.com/Maokus/mvmnt"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 px-4 py-2 rounded bg-neutral-900 hover:bg-neutral-700 border border-neutral-700 text-sm font-medium"
+                                className="inline-flex items-center gap-2 px-4 py-2 rounded bg-neutral-900 hover:bg-neutral-700 border border-neutral-800 text-sm font-medium"
                             >
                                 <FaGithub />
                                 Star on GitHub
@@ -44,7 +44,7 @@ const ContributePage: React.FC = () => {
                                 href="https://youtube.com/@maokus"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 px-4 py-2 rounded bg-neutral-900 hover:bg-neutral-700 border border-neutral-700 text-sm font-medium"
+                                className="inline-flex items-center gap-2 px-4 py-2 rounded bg-neutral-900 hover:bg-neutral-700 border border-neutral-800 text-sm font-medium"
                             >
                                 <FaYoutube className="text-[#FF0000]" />
                                 Subscribe on YouTube
@@ -53,7 +53,7 @@ const ContributePage: React.FC = () => {
                                 href="https://x.com/karosmao"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 px-4 py-2 rounded bg-neutral-900 hover:bg-neutral-700 border border-neutral-700 text-sm font-medium"
+                                className="inline-flex items-center gap-2 px-4 py-2 rounded bg-neutral-900 hover:bg-neutral-700 border border-neutral-800 text-sm font-medium"
                             >
                                 <FaXTwitter />
                                 Follow on X
@@ -62,7 +62,7 @@ const ContributePage: React.FC = () => {
                                 href="https://maok.us/discord"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 px-4 py-2 rounded bg-neutral-900 hover:bg-neutral-700 border border-neutral-700 text-sm font-medium"
+                                className="inline-flex items-center gap-2 px-4 py-2 rounded bg-neutral-900 hover:bg-neutral-700 border border-neutral-800 text-sm font-medium"
                             >
                                 <FaDiscord />
                                 Join Discord
@@ -81,7 +81,7 @@ const ContributePage: React.FC = () => {
                             href="https://maok.us/discord"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-2 px-4 py-2 rounded bg-neutral-900 hover:bg-neutral-700 border border-neutral-700 text-sm font-medium"
+                            className="inline-flex items-center gap-2 px-4 py-2 rounded bg-neutral-900 hover:bg-neutral-700 border border-neutral-800 text-sm font-medium"
                         >
                             <FaDiscord />
                             Message on Discord
@@ -100,7 +100,7 @@ const ContributePage: React.FC = () => {
                                 href="https://patreon.com/maokus"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 px-4 py-2 rounded bg-neutral-900 hover:bg-neutral-700 border border-neutral-700 text-sm font-medium"
+                                className="inline-flex items-center gap-2 px-4 py-2 rounded bg-neutral-900 hover:bg-neutral-700 border border-neutral-800 text-sm font-medium"
                             >
                                 <FaPatreon className="text-[#FFF]" />
                                 Join Patreon
@@ -109,7 +109,7 @@ const ContributePage: React.FC = () => {
                                 href="https://ko-fi.com/maokus"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 px-4 py-2 rounded bg-neutral-900 hover:bg-neutral-700 border border-neutral-700 text-sm font-medium"
+                                className="inline-flex items-center gap-2 px-4 py-2 rounded bg-neutral-900 hover:bg-neutral-700 border border-neutral-800 text-sm font-medium"
                             >
                                 <img src={kofi} alt="Ko-fi" style={{ width: '22px', height: '18px' }} />
                                 Buy a Ko-fi

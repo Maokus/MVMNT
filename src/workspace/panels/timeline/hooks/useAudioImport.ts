@@ -11,6 +11,11 @@ import { recordAudioMemoryDiagnostic } from '@state/audioMemoryDiagnosticsStore'
 import { isMidiFile, isAudioFile } from '../utils/fileTypeUtils';
 import { getNextImportedTrackName } from './importTrackName';
 import { analytics } from '@app/analytics';
+import {
+    AUDIO_IMPORT_BAD_FORMAT,
+    AUDIO_IMPORT_FAILED_LOG,
+    unableToImportAudioFileMessage,
+} from '@workspace/userMessages';
 
 export interface AudioImportProgressState {
     active: boolean;
@@ -75,17 +80,14 @@ export function useAudioImport() {
                 });
                 return true;
             } catch (error) {
-                console.error('Failed to import audio track', error);
+                console.error(AUDIO_IMPORT_FAILED_LOG, error);
                 void analytics.capture('media_import_failed', {
                     media_type: 'audio',
                     failure_category: 'import',
                     stage,
                 });
-                const reason =
-                    error instanceof Error
-                        ? error.message
-                        : 'The format may be unsupported or the file may be corrupted.';
-                alert(`Unable to import ${file.name}. ${reason}`);
+                const reason = error instanceof Error ? error.message : AUDIO_IMPORT_BAD_FORMAT;
+                alert(unableToImportAudioFileMessage(file.name, reason));
                 return false;
             }
         },

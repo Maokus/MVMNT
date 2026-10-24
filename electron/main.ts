@@ -840,8 +840,7 @@ async function hashExportFile(filePath: string): Promise<{ sha256: string; bytes
 
 function updateWindowTitle(): void {
     if (!mainWindow) return;
-    const documentName = activeDocumentPath ? basename(activeDocumentPath, PROJECT_EXTENSION) : 'Untitled';
-    mainWindow.setTitle(`${documentDirty ? '● ' : ''}${documentName} — MVMNT`);
+    // The renderer owns the window title (project name + dirty marker) via document.title.
     mainWindow.setDocumentEdited(process.platform === 'darwin' && documentDirty);
     if (process.platform === 'darwin') mainWindow.setRepresentedFilename(activeDocumentPath ?? '');
 }
@@ -893,6 +892,10 @@ function buildApplicationMenu(): Menu {
         {
             role: 'help',
             submenu: [
+                { label: 'Getting Started…', click: () => sendMenuCommand('help') },
+                { label: 'Controls…', click: () => sendMenuCommand('controls') },
+                { label: 'Community…', click: () => sendMenuCommand('community') },
+                { type: 'separator' },
                 {
                     label: 'MVMNT on GitHub',
                     click: () => void shell.openExternal('https://github.com/Maokus/MVMNT'),
@@ -1226,6 +1229,11 @@ function installIpcHandlers(): void {
         if (!Notification.isSupported()) return;
         new Notification({ title: title.slice(0, 100), body: body.slice(0, 500) }).show();
     });
+    ipcMain.on('app:fix-dialog-focus', () => {
+        if (process.platform !== 'win32' || !mainWindow) return;
+        mainWindow.blur();
+        mainWindow.focus();
+    });
     ipcMain.handle('exports:begin', (_event, request) => beginExport(request));
     ipcMain.handle('exports:choose-destination', (_event, request) => chooseExportDestination(request));
     ipcMain.handle('exports:write', (_event, request) => writeExport(request));
@@ -1442,6 +1450,11 @@ async function createWindow(): Promise<void> {
         },
     });
     updateWindowTitle();
+
+    // The renderer drives the window title from the project name via document.title.
+    mainWindow.webContents.on('page-title-updated', (_event, title) => {
+        mainWindow?.setTitle(title);
+    });
 
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
         try {

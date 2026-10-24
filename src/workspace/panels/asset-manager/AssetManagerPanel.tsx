@@ -10,6 +10,7 @@ import {
     useInteractions,
 } from '@floating-ui/react';
 import { useVisualAssetRegistryStore, type ProjectAsset } from '@state/visualAssetRegistryStore';
+import { Button } from '@workspace/components/Button';
 
 const ACCEPTED_TYPES = 'image/*,.gif';
 
@@ -56,7 +57,7 @@ const AssetCard: React.FC<{
 
     return (
         <div
-            className="flex flex-col rounded border border-neutral-700 bg-neutral-800 overflow-hidden hover:border-neutral-500 transition-colors cursor-grab active:cursor-grabbing"
+            className="flex flex-col rounded border border-neutral-800 bg-neutral-800 overflow-hidden hover:border-neutral-500 transition-colors cursor-grab active:cursor-grabbing"
             draggable
             onDragStart={handleDragStart}
         >
@@ -105,17 +106,17 @@ const AssetCard: React.FC<{
                     </span>
                 )}
                 {entry.deletable && (
-                    <button
-                        className="shrink-0 text-neutral-500 hover:text-red-400 text-sm leading-none transition-colors"
+                    <Button
+                        variant="icon"
+                        size="full"
                         title="Remove asset"
                         onClick={(e) => {
                             e.stopPropagation();
                             onDelete();
                         }}
-                        type="button"
                     >
                         ×
-                    </button>
+                    </Button>
                 )}
             </div>
         </div>
@@ -161,7 +162,7 @@ const AssetManagerPanel: React.FC = () => {
 
     return (
         <div
-            className={`flex flex-col h-full bg-neutral-950 transition-colors${dragOver ? ' ring-1 ring-inset ring-accent/50' : ''}`}
+            className={`flex flex-col h-full bg-neutral-950 transition-colors${dragOver ? ' border border-[#0e639c]' : ''}`}
             onDragOver={(e) => {
                 e.preventDefault();
                 setDragOver(true);
@@ -170,26 +171,25 @@ const AssetManagerPanel: React.FC = () => {
             onDrop={handleDrop}
         >
             {/* Header */}
-            <div className="flex items-center gap-1.5 px-3 py-2 border-b border-neutral-800 shrink-0">
-                <span className="text-xs font-semibold text-neutral-300 uppercase tracking-wide mr-auto">Assets</span>
+            <div className="flex items-center gap-1.5 px-3 py-2 border-b border-neutral-800 shrink-0 justify-end">
                 <button
                     ref={refs.setReference}
                     {...getReferenceProps()}
-                    className={`text-xs px-2 py-0.5 rounded transition-colors ${filterOpen || showPluginAssets ? 'bg-accent/20 text-accent border border-accent/40' : 'bg-neutral-700 hover:bg-neutral-600 text-neutral-200'}`}
+                    className={`text-xs px-2 py-0.5 rounded transition-colors ${filterOpen || showPluginAssets ? 'bg-neutral-800 text-white border border-neutral-800' : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200'}`}
                     title="Filter assets"
                     type="button"
                     onClick={() => setFilterOpen((v) => !v)}
                 >
                     Filter{showPluginAssets ? ' ●' : ''}
                 </button>
-                <button
-                    className="text-xs px-2 py-0.5 rounded bg-neutral-700 hover:bg-neutral-600 text-neutral-200 transition-colors"
+                <Button
+                    variant="secondary"
+                    size="sm"
                     title="Upload images"
-                    type="button"
                     onClick={() => fileInputRef.current?.click()}
                 >
                     + Upload
-                </button>
+                </Button>
                 <input
                     ref={fileInputRef}
                     type="file"
@@ -207,7 +207,7 @@ const AssetManagerPanel: React.FC = () => {
                         ref={refs.setFloating}
                         style={floatingStyles}
                         {...getFloatingProps()}
-                        className="z-50 min-w-[180px] rounded border border-neutral-700 bg-neutral-900 shadow-lg py-2 px-3"
+                        className="z-50 min-w-[180px] rounded border border-neutral-800 bg-neutral-900  py-2 px-3"
                     >
                         <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wide mb-2">
                             Filters

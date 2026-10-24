@@ -324,7 +324,7 @@ const ChangelogEntry: React.FC<{ version: string; date: string; notes: (string |
     date,
     notes,
 }) => (
-    <section className="p-6 rounded-xl bg-neutral-900/70 border border-neutral-800">
+    <section className="p-6 rounded bg-neutral-900 border border-neutral-800">
         <div className="flex items-baseline justify-between mb-3">
             <h2 className="text-lg font-semibold text-white">v{version}</h2>
             <span className="text-xs text-neutral-500 font-mono">{date}</span>

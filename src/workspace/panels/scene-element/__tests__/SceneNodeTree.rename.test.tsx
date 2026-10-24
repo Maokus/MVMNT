@@ -30,7 +30,7 @@ describe('SceneNodeTree element ID editing', () => {
         });
     });
 
-    it('keeps the full draft while typing and commits the element ID on blur', () => {
+    it('keeps the full draft while typing and commits the element ID on Enter', () => {
         const graph = createFlatSceneGraph(['old-id']);
         const root = graph.nodesById[graph.rootId];
         if (root.kind !== 'root') throw new Error('invalid fixture');
@@ -42,8 +42,46 @@ describe('SceneNodeTree element ID editing', () => {
         userEvent.type(input, 'long-element-id');
 
         expect(input).toHaveValue('long-element-id');
-        fireEvent.blur(input);
+        fireEvent.keyDown(input, { key: 'Enter' });
         expect(sceneActions.updateElementId).toHaveBeenCalledWith('old-id', 'long-element-id');
+    });
+
+    it('cancels the rename on Escape without saving', () => {
+        const graph = createFlatSceneGraph(['old-id']);
+        const root = graph.nodesById[graph.rootId];
+        if (root.kind !== 'root') throw new Error('invalid fixture');
+
+        render(<NodeRow graph={graph} node={graph.nodesById['element:old-id']} siblingIds={root.children} depth={0} />);
+
+        fireEvent.doubleClick(screen.getByText('old-id'));
+        const input = screen.getByDisplayValue('old-id');
+        fireEvent.change(input, { target: { value: 'discarded' } });
+        fireEvent.keyDown(input, { key: 'Escape' });
+
+        expect(sceneActions.updateElementId).not.toHaveBeenCalled();
+        expect(screen.queryByDisplayValue('discarded')).not.toBeInTheDocument();
+        expect(screen.getByText('old-id')).toBeInTheDocument();
+    });
+
+    it('cancels the rename without saving when another row is clicked', () => {
+        const graph = createFlatSceneGraph(['first', 'second']);
+        const root = graph.nodesById[graph.rootId];
+        if (root.kind !== 'root') throw new Error('invalid fixture');
+
+        render(
+            <>
+                <NodeRow graph={graph} node={graph.nodesById['element:first']} siblingIds={root.children} depth={0} />
+                <NodeRow graph={graph} node={graph.nodesById['element:second']} siblingIds={root.children} depth={0} />
+            </>
+        );
+
+        fireEvent.doubleClick(screen.getByText('first'));
+        const input = screen.getByDisplayValue('first');
+        fireEvent.change(input, { target: { value: 'discarded' } });
+        fireEvent.pointerDown(screen.getByText('second'));
+
+        expect(sceneActions.updateElementId).not.toHaveBeenCalled();
+        expect(screen.queryByDisplayValue('discarded')).not.toBeInTheDocument();
     });
 
     it('allows another element to be renamed after a duplicate ID is rejected', () => {
@@ -62,7 +100,7 @@ describe('SceneNodeTree element ID editing', () => {
         fireEvent.doubleClick(screen.getByText('second'));
         const duplicateInput = screen.getByDisplayValue('second');
         fireEvent.change(duplicateInput, { target: { value: 'first' } });
-        fireEvent.blur(duplicateInput);
+        fireEvent.keyDown(duplicateInput, { key: 'Enter' });
 
         expect(sceneActions.updateElementId).toHaveBeenCalledWith('second', 'first');
         expect(screen.queryByDisplayValue('first')).not.toBeInTheDocument();
@@ -72,7 +110,7 @@ describe('SceneNodeTree element ID editing', () => {
         fireEvent.change(retryInput, { target: { value: 'renamed-second' } });
 
         expect(retryInput).toHaveValue('renamed-second');
-        fireEvent.blur(retryInput);
+        fireEvent.keyDown(retryInput, { key: 'Enter' });
         expect(sceneActions.updateElementId).toHaveBeenLastCalledWith('second', 'renamed-second');
     });
 

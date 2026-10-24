@@ -21,6 +21,7 @@ import { AUTOMATION_HEADER_HEIGHT, AUTOMATION_ROW_HEIGHT, AUTOMATION_SEARCH_HEIG
 import { useCurveHeight } from '../context/curveHeightContext';
 import { useCurveRange, useCurveRangeControls } from '../context/curveRangeContext';
 import { computeAutoRange } from './automationCurveUtils';
+import { Button } from '@workspace/components/Button';
 
 /** Range controls shown in the left-column spacer when the curve editor is open. */
 const CurveRangeControls: React.FC<{ channelId: string; curveHeight: number }> = ({ channelId, curveHeight }) => {
@@ -118,7 +119,7 @@ const CurveRangeControls: React.FC<{ channelId: string; curveHeight: number }> =
 
     return (
         <div
-            className="border-b border-neutral-800/60 bg-neutral-900/30 flex flex-col items-center justify-center py-1"
+            className="border-b border-neutral-800 bg-neutral-900 flex flex-col items-center justify-center py-1"
             style={{ height: curveHeight, width: '100%' }}
         >
             <div>
@@ -171,24 +172,16 @@ const CurveRangeControls: React.FC<{ channelId: string; curveHeight: number }> =
                     }}
                 />
                 {/* Auto toggle button */}
-                <button
-                    type="button"
-                    style={{
-                        fontSize: 9,
-                        padding: '1px 6px',
-                        borderRadius: 3,
-                        border: `1px solid ${autoRange ? 'rgba(96,165,250,0.4)' : 'rgba(255,255,255,0.15)'}`,
-                        background: autoRange ? 'rgba(96,165,250,0.2)' : 'rgba(0,0,0,0.4)',
-                        color: autoRange ? '#93c5fd' : 'rgba(255,255,255,0.45)',
-                        cursor: 'pointer',
-                        lineHeight: 1.5,
-                        userSelect: 'none',
-                        marginLeft: '6px',
-                    }}
+                <Button
+                    variant="ghost"
+                    size="full"
                     onClick={handleToggleAuto}
+                    className={`ml-1.5 text-[9px] leading-6 ${autoRange ? 'bg-neutral-800 text-white' : ''}`}
+                    aria-pressed={autoRange}
+                    title="Toggle auto range"
                 >
                     auto
-                </button>
+                </Button>
             </div>
         </div>
     );
@@ -239,7 +232,7 @@ const ChannelRow: React.FC<{ channelId: string }> = ({ channelId }) => {
     return (
         <>
             <div
-                className="flex items-center justify-between gap-1 pl-6 pr-2 border-b border-neutral-800/60 text-neutral-400 hover:bg-neutral-800/30"
+                className="flex items-center justify-between gap-1 pl-6 pr-2 border-b border-neutral-800 text-neutral-400 hover:bg-neutral-800"
                 style={{ height: AUTOMATION_ROW_HEIGHT }}
                 onDoubleClick={toggleCurve}
             >
@@ -251,44 +244,44 @@ const ChannelRow: React.FC<{ channelId: string }> = ({ channelId }) => {
                     {descriptor?.presentation.unit ?? ''}
                 </span>
                 <div className="flex items-center gap-1">
-                    <button
-                        className="flex items-center justify-center w-4 h-4 rounded text-neutral-500 hover:text-neutral-200 hover:bg-neutral-700/50"
+                    <Button
+                        variant="icon"
+                        size="full"
                         title="Previous keyframe (J)"
                         onClick={(e) => {
                             e.stopPropagation();
                             goPrevKeyframe();
                         }}
                     >
-                        <FaAngleLeft className="text-[8px]" />
-                    </button>
-                    <button
-                        className="flex items-center justify-center w-4 h-4 rounded text-neutral-500 hover:text-neutral-200 hover:bg-neutral-700/50"
+                        <FaAngleLeft className="text-xs" />
+                    </Button>
+                    <Button
+                        variant="icon"
+                        size="full"
                         title="Next keyframe (K)"
                         onClick={(e) => {
                             e.stopPropagation();
                             goNextKeyframe();
                         }}
                     >
-                        <FaAngleRight className="text-[8px]" />
-                    </button>
+                        <FaAngleRight className="text-xs" />
+                    </Button>
                     {channel?.valueType !== 'string' && (
-                        <button
-                            className={`flex items-center justify-center w-4 h-4 rounded ${
-                                curveExpanded
-                                    ? 'text-blue-400 bg-blue-900/30'
-                                    : 'text-neutral-500 hover:text-blue-400 hover:bg-blue-900/20'
-                            }`}
+                        <Button
+                            variant="icon"
+                            size="full"
                             title={curveExpanded ? 'Hide curve editor' : 'Show curve editor'}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 toggleCurve();
                             }}
                         >
-                            <FaChartLine className="text-[8px]" />
-                        </button>
+                            <FaChartLine className="text-xs" />
+                        </Button>
                     )}
-                    <button
-                        className="flex items-center justify-center w-4 h-4 rounded text-neutral-500 hover:text-red-400 hover:bg-red-900/30"
+                    <Button
+                        variant="icon"
+                        size="full"
                         title={`Remove automation: ${propertyPath}`}
                         onClick={(e) => {
                             e.stopPropagation();
@@ -298,8 +291,8 @@ const ChannelRow: React.FC<{ channelId: string }> = ({ channelId }) => {
                             });
                         }}
                     >
-                        <FaTimes className="text-[8px]" />
-                    </button>
+                        <FaTimes className="text-xs" />
+                    </Button>
                 </div>
             </div>
             {/* Curve editor spacer in left column — height synced with right-column curve pane */}
@@ -350,7 +343,7 @@ const SceneNodeAutomationGroup: React.FC<{ row: AutomatedSceneNodeView }> = ({ r
     return (
         <>
             <div
-                className="flex items-center gap-1.5 px-2 border-b border-neutral-800 cursor-pointer select-none text-neutral-300 hover:bg-neutral-800/40"
+                className="flex items-center gap-1.5 px-2 border-b border-neutral-800 cursor-pointer select-none text-neutral-300 hover:bg-neutral-800"
                 style={{ height: AUTOMATION_HEADER_HEIGHT, paddingLeft: row.depth * 12 + 8 }}
                 onClick={() => {
                     const selection = useSelectionStore.getState();
@@ -372,11 +365,7 @@ const SceneNodeAutomationGroup: React.FC<{ row: AutomatedSceneNodeView }> = ({ r
                         }}
                         title={treeExpanded ? 'Collapse descendants' : 'Expand descendants'}
                     >
-                        {treeExpanded ? (
-                            <FaChevronDown className="text-[9px]" />
-                        ) : (
-                            <FaChevronRight className="text-[9px]" />
-                        )}
+                        {treeExpanded ? <FaChevronDown className="text-xs" /> : <FaChevronRight className="text-xs" />}
                     </button>
                 ) : (
                     <span className="w-3" />
@@ -394,11 +383,7 @@ const SceneNodeAutomationGroup: React.FC<{ row: AutomatedSceneNodeView }> = ({ r
                         }}
                         title={isExpanded ? 'Collapse property channels' : 'Expand property channels'}
                     >
-                        {isExpanded ? (
-                            <FaChevronDown className="text-[9px]" />
-                        ) : (
-                            <FaChevronRight className="text-[9px]" />
-                        )}
+                        {isExpanded ? <FaChevronDown className="text-xs" /> : <FaChevronRight className="text-xs" />}
                     </button>
                 ) : null}
             </div>
@@ -427,10 +412,10 @@ const AutomationTrackLabels: React.FC = () => {
     };
 
     return (
-        <div className="automation-labels border-t border-neutral-700">
+        <div className="automation-labels border-t border-neutral-800">
             {/* Section header */}
             <div
-                className="flex items-center px-2 border-b border-neutral-800 bg-neutral-900/60 text-neutral-500"
+                className="flex items-center px-2 border-b border-neutral-800 bg-neutral-900 text-neutral-500"
                 style={{ height: AUTOMATION_HEADER_HEIGHT }}
             >
                 <span className="text-[10px] font-semibold uppercase tracking-wider flex-1">Automation</span>
@@ -438,10 +423,10 @@ const AutomationTrackLabels: React.FC = () => {
 
             {/* Search bar */}
             <div
-                className="flex items-center gap-1 px-2 border-b border-neutral-800 bg-neutral-900/40"
+                className="flex items-center gap-1 px-2 border-b border-neutral-800 bg-neutral-900"
                 style={{ height: AUTOMATION_SEARCH_HEIGHT }}
             >
-                <FaSearch className="text-[9px] text-neutral-500 shrink-0" />
+                <FaSearch className="text-xs text-neutral-500 shrink-0" />
                 <input
                     type="text"
                     value={searchQuery}
@@ -450,9 +435,9 @@ const AutomationTrackLabels: React.FC = () => {
                     className="flex-1 bg-transparent text-[11px] text-neutral-300 placeholder-neutral-600 outline-none min-w-0"
                 />
                 {searchQuery && (
-                    <button className="text-neutral-500 hover:text-neutral-200" onClick={() => setSearchQuery('')}>
-                        <FaTimes className="text-[9px]" />
-                    </button>
+                    <Button variant="icon" size="full" onClick={() => setSearchQuery('')}>
+                        <FaTimes className="text-xs" />
+                    </Button>
                 )}
             </div>
 

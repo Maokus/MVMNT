@@ -125,14 +125,14 @@ export type TimelineState = {
     removeMidiClips: (input: RemoveMidiClipsPayload) => Promise<void>;
     updateMidiClip: (input: UpdateMidiClipsPayload['updates'][number]) => Promise<void>;
     updateMidiClips: (input: UpdateMidiClipsPayload) => Promise<void>;
-    setMultipleMidiClipOffsets: (input: SetMultipleMidiClipOffsetsPayload) => Promise<void>;
-    moveMidiClipsBetweenTracks: (input: MoveMidiClipsBetweenTracksPayload) => Promise<void>;
+    setMultipleMidiClipOffsets: (input: SetMultipleMidiClipOffsetsPayload, mergeKey?: string) => Promise<void>;
+    moveMidiClipsBetweenTracks: (input: MoveMidiClipsBetweenTracksPayload, mergeKey?: string) => Promise<void>;
     addAudioClip: (input: AddAudioClipPayload) => Promise<string>;
     removeAudioClips: (input: RemoveAudioClipsPayload) => Promise<void>;
     updateAudioClip: (input: UpdateAudioClipsPayload['updates'][number]) => Promise<void>;
     updateAudioClips: (input: UpdateAudioClipsPayload) => Promise<void>;
-    setMultipleAudioClipOffsets: (input: SetMultipleAudioClipOffsetsPayload) => Promise<void>;
-    moveAudioClipsBetweenTracks: (input: MoveAudioClipsBetweenTracksPayload) => Promise<void>;
+    setMultipleAudioClipOffsets: (input: SetMultipleAudioClipOffsetsPayload, mergeKey?: string) => Promise<void>;
+    moveAudioClipsBetweenTracks: (input: MoveAudioClipsBetweenTracksPayload, mergeKey?: string) => Promise<void>;
     addAudioTrack: (input: {
         name: string;
         file?: File;

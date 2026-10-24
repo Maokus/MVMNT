@@ -7,6 +7,7 @@ import { useSceneMetadataStore } from '@state/sceneMetadataStore';
 import { useVisualAssetRegistryStore } from '@state/visualAssetRegistryStore';
 import { timelineCommandGateway } from '@state/timelineStore';
 import { clearTimelineCommandListeners } from '@state/timeline/timelineTelemetry';
+import { nextCommitGroupKey } from '@state/timeline/commitGroup';
 
 describe('patch-based undo controller', () => {
     let controller: ReturnType<typeof createPatchUndoController> | null = null;
@@ -239,5 +240,90 @@ describe('patch-based undo controller', () => {
         expect(controller?.canUndo()).toBe(true);
         controller?.undo();
         expect(useTimelineStore.getState().timeline.globalBpm).not.toBe(155);
+    });
+
+    function seedMixedTracks() {
+        useTimelineStore.setState(
+            (state) =>
+                ({
+                    ...state,
+                    tracks: {
+                        midi1: {
+                            id: 'midi1',
+                            name: 'MIDI',
+                            type: 'midi',
+                            enabled: true,
+                            mute: false,
+                            solo: false,
+                            clips: [{ id: 'clip-m', type: 'midi', sourceId: 'src-m', offsetTicks: 0, enabled: true }],
+                        },
+                        audio1: {
+                            id: 'audio1',
+                            name: 'Audio',
+                            type: 'audio',
+                            enabled: true,
+                            mute: false,
+                            solo: false,
+                            gain: 1,
+                            clips: [{ id: 'clip-a', type: 'audio', sourceId: 'src-a', offsetTicks: 0, enabled: true }],
+                        },
+                    },
+                    tracksOrder: ['midi1', 'audio1'],
+                    timeline: {
+                        id: 'tl',
+                        name: 'Timeline',
+                        currentTick: 0,
+                        globalBpm: 120,
+                        beatsPerBar: 4,
+                        timeSignature: { numerator: 4, denominator: 4 },
+                    },
+                    midiCache: {
+                        'src-m': {
+                            midiData: undefined as any,
+                            notesRaw: [{ note: 60, channel: 0, startTick: 0, endTick: 960, durationTicks: 960 }],
+                            ccRaw: [],
+                            ticksPerQuarter: 960,
+                            bounds: { minTick: 0, maxTick: 960, minNote: 60, maxNote: 60, maxDurationTicks: 960 },
+                        },
+                    },
+                    audioCache: {
+                        'src-a': { sampleRate: 48000, channels: 2, durationSeconds: 1, durationSamples: 48000 },
+                    },
+                }) as any
+        );
+    }
+
+    async function commitMixedOffsets(key: string, tick: number) {
+        await useTimelineStore
+            .getState()
+            .setMultipleMidiClipOffsets({ offsets: [{ trackId: 'midi1', clipId: 'clip-m', offsetTicks: tick }] }, key);
+        await useTimelineStore
+            .getState()
+            .setMultipleAudioClipOffsets(
+                { offsets: [{ trackId: 'audio1', clipId: 'clip-a', offsetTicks: tick }] },
+                key
+            );
+    }
+
+    it('undoes a mixed MIDI+audio commit in one step', async () => {
+        seedMixedTracks();
+        await commitMixedOffsets(nextCommitGroupKey(), 480);
+
+        expect(controller?.debugStack().entries.length).toBe(1);
+        controller?.undo();
+
+        expect((useTimelineStore.getState().tracks.midi1 as any).clips[0].offsetTicks).toBe(0);
+        expect((useTimelineStore.getState().tracks.audio1 as any).clips[0].offsetTicks).toBe(0);
+    });
+
+    it('keeps separate mixed commits as separate undo entries', async () => {
+        seedMixedTracks();
+        await commitMixedOffsets(nextCommitGroupKey(), 480);
+        await commitMixedOffsets(nextCommitGroupKey(), 960);
+
+        expect(controller?.debugStack().entries.length).toBe(2);
+        controller?.undo();
+        expect((useTimelineStore.getState().tracks.audio1 as any).clips[0].offsetTicks).toBe(480);
+        expect((useTimelineStore.getState().tracks.midi1 as any).clips[0].offsetTicks).toBe(480);
     });
 });

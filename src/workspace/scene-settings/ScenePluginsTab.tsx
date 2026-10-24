@@ -2,6 +2,8 @@ import React, { useRef, useState } from 'react';
 import { usePluginStore } from '@state/pluginStore';
 import { disablePlugin, enablePlugin, loadPlugin, unloadPlugin, upgradePlugin } from '@core/scene/plugins';
 import { analytics } from '@app/analytics';
+import { Button } from '@workspace/components/Button';
+import { PLUGIN_INVALID_FILE_TYPE } from '@workspace/userMessages';
 
 const ScenePluginsTab: React.FC = () => {
     const { plugins, loading } = usePluginStore((state) => ({
@@ -25,7 +27,7 @@ const ScenePluginsTab: React.FC = () => {
         event.target.value = '';
 
         if (!file.name.endsWith('.mvmnt-plugin')) {
-            setImportError('Invalid file type. Please select a .mvmnt-plugin file.');
+            setImportError(PLUGIN_INVALID_FILE_TYPE);
             return;
         }
 
@@ -120,7 +122,7 @@ const ScenePluginsTab: React.FC = () => {
                 </p>
             </div>
 
-            <section className="rounded-lg border border-neutral-800 bg-neutral-900/70 p-4">
+            <section className="rounded border border-neutral-800 bg-neutral-900 p-4">
                 <h4 className="m-0 text-[12px] font-semibold text-white">Import Plugin</h4>
                 <p className="mt-2 text-[12px] text-neutral-300">
                     Select a{' '}
@@ -136,75 +138,54 @@ const ScenePluginsTab: React.FC = () => {
                     style={{ display: 'none' }}
                 />
 
-                <button
-                    type="button"
-                    onClick={handleImportClick}
-                    disabled={importing}
-                    className="mt-3 rounded bg-indigo-600 px-3 py-1.5 text-[12px] font-medium text-white transition hover:bg-indigo-500 disabled:bg-neutral-700 disabled:text-neutral-400"
-                >
+                <Button variant="primary" size="md" onClick={handleImportClick} disabled={importing} className="mt-3">
                     {importing ? 'Importing...' : 'Select Plugin File'}
-                </button>
+                </Button>
 
                 {pendingFile && (
-                    <div className="mt-3 rounded border border-amber-500/40 bg-amber-900/20 p-3 space-y-2">
+                    <div className="mt-3 rounded border border-amber-800 bg-amber-950 p-3 space-y-2">
                         <p className="text-[12px] font-medium text-amber-200">Install "{pendingFile.name}"?</p>
-                        <p className="text-[12px] text-amber-300/80 leading-relaxed">
+                        <p className="text-[12px] text-amber-300 leading-relaxed">
                             This plugin will run code on your computer. Only install plugins from authors you trust.
                         </p>
                         <div className="flex gap-2 pt-1">
-                            <button
-                                type="button"
-                                onClick={() => setPendingFile(null)}
-                                className="rounded border border-neutral-600 px-3 py-1 text-[12px] font-medium text-neutral-300 transition hover:bg-white/10"
-                            >
+                            <Button variant="secondary" size="sm" onClick={() => setPendingFile(null)}>
                                 Cancel
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleConfirmImport}
-                                className="rounded bg-indigo-600 px-3 py-1 text-[12px] font-medium text-white transition hover:bg-indigo-500"
-                            >
+                            </Button>
+                            <Button variant="primary" size="md" onClick={handleConfirmImport}>
                                 Install
-                            </button>
+                            </Button>
                         </div>
                     </div>
                 )}
 
                 {upgradeOffer && (
-                    <div className="mt-3 rounded border border-sky-500/40 bg-sky-900/20 p-3 space-y-2">
+                    <div className="mt-3 rounded border border-sky-800 bg-sky-950 p-3 space-y-2">
                         <p className="text-[12px] font-medium text-sky-200">Plugin already installed</p>
-                        <p className="text-[12px] text-sky-300/80 leading-relaxed">
+                        <p className="text-[12px] text-sky-300 leading-relaxed">
                             A plugin with this ID is already installed. Would you like to upgrade it? The existing
                             plugin will be replaced if the new version is newer.
                         </p>
                         <div className="flex gap-2 pt-1">
-                            <button
-                                type="button"
-                                onClick={() => setUpgradeOffer(null)}
-                                className="rounded border border-neutral-600 px-3 py-1 text-[12px] font-medium text-neutral-300 transition hover:bg-white/10"
-                            >
+                            <Button variant="secondary" size="sm" onClick={() => setUpgradeOffer(null)}>
                                 Cancel
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleConfirmUpgrade}
-                                className="rounded bg-sky-600 px-3 py-1 text-[12px] font-medium text-white transition hover:bg-sky-500"
-                            >
+                            </Button>
+                            <Button variant="primary" size="md" onClick={handleConfirmUpgrade}>
                                 Upgrade
-                            </button>
+                            </Button>
                         </div>
                     </div>
                 )}
 
                 {importError && (
-                    <div className="mt-3 rounded border border-rose-500/50 bg-rose-900/30 p-3 text-rose-200">
+                    <div className="mt-3 rounded border border-rose-800 bg-rose-950 p-3 text-rose-200">
                         <p className="text-[12px] font-medium">Import Failed</p>
                         <p className="mt-1 text-[12px]">{importError}</p>
                     </div>
                 )}
             </section>
 
-            <section className="rounded-lg border border-neutral-800 bg-neutral-900/70 p-4">
+            <section className="rounded border border-neutral-800 bg-neutral-900 p-4">
                 <h4 className="m-0 text-[12px] font-semibold text-white">Installed Plugins</h4>
 
                 {pluginList.length === 0 ? (
@@ -218,12 +199,12 @@ const ScenePluginsTab: React.FC = () => {
                             return (
                                 <div
                                     key={plugin.manifest.id}
-                                    className={`rounded-lg border p-3 transition ${
+                                    className={`rounded border p-3 transition ${
                                         hasError
-                                            ? 'border-rose-500/40 bg-rose-900/20'
+                                            ? 'border-rose-800 bg-rose-950'
                                             : plugin.enabled
-                                              ? 'border-emerald-500/40 bg-emerald-900/20'
-                                              : 'border-neutral-700 bg-neutral-800/50'
+                                              ? 'border-emerald-800 bg-emerald-950'
+                                              : 'border-neutral-800 bg-neutral-800'
                                     }`}
                                 >
                                     <div className="flex items-start justify-between gap-3">
@@ -236,17 +217,17 @@ const ScenePluginsTab: React.FC = () => {
                                                     v{plugin.manifest.version}
                                                 </span>
                                                 {isLoading && (
-                                                    <span className="rounded-full bg-blue-900/50 px-2 py-0.5 text-[10px] font-medium text-blue-200">
+                                                    <span className="rounded-full bg-blue-950 px-2 py-0.5 text-[10px] font-medium text-blue-200">
                                                         Loading...
                                                     </span>
                                                 )}
                                                 {hasError && (
-                                                    <span className="rounded-full bg-rose-900/50 px-2 py-0.5 text-[10px] font-medium text-rose-200">
+                                                    <span className="rounded-full bg-rose-950 px-2 py-0.5 text-[10px] font-medium text-rose-200">
                                                         Error
                                                     </span>
                                                 )}
                                                 {!hasError && plugin.enabled && (
-                                                    <span className="rounded-full bg-emerald-900/50 px-2 py-0.5 text-[10px] font-medium text-emerald-200">
+                                                    <span className="rounded-full bg-emerald-950 px-2 py-0.5 text-[10px] font-medium text-emerald-200">
                                                         Enabled
                                                     </span>
                                                 )}
@@ -276,7 +257,7 @@ const ScenePluginsTab: React.FC = () => {
                                                 {plugin.manifest.elements.map((el) => (
                                                     <span
                                                         key={el.type}
-                                                        className="rounded bg-neutral-800/50 px-2 py-0.5 text-[10px] text-neutral-300"
+                                                        className="rounded bg-neutral-800 px-2 py-0.5 text-[10px] text-neutral-300"
                                                     >
                                                         {el.type}
                                                     </span>
@@ -284,7 +265,7 @@ const ScenePluginsTab: React.FC = () => {
                                             </div>
 
                                             {hasError && (
-                                                <div className="mt-2 rounded border border-rose-500/30 bg-rose-900/30 p-2">
+                                                <div className="mt-2 rounded border border-rose-800 bg-rose-950 p-2">
                                                     <p className="text-[11px] font-medium text-rose-200">Error:</p>
                                                     <p className="mt-1 text-[11px] text-rose-300">{plugin.error}</p>
                                                 </div>
@@ -292,26 +273,22 @@ const ScenePluginsTab: React.FC = () => {
                                         </div>
 
                                         <div className="flex flex-col gap-2">
-                                            <button
-                                                type="button"
+                                            <Button
+                                                variant={plugin.enabled ? 'solid-amber' : 'solid-emerald'}
+                                                size="full"
                                                 onClick={() => handleTogglePlugin(plugin.manifest.id, plugin.enabled)}
                                                 disabled={isLoading}
-                                                className={`rounded px-3 py-1.5 text-[11px] font-medium transition ${
-                                                    plugin.enabled
-                                                        ? 'bg-amber-600 text-white hover:bg-amber-500'
-                                                        : 'bg-emerald-600 text-white hover:bg-emerald-500'
-                                                } disabled:bg-neutral-700 disabled:text-neutral-400`}
                                             >
                                                 {plugin.enabled ? 'Disable' : 'Enable'}
-                                            </button>
-                                            <button
-                                                type="button"
+                                            </Button>
+                                            <Button
+                                                variant="danger"
+                                                size="full"
                                                 onClick={() => handleRemovePlugin(plugin.manifest.id)}
                                                 disabled={isLoading}
-                                                className="rounded bg-rose-600 px-3 py-1.5 text-[11px] font-medium text-white transition hover:bg-rose-500 disabled:bg-neutral-700 disabled:text-neutral-400"
                                             >
                                                 Remove
-                                            </button>
+                                            </Button>
                                         </div>
                                     </div>
                                 </div>

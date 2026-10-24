@@ -10,6 +10,7 @@ import { importFontFile } from '@fonts/import-font-file';
 import { AnalyticsBootstrap } from './AnalyticsBootstrap';
 import { AnalyticsConsentBanner } from './AnalyticsConsentBanner';
 import { analytics, stagePendingDocumentAnalytics } from './analytics';
+import { LoadingSpinner } from '@workspace/components/LoadingSpinner';
 
 // Tailwind styles are loaded via index.tsx
 const MidiVisualizer = lazy(() => import('@workspace/overlays/MidiVisualizer'));
@@ -49,21 +50,8 @@ const AppLoadingScreen: React.FC<{ message?: string }> = ({ message = 'Loading M
     return (
         <div className="flex min-h-screen flex-col items-center justify-center bg-neutral-950 text-neutral-100">
             <div className="relative">
-                <div
-                    className="pointer-events-none absolute -inset-16 rounded-[44px] bg-gradient-to-br from-indigo-500/25 via-fuchsia-500/20 to-sky-500/25 opacity-70 blur-3xl"
-                    aria-hidden="true"
-                />
-                <div className="relative flex w-[min(90vw,22rem)] flex-col items-center gap-5 overflow-hidden rounded-3xl border border-neutral-800/80 bg-neutral-900/85 px-8 py-9 text-center shadow-[0_35px_120px_-40px_rgba(79,70,229,0.55)] backdrop-blur">
-                    <div className="relative flex h-12 w-12 items-center justify-center">
-                        <span
-                            className="absolute h-12 w-12 animate-ping rounded-full bg-indigo-400/25"
-                            aria-hidden="true"
-                        />
-                        <span
-                            className="relative h-12 w-12 animate-spin rounded-full border-[3px] border-indigo-300/60 border-t-transparent"
-                            aria-hidden="true"
-                        />
-                    </div>
+                <div className="relative flex w-[min(90vw,22rem)] flex-col items-center gap-5 overflow-hidden rounded-lg border border-neutral-800/80 bg-neutral-900 px-8 py-9 text-center shadow-2xl">
+                    <LoadingSpinner size={48} />
                     <div className="space-y-1">
                         <p className="text-base font-semibold tracking-tight text-neutral-100">{message}</p>
                         <p className="text-sm text-neutral-400">{subtext}</p>
@@ -345,15 +333,15 @@ export function App() {
         <div className="App">
             <AnalyticsBootstrap />
             {isScreenSmall && !isScreenWarningDismissed ? (
-                <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-                    <div className="w-[min(90vw,24rem)] rounded-3xl border border-rose-400/60 bg-neutral-900/95 px-8 py-9 text-center shadow-[0_45px_120px_-35px_rgba(244,63,94,0.55)]">
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60">
+                    <div className="w-[min(90vw,24rem)] rounded-lg border border-neutral-700 bg-neutral-900/95 px-8 py-9 text-center shadow-2xl">
                         <p className="mb-6 text-lg font-semibold tracking-tight text-neutral-100">
                             your screen size is bogus. expect trouble
                         </p>
                         <button
                             type="button"
                             onClick={() => setIsScreenWarningDismissed(true)}
-                            className="inline-flex items-center justify-center rounded-full bg-rose-500 px-6 py-2 text-sm font-semibold text-white transition hover:bg-rose-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-200"
+                            className="inline-flex items-center justify-center rounded bg-neutral-700 px-6 py-2 text-sm font-semibold text-white transition hover:bg-neutral-600 focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70"
                         >
                             ok :(
                         </button>

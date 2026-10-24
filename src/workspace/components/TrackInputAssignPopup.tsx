@@ -1,6 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import TimelineTrackSelect from '@workspace/forms/inputs/TimelineTrackSelect';
 import type { TrackInputDef } from '@context/SceneSelectionContext';
+import { Button } from './Button';
+import { PopupCard } from './PopupCard';
 
 interface Props {
     elementId: string;
@@ -10,8 +12,6 @@ interface Props {
 }
 
 const TrackInputAssignPopup: React.FC<Props> = ({ elementId, trackInputs, onDismiss, onAssign }) => {
-    const popupRef = useRef<HTMLDivElement | null>(null);
-
     const [values, setValues] = useState<Record<string, string | string[] | null>>(() => {
         const init: Record<string, string | string[] | null> = {};
         for (const t of trackInputs) {
@@ -33,13 +33,7 @@ const TrackInputAssignPopup: React.FC<Props> = ({ elementId, trackInputs, onDism
             data-preserve-selection="true"
             onPointerDown={(e) => e.stopPropagation()}
         >
-            <div
-                ref={popupRef}
-                className="flex flex-col gap-3 rounded-lg border border-amber-400/40 bg-neutral-950/95 p-4 text-[12px] text-neutral-100 shadow-[0_12px_24px_rgba(0,0,0,0.45)] backdrop-blur"
-            >
-                <div className="text-[13px] font-semibold text-amber-100">
-                    Added element with track input{trackInputs.length > 1 ? 's' : ''}
-                </div>
+            <PopupCard title={`Added element with track input${trackInputs.length > 1 ? 's' : ''}`}>
                 <p className="m-0 text-neutral-200">Assign track input{trackInputs.length > 1 ? 's' : ''}?</p>
                 <div className="flex flex-col gap-2">
                     {trackInputs.map((t) => (
@@ -63,22 +57,14 @@ const TrackInputAssignPopup: React.FC<Props> = ({ elementId, trackInputs, onDism
                     ))}
                 </div>
                 <div className="flex flex-wrap justify-end gap-2">
-                    <button
-                        type="button"
-                        className="rounded border border-neutral-700 px-3 py-1 text-[12px] font-medium text-neutral-300 transition hover:bg-neutral-800"
-                        onClick={onDismiss}
-                    >
+                    <Button variant="muted" size="sm" onClick={onDismiss}>
                         Dismiss
-                    </button>
-                    <button
-                        type="button"
-                        className="rounded border border-emerald-400/60 bg-emerald-500/20 px-3 py-1 text-[12px] font-medium text-emerald-100 transition hover:bg-emerald-500/30"
-                        onClick={handleAssign}
-                    >
+                    </Button>
+                    <Button variant="accent" size="sm" onClick={handleAssign}>
                         Assign
-                    </button>
+                    </Button>
                 </div>
-            </div>
+            </PopupCard>
         </div>
     );
 };
