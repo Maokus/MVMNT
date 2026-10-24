@@ -5,6 +5,7 @@ import {
     type AddTrackCommandResult,
 } from './commands/addTrackCommand';
 import { createRemoveTracksCommand, type RemoveTracksCommandPayload } from './commands/removeTracksCommand';
+import { createRemoveClipsCommand, type RemoveClipsPayload } from './commands/removeClipsCommand';
 import {
     createSetTrackOffsetTicksCommand,
     type SetTrackOffsetTicksPayload,
@@ -75,6 +76,7 @@ type TimelineRegistryMap = {
     'timeline.reorderTracks': TimelineCommandRegistration<ReorderTracksPayload>;
     'timeline.addMidiClip': TimelineCommandRegistration<AddMidiClipPayload, AddMidiClipResult>;
     'timeline.removeMidiClips': TimelineCommandRegistration<RemoveMidiClipsPayload>;
+    'timeline.removeClips': TimelineCommandRegistration<RemoveClipsPayload>;
     'timeline.updateMidiClips': TimelineCommandRegistration<UpdateMidiClipsPayload>;
     'timeline.setMultipleMidiClipOffsets': TimelineCommandRegistration<SetMultipleMidiClipOffsetsPayload>;
     'timeline.pasteMidiClips': TimelineCommandRegistration<PasteMidiClipsPayload, PasteMidiClipsResult>;
@@ -179,6 +181,15 @@ const registry: TimelineRegistryMap = {
             telemetryEvent: 'timeline_remove_midi_clips',
         }),
         factory: (payload, metadata) => createRemoveMidiClipsCommand(payload, metadata),
+    },
+    'timeline.removeClips': {
+        id: 'timeline.removeClips',
+        buildMetadata: () => ({
+            commandId: 'timeline.removeClips',
+            undoLabel: 'Remove Clips',
+            telemetryEvent: 'timeline_remove_clips',
+        }),
+        factory: (payload, metadata) => createRemoveClipsCommand(payload, metadata),
     },
     'timeline.updateMidiClips': {
         id: 'timeline.updateMidiClips',

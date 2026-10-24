@@ -18,6 +18,14 @@ import {
 } from '../clipboard/midiClipClipboard';
 import { useGlobalShortcut } from '@context/shortcuts/shortcutRegistry';
 import { isCommandSurfaceActive } from '@context/commands/commandContext';
+import type { RemoveClipsPayload } from '@state/timeline/commands/removeClipsCommand';
+
+function removeSelectedTimelineClips({ midiClips, audioClips }: RemoveClipsPayload): void {
+    if (!midiClips.length && !audioClips.length) return;
+    void timelineCommandGateway
+        .dispatchById('timeline.removeClips', { midiClips, audioClips }, { source: 'timeline-navigation' })
+        .catch((error) => console.error('[timeline] failed to remove selected clips', error));
+}
 
 /**
  * Provides view preset callbacks (fitAll, zoomToSelection, centerOnPlayhead, frameSelection)
@@ -424,8 +432,7 @@ export function useTimelineNavigation() {
             const midiClips = getMidiClipsInTimelineSelection(state, clipSel);
             const audioClips = getAudioClipsInTimelineSelection(state, clipSel);
             if (!midiClips.length && !audioClips.length) return true;
-            if (midiClips.length) void useTimelineStore.getState().removeMidiClips({ clips: midiClips });
-            if (audioClips.length) void useTimelineStore.getState().removeAudioClips({ clips: audioClips });
+            removeSelectedTimelineClips({ midiClips, audioClips });
             useSelectionStore.getState().clearSelection('clipTimeline');
             return true;
         },
@@ -497,8 +504,7 @@ export function useTimelineNavigation() {
                         e.stopPropagation();
                         break;
                     }
-                    if (midiClips.length) void useTimelineStore.getState().removeMidiClips({ clips: midiClips });
-                    if (audioClips.length) void useTimelineStore.getState().removeAudioClips({ clips: audioClips });
+                    removeSelectedTimelineClips({ midiClips, audioClips });
                     useSelectionStore.getState().clearSelection('clipTimeline');
                     e.preventDefault();
                     e.stopPropagation();

@@ -111,12 +111,12 @@ const SidePanelsInternal: React.FC = () => {
             ? {
                   display: 'grid',
                   gridTemplateRows: `${Math.round(primarySize)}px ${RESIZER_THICKNESS}px 1fr`,
-                  gridTemplateColumns: '1fr',
+                  gridTemplateColumns: 'minmax(0, 1fr)',
                   height: '100%',
               }
             : {
                   display: 'grid',
-                  gridTemplateColumns: `${Math.round(primarySize)}px ${RESIZER_THICKNESS}px 1fr`,
+                  gridTemplateColumns: `${Math.round(primarySize)}px ${RESIZER_THICKNESS}px minmax(0, 1fr)`,
                   gridTemplateRows: '1fr',
                   height: '100%',
               };
@@ -239,7 +239,7 @@ const SidePanelsInternal: React.FC = () => {
         <div className="relative flex-1 min-h-0 min-w-[320px]" ref={sidePanelsRef} style={gridStyle}>
             {/* Layer Panel */}
             <div
-                className="flex flex-col min-h-0 bg-panel border-border"
+                className="flex flex-col min-h-0 min-w-0 bg-panel border-border"
                 style={
                     layout === 'vertical'
                         ? { gridRow: '1 / 2', gridColumn: '1 / 2' }
@@ -313,7 +313,7 @@ const SidePanelsInternal: React.FC = () => {
 
             {/* Properties Panel */}
             <div
-                className="flex flex-col min-h-0 bg-panel border-border"
+                className="flex flex-col min-h-0 min-w-0 bg-panel border-border"
                 style={
                     layout === 'vertical'
                         ? { gridRow: '3 / 4', gridColumn: '1 / 2' }
