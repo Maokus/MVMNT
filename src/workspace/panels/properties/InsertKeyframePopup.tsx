@@ -325,13 +325,13 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({ position, nod
                     />
                 </div>
 
-                <div ref={listRef} className="max-h-56 overflow-y-auto py-1">
+                <div ref={listRef} className="max-h-56 overflow-y-auto">
                     {filteredItems.length === 0 ? (
                         <div className="px-3 py-2 text-[12px] text-neutral-500 select-none">No matching properties</div>
                     ) : (
                         filteredItems.map((item, i) => {
                             const isActive = i === activeIndex;
-                            const baseClass = `w-full text-left px-3 py-1.5 flex items-center gap-2 transition-colors ${isActive ? 'bg-neutral-800' : 'hover:bg-neutral-800'}`;
+                            const baseClass = 'workspace-menu-item px-3 py-1.5 gap-2';
 
                             if (item.kind === 'preset') {
                                 return (
@@ -339,15 +339,14 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({ position, nod
                                         key={item.preset.id}
                                         type="button"
                                         className={baseClass}
+                                        data-active={isActive}
                                         onMouseEnter={() => setActiveIndex(i)}
                                         onClick={() => handleSelectPreset(item.preset)}
                                     >
                                         <span className="w-1.5 h-1.5 rounded-sm flex-shrink-0 mt-px bg-sky-500" />
                                         <span className="flex-1 min-w-0">
-                                            <span className="text-[13px] text-sky-300 block truncate">
-                                                {item.preset.label}
-                                            </span>
-                                            <span className="text-[11px] text-neutral-500 block truncate">
+                                            <span className="text-[13px] block truncate">{item.preset.label}</span>
+                                            <span className="workspace-menu-description text-[11px] text-neutral-500 block truncate">
                                                 {item.preset.description}
                                             </span>
                                         </span>
@@ -362,6 +361,7 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({ position, nod
                                     key={prop.id}
                                     type="button"
                                     className={baseClass}
+                                    data-active={isActive}
                                     onMouseEnter={() => setActiveIndex(i)}
                                     onClick={() => handleSelect(prop)}
                                 >
@@ -370,10 +370,8 @@ const InsertKeyframePopup: React.FC<InsertKeyframePopupProps> = ({ position, nod
                                         title={isAutomated ? 'Already automated' : 'Not yet automated'}
                                     />
                                     <span className="flex-1 min-w-0">
-                                        <span className="text-[13px] text-neutral-200 block truncate">
-                                            {prop.label}
-                                        </span>
-                                        <span className="text-[11px] text-neutral-500 block truncate">
+                                        <span className="text-[13px] block truncate">{prop.label}</span>
+                                        <span className="workspace-menu-description text-[11px] text-neutral-500 block truncate">
                                             {prop.groupLabel}
                                         </span>
                                     </span>

@@ -90,7 +90,7 @@ const CreateElementPopup: React.FC<CreateElementPopupProps> = ({ position, onAdd
                     />
                 </div>
 
-                <div ref={listRef} className="max-h-64 overflow-y-auto py-1">
+                <div ref={listRef} className="max-h-64 overflow-y-auto">
                     {filteredTypes.length === 0 ? (
                         <div className="select-none px-3 py-2 text-[12px] text-neutral-500">No matching elements</div>
                     ) : (
@@ -98,19 +98,16 @@ const CreateElementPopup: React.FC<CreateElementPopupProps> = ({ position, onAdd
                             <button
                                 key={elementType.type}
                                 type="button"
-                                className={`flex w-full items-start gap-2 px-3 py-1.5 text-left transition-colors ${
-                                    index === activeIndex ? 'bg-neutral-800' : 'hover:bg-neutral-800'
-                                }`}
+                                className="workspace-menu-item items-start gap-2 px-3 py-1.5"
+                                data-active={index === activeIndex}
                                 onMouseEnter={() => setActiveIndex(index)}
                                 onClick={() => selectElementType(elementType.type)}
                                 title={elementType.description}
                             >
                                 <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-sm bg-sky-500" />
                                 <span className="min-w-0 flex-1">
-                                    <span className="block truncate text-[13px] text-neutral-200">
-                                        {elementType.name}
-                                    </span>
-                                    <span className="block truncate text-[11px] text-neutral-500">
+                                    <span className="block truncate text-[13px]">{elementType.name}</span>
+                                    <span className="workspace-menu-description block truncate text-[11px] text-neutral-500">
                                         {formatCategory(elementType.category)} · {elementType.description}
                                     </span>
                                 </span>

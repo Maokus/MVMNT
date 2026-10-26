@@ -53,4 +53,15 @@ describe('CreateElementPopup', () => {
             within(screen.getByRole('dialog', { name: 'Add Element' })).getByText('Add Element')
         ).toBeInTheDocument();
     });
+
+    it('selects the hovered result with Enter while keeping search focused', () => {
+        const onAddElement = vi.fn();
+        render(<CreateElementPopup position={{ x: 20, y: 20 }} onAddElement={onAddElement} onClose={vi.fn()} />);
+        const search = screen.getByPlaceholderText('Search elements…');
+        expect(search).toHaveFocus();
+        fireEvent.mouseEnter(screen.getByText('Basic Shapes').closest('button')!);
+        expect(search).toHaveFocus();
+        fireEvent.keyDown(search, { key: 'Enter' });
+        expect(onAddElement).toHaveBeenCalledWith('basicShapes');
+    });
 });

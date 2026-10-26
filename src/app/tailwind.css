@@ -1718,11 +1718,29 @@
     }
 
     .command-context-menu {
-        @apply fixed z-[1400] flex min-w-[180px] flex-col rounded-sm border border-[#4a4a4a] bg-[#252526] py-1 text-[11px] shadow-xl;
+        @apply fixed z-[1400] flex min-w-[180px] flex-col overflow-hidden rounded-sm border border-neutral-800 bg-[#252526] text-[11px] shadow-xl;
+    }
+
+    .workspace-menu-item {
+        @apply flex w-full items-center bg-transparent text-left text-neutral-300;
+    }
+
+    .workspace-menu-item:hover,
+    .workspace-menu-item:focus-visible,
+    .workspace-menu-item[data-active='true'],
+    .command-context-menu button:hover,
+    .command-context-menu button:focus {
+        @apply bg-[#0e639c] text-white outline-none;
+    }
+
+    .workspace-menu-item:hover .workspace-menu-description,
+    .workspace-menu-item:focus-visible .workspace-menu-description,
+    .workspace-menu-item[data-active='true'] .workspace-menu-description {
+        @apply text-white/80;
     }
 
     .command-context-menu button {
-        @apply flex h-7 items-center gap-2 bg-transparent px-2.5 text-left text-neutral-300 hover:bg-[#0e639c] hover:text-white focus:bg-[#0e639c] focus:text-white focus:outline-none disabled:pointer-events-none disabled:opacity-30;
+        @apply flex h-7 items-center gap-2 bg-transparent px-2.5 text-left text-neutral-300 disabled:pointer-events-none disabled:opacity-30;
     }
 
     .command-context-menu button.is-danger:hover,
