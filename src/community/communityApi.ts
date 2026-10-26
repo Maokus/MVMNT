@@ -374,10 +374,11 @@ export async function updateItem(itemId: string, userId: string, payload: Update
 }
 
 export async function downloadItem(item: CommunityItem, userId: string | null) {
-    await supabase.from('community_downloads').insert({
+    const { error } = await supabase.from('community_downloads').insert({
         item_id: item.id,
         user_id: userId,
     });
+    if (error) throw error;
     // downloads_count is incremented automatically by the increment_download_on_insert trigger.
 
     const { data } = supabase.storage.from('community-files').getPublicUrl(item.file_path);

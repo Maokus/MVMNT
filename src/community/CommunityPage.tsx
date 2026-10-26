@@ -43,7 +43,7 @@ const CommunityPage: React.FC = () => {
     const [userRole, setUserRole] = useState<UserRole>('regular');
     const [items, setItems] = useState<CommunityItem[]>([]);
     const [sortBy, setSortBy] = useState<SortBy>('newest');
-    const [filterType, setFilterType] = useState<FilterType>('all');
+    const [filterType, setFilterType] = useState<FilterType>('plugin');
     const [page, setPage] = useState(0);
     const [hasMore, setHasMore] = useState(true);
     const [loading, setLoading] = useState(true);
@@ -143,10 +143,17 @@ const CommunityPage: React.FC = () => {
     const handleItemChanged = useCallback(() => {
         setPage(0);
         loadItems(0, false);
+        if (selectedItem) {
+            fetchItemById(selectedItem.id)
+                .then((updated) => {
+                    setSelectedItem((current) => (current?.id === selectedItem.id ? updated : current));
+                })
+                .catch((err) => console.error('Failed to refresh community item:', err));
+        }
         fetchAllTags()
             .then(setAllTags)
             .catch(() => {});
-    }, [loadItems]);
+    }, [loadItems, selectedItem]);
 
     const canCreateTags = userRole === 'trusted' || userRole === 'admin';
 
