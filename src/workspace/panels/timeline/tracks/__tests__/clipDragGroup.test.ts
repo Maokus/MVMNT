@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { buildDragPreviews, planDragMove, resolveDragGroup } from '../clipDragGroup';
+import { CANONICAL_PPQ } from '@core/timing/ppq';
+import { getAudioClipTimelineBounds } from '@state/timeline/audioClips';
+import { createTimingContext } from '@state/timelineTime';
 
 const state = {
     tracks: {
@@ -63,6 +66,111 @@ describe('clipDragGroup', () => {
 });
 
 describe('planDragMove overlap clamp', () => {
+    it.each([
+        { direction: 'right', desired: 200, expected: 100 },
+        { direction: 'left', desired: -200, expected: -50 },
+    ])('uses trimmed MIDI bounds when dragging $direction', ({ desired, expected }) => {
+        const trimmed = {
+            ...state,
+            tracks: {
+                midi1: {
+                    id: 'midi1',
+                    type: 'midi',
+                    clips: [
+                        {
+                            id: 'previous',
+                            type: 'midi',
+                            sourceId: 's',
+                            offsetTicks: 0,
+                            regionStartTick: 0,
+                            regionEndTick: 150,
+                        },
+                        {
+                            id: 'trimmed',
+                            type: 'midi',
+                            sourceId: 's',
+                            offsetTicks: 100,
+                            regionStartTick: 100,
+                            regionEndTick: 200,
+                        },
+                        {
+                            id: 'next',
+                            type: 'midi',
+                            sourceId: 's',
+                            offsetTicks: 400,
+                            regionStartTick: 0,
+                            regionEndTick: 100,
+                        },
+                    ],
+                },
+            },
+            tracksOrder: ['midi1'],
+        } as any;
+        const entries = resolveDragGroup(trimmed, [{ trackId: 'midi1', clipId: 'trimmed' }]);
+        expect(planDragMove(trimmed, entries, 0, desired).delta).toBe(expected);
+    });
+
+    it.each([false, true])('keeps trimmed audio clear of its neighbours (tempo map: %s)', (tempoMap) => {
+        const audioState = {
+            ...state,
+            tracks: {
+                audio1: {
+                    id: 'audio1',
+                    type: 'audio',
+                    clips: [
+                        { id: 'previous', type: 'audio', sourceId: 's', offsetTicks: 0, sourceEndSeconds: 0.5 },
+                        {
+                            id: 'trimmed',
+                            type: 'audio',
+                            sourceId: 's',
+                            offsetTicks: CANONICAL_PPQ,
+                            sourceStartSeconds: 1,
+                            sourceEndSeconds: 2,
+                        },
+                        {
+                            id: 'next',
+                            type: 'audio',
+                            sourceId: 's',
+                            offsetTicks: 8 * CANONICAL_PPQ,
+                            sourceEndSeconds: 0.5,
+                        },
+                    ],
+                },
+            },
+            tracksOrder: ['audio1'],
+            audioCache: { s: { durationSeconds: 3, durationSamples: 144000, sampleRate: 48000, channels: 1 } },
+            timeline: {
+                globalBpm: 120,
+                beatsPerBar: 4,
+                masterTempoMap: tempoMap
+                    ? [
+                          { time: 0, bpm: 120 },
+                          { time: 2, bpm: 60 },
+                          { time: 4, bpm: 180 },
+                      ]
+                    : undefined,
+            },
+        } as any;
+        const clips = audioState.tracks.audio1.clips;
+        const timing = createTimingContext(audioState.timeline);
+        const previous = getAudioClipTimelineBounds(audioState.audioCache, clips[0], timing)!;
+        const next = getAudioClipTimelineBounds(audioState.audioCache, clips[2], timing)!;
+        const entries = resolveDragGroup(audioState, [{ trackId: 'audio1', clipId: 'trimmed', kind: 'audio' }]);
+        for (const direction of [-1, 1]) {
+            const planned = planDragMove(audioState, entries, 0, direction * 20 * CANONICAL_PPQ);
+            const moved = { ...clips[1], offsetTicks: entries[0].offsetTicks + planned.delta };
+            const bounds = getAudioClipTimelineBounds(audioState.audioCache, moved, timing)!;
+            expect(bounds.startTick).toBeGreaterThanOrEqual(previous.endTick);
+            expect(bounds.endTick).toBeLessThanOrEqual(next.startTick);
+            const further = getAudioClipTimelineBounds(
+                audioState.audioCache,
+                { ...moved, offsetTicks: moved.offsetTicks + direction },
+                timing
+            )!;
+            expect(direction < 0 ? further.startTick < previous.endTick : further.endTick > next.startTick).toBe(true);
+        }
+    });
+
     const overlapState = {
         tracks: {
             midi1: {

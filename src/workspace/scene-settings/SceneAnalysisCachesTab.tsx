@@ -303,7 +303,7 @@ const SceneAnalysisCachesTab: React.FC = () => {
                     <div className="flex flex-wrap items-center gap-2">
                         <Button
                             variant="danger-outline"
-                            size="full"
+                            size="sm"
                             onClick={deleteExtraneousCaches}
                             disabled={deleteExtraneousDisabled}
                         >
@@ -311,7 +311,7 @@ const SceneAnalysisCachesTab: React.FC = () => {
                         </Button>
                         <Button
                             variant="success-outline"
-                            size="full"
+                            size="sm"
                             onClick={regenerateAll}
                             disabled={regenerateAllDisabled}
                         >
@@ -402,7 +402,7 @@ const SceneAnalysisCachesTab: React.FC = () => {
                                         <div className="flex items-center gap-2">
                                             <Button
                                                 variant="danger-outline"
-                                                size="full"
+                                                size="sm"
                                                 onClick={() => handleStop(row.sourceId)}
                                                 disabled={stopDisabled}
                                             >
@@ -410,7 +410,7 @@ const SceneAnalysisCachesTab: React.FC = () => {
                                             </Button>
                                             <Button
                                                 variant="secondary"
-                                                size="full"
+                                                size="sm"
                                                 onClick={() => handleRestart(row.sourceId)}
                                                 disabled={restartDisabled}
                                                 title={restartTitle}
@@ -503,7 +503,7 @@ const SceneAnalysisCachesTab: React.FC = () => {
                                                             </div>
                                                             <Button
                                                                 variant="success-outline"
-                                                                size="full"
+                                                                size="sm"
                                                                 onClick={() =>
                                                                     feature.calculatorId &&
                                                                     handleReanalyzeFeature(

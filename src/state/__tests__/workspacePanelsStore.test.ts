@@ -107,6 +107,81 @@ describe('workspace panels store', () => {
         ]);
     });
 
+    it('merges into the intended section after removing an earlier singleton section', () => {
+        useWorkspacePanelsStore.setState({
+            sections: {
+                ...baseSections(),
+                right: [
+                    { tabs: ['elements'], active: 'elements' },
+                    { tabs: ['properties', 'macros'], active: 'properties' },
+                ],
+            },
+        });
+        useWorkspacePanelsStore.getState().moveTab('elements', {
+            side: 'right',
+            sectionIndex: 1,
+            tabIndex: 1,
+            split: false,
+        });
+        expect(useWorkspacePanelsStore.getState().sections.right).toEqual([
+            { tabs: ['properties', 'elements', 'macros'], active: 'elements' },
+        ]);
+    });
+
+    it('splits before the intended lower section after removing an earlier singleton', () => {
+        useWorkspacePanelsStore.setState({
+            sections: {
+                ...baseSections(),
+                right: [
+                    { tabs: ['elements'], active: 'elements' },
+                    { tabs: ['properties'], active: 'properties' },
+                    { tabs: ['macros'], active: 'macros' },
+                ],
+            },
+        });
+        useWorkspacePanelsStore.getState().moveTab('elements', {
+            side: 'right',
+            sectionIndex: 2,
+            tabIndex: 0,
+            split: true,
+        });
+        expect(useWorkspacePanelsStore.getState().sections.right.map((section) => section.tabs)).toEqual([
+            ['properties'],
+            ['elements'],
+            ['macros'],
+        ]);
+    });
+
+    it('keeps the active tab when reordering it within its own strip', () => {
+        useWorkspacePanelsStore.getState().moveTab('elements', {
+            side: 'right',
+            sectionIndex: 0,
+            tabIndex: 2,
+            split: false,
+        });
+        expect(useWorkspacePanelsStore.getState().sections.right[0].active).toBe('elements');
+    });
+
+    it('keeps a singleton in its own section when dropped back on its tab strip', () => {
+        useWorkspacePanelsStore.setState({
+            sections: {
+                ...baseSections(),
+                right: [
+                    { tabs: ['elements'], active: 'elements' },
+                    { tabs: ['properties', 'macros'], active: 'properties' },
+                ],
+            },
+        });
+        const before = useWorkspacePanelsStore.getState().sections;
+        useWorkspacePanelsStore.getState().moveTab('elements', {
+            side: 'right',
+            sectionIndex: 0,
+            tabIndex: 1,
+            split: false,
+        });
+        expect(useWorkspacePanelsStore.getState().sections).toEqual(before);
+    });
+
     it('splits above the section the pointer was over', () => {
         useWorkspacePanelsStore.getState().moveTab('assets', {
             side: 'right',

@@ -49,7 +49,7 @@
     }
 
     .menu-bar {
-        @apply border-b px-4 py-2 flex items-center justify-between gap-5 h-12 shrink-0;
+        @apply border-b px-4 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-5 h-12 shrink-0;
         background-color: var(--twc-menubar);
         border-color: var(--twc-border);
     }
@@ -63,7 +63,15 @@
     }
 
     .scene-name-section {
-        @apply flex-1 justify-center relative;
+        @apply min-w-0 justify-center relative;
+    }
+
+    .quick-actions {
+        @apply justify-self-start;
+    }
+
+    .menu-actions {
+        @apply justify-self-end;
     }
 
     .scene-name-container {
@@ -2144,6 +2152,14 @@
 /* Responsive rules ported */
 @layer components {
     @media (max-width: 1200px) {
+        .menu-bar {
+            @apply grid-cols-2 h-auto min-h-12 gap-y-2 py-2;
+        }
+
+        .scene-name-section {
+            @apply col-span-2 row-start-1 justify-self-center;
+        }
+
         .main-workspace {
             @apply flex-col;
         }
@@ -2161,7 +2177,7 @@
 
     @media (max-width: 768px) {
         .menu-bar {
-            @apply flex-wrap h-auto min-h-12 p-2;
+            @apply p-2;
         }
 
         .menu-section {

@@ -201,7 +201,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp, onControls, onCommunity }) =>
     return (
         <>
             <div className="menu-bar">
-                <div className="menu-section quick-actions" style={{ gap: 8 }}>
+                <div className="menu-section quick-actions">
                     <Link to="/" onClick={handleGoHome} title="Go to Home" style={{ display: 'inline-flex' }}>
                         <img width="40" src={logo} style={{ cursor: 'pointer' }} alt="MVMNT" />
                     </Link>
@@ -261,7 +261,7 @@ const MenuBar: React.FC<MenuBarProps> = ({ onHelp, onControls, onCommunity }) =>
                     </div>
                 </div>
 
-                <div className="menu-section" style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+                <div className="menu-section menu-actions">
                     <Button variant="secondary" title="Community" onClick={() => onCommunity?.()}>
                         Community
                     </Button>

@@ -87,21 +87,29 @@ function clipSpan(
     state: TimelineState,
     kind: 'midi' | 'audio',
     trackId: string,
-    clipId: string
+    clipId: string,
+    offsetTicks?: number
 ): { start: number; end: number } | null {
     const track = state.tracks[trackId];
     if (!track) return null;
     if (kind === 'midi') {
         const clip = (track as { clips?: MidiClip[] } | undefined)?.clips?.find((c) => c.id === clipId);
         if (!clip) return null;
-        const bounds = getMidiClipTimelineBounds(state.midiCache, clip);
+        const bounds = getMidiClipTimelineBounds(
+            state.midiCache,
+            offsetTicks === undefined ? clip : { ...clip, offsetTicks }
+        );
         if (!bounds) return null;
         return { start: bounds.startTick, end: bounds.endTick };
     }
     const clip = getAudioClipsForTrack(track as AudioTrack).find((c) => c.id === clipId);
     if (!clip) return null;
     const timing = createTimingContext(state.timeline);
-    const bounds = getAudioClipTimelineBounds(state.audioCache, clip, timing);
+    const bounds = getAudioClipTimelineBounds(
+        state.audioCache,
+        offsetTicks === undefined ? clip : { ...clip, offsetTicks },
+        timing
+    );
     if (!bounds) return null;
     return { start: bounds.startTick, end: bounds.endTick };
 }
@@ -117,8 +125,7 @@ export function clampDragDelta(
     targets: Map<string, string>,
     desiredDelta: number
 ): number {
-    let low = Number.NEGATIVE_INFINITY;
-    let high = Number.POSITIVE_INFINITY;
+    let delta = desiredDelta;
     for (const entry of entries) {
         const targetTrackId = targets.get(`${entry.trackId}:${entry.clipId}`) ?? entry.trackId;
         // Only clamp same-track moves: a clip changing tracks keeps the drop
@@ -128,9 +135,7 @@ export function clampDragDelta(
         if (!targetTrack) continue;
         const span = clipSpan(state, entry.kind, entry.trackId, entry.clipId);
         if (!span) continue;
-        const length = span.end - span.start;
-        if (!(length > 0)) continue;
-        const offset = entry.offsetTicks;
+        if (!(span.end > span.start)) continue;
         const groupIds = new Set(entries.filter((e) => e.trackId === targetTrackId).map((e) => e.clipId));
         const siblings: Array<{ start: number; end: number }> = [];
         const clips =
@@ -142,24 +147,44 @@ export function clampDragDelta(
             const bounds = clipSpan(state, entry.kind, targetTrackId, clip.id);
             if (bounds && bounds.end > bounds.start) siblings.push(bounds);
         }
-        let entryLow = Number.NEGATIVE_INFINITY;
-        let entryHigh = Number.POSITIVE_INFINITY;
+        let minStart = Number.NEGATIVE_INFINITY;
+        let maxEnd = Number.POSITIVE_INFINITY;
         for (const sibling of siblings) {
-            if (sibling.end <= offset) {
+            if (sibling.end <= span.start) {
                 // Sibling fully behind: moving left must stop at its end.
-                entryLow = Math.max(entryLow, sibling.end - offset);
-            } else if (sibling.start >= offset + length) {
+                minStart = Math.max(minStart, sibling.end);
+            } else if (sibling.start >= span.end) {
                 // Sibling fully ahead: moving right must stop at its start.
-                entryHigh = Math.min(entryHigh, sibling.start - offset - length);
+                maxEnd = Math.min(maxEnd, sibling.start);
             }
             // Straddling siblings only exist if base state already overlaps;
             // the drop command's overlap resolution stays the backstop there.
         }
-        low = Math.max(low, entryLow);
-        high = Math.min(high, entryHigh);
+        if (entry.kind === 'midi') {
+            delta = Math.max(minStart - span.start, Math.min(delta, maxEnd - span.end));
+            continue;
+        }
+
+        // Audio regions live in source seconds. Their tick span changes as they
+        // cross tempo boundaries, so evaluate the bounds at the proposed offset.
+        const fits = (amount: number) => {
+            const moved = clipSpan(state, entry.kind, entry.trackId, entry.clipId, entry.offsetTicks + amount);
+            return !moved || (moved.start >= minStart && moved.end <= maxEnd);
+        };
+        if (fits(delta)) continue;
+        const direction = Math.sign(delta);
+        let safe = 0;
+        let blocked = Math.ceil(Math.abs(delta));
+        // Both audio endpoints move monotonically with the offset. Find the last
+        // whole tick before a collision, using the same rounded bounds as commit.
+        while (blocked - safe > 1) {
+            const middle = Math.floor((safe + blocked) / 2);
+            if (fits(direction * middle)) safe = middle;
+            else blocked = middle;
+        }
+        delta = safe === 0 ? 0 : direction * safe;
     }
-    if (desiredDelta < 0) return Math.max(desiredDelta, low === Number.NEGATIVE_INFINITY ? desiredDelta : low);
-    return Math.min(desiredDelta, high === Number.POSITIVE_INFINITY ? desiredDelta : high);
+    return delta;
 }
 
 function entryKey(entry: DragGroupEntry): string {

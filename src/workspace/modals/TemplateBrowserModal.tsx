@@ -65,7 +65,7 @@ export const TemplateBrowserModal: React.FC<TemplateBrowserModalProps> = ({ temp
         >
             <div className="flex items-center justify-between border-b border-neutral-800 px-4 py-3">
                 <h2 className="text-sm font-semibold text-neutral-100">Choose a Template</h2>
-                <Button variant="secondary" size="full" onClick={onClose}>
+                <Button variant="secondary" size="sm" onClick={onClose}>
                     Close
                 </Button>
             </div>

@@ -306,23 +306,33 @@ export const useWorkspacePanelsStore = create<WorkspacePanelsState>((set, get) =
                 const from = panelSide(state.sections, id);
                 const fromSection = panelSectionIndex(state.sections, from, id);
                 const sourceIndex = fromSection >= 0 ? state.sections[from][fromSection].tabs.indexOf(id) : -1;
+                const sameSection = from === side && fromSection === sectionIndex;
+                if (!split && sameSection && state.sections[from][fromSection].tabs.length === 1) {
+                    return { hidden: { ...state.hidden, [id]: false } };
+                }
+                const removedEarlierSection =
+                    from === side &&
+                    fromSection >= 0 &&
+                    fromSection < sectionIndex &&
+                    state.sections[from][fromSection].tabs.length === 1;
+                const destinationIndex = sectionIndex - (removedEarlierSection ? 1 : 0);
                 const sections = DOCK_SIDES.reduce((accumulator, dockSide) => {
                     accumulator[dockSide] = withoutTab(state.sections[dockSide], state.hidden, id);
                     return accumulator;
                 }, {} as DockSections);
                 const target = sections[side];
                 if (split) {
-                    target.splice(clamp(sectionIndex, 0, target.length), 0, { tabs: [id], active: id });
+                    target.splice(clamp(destinationIndex, 0, target.length), 0, { tabs: [id], active: id });
                 } else {
-                    const index = clamp(sectionIndex, 0, target.length);
+                    const index = clamp(destinationIndex, 0, target.length);
                     if (index === target.length) {
                         target.push({ tabs: [id], active: id });
                     } else {
                         const section = target[index];
                         // Reordering rightward in the same strip: removing the tab shifted every later slot left.
-                        const reorderShift = from === side && fromSection === index && sourceIndex < tabIndex ? 1 : 0;
+                        const reorderShift = sameSection && sourceIndex < tabIndex ? 1 : 0;
                         section.tabs.splice(clamp(tabIndex - reorderShift, 0, section.tabs.length), 0, id);
-                        if (from !== side || fromSection !== index) section.active = id;
+                        section.active = sameSection ? state.sections[from][fromSection].active : id;
                     }
                 }
                 return { sections, hidden: { ...state.hidden, [id]: false } };

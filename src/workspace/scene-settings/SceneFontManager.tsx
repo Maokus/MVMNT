@@ -229,7 +229,7 @@ const SceneFontManager: React.FC = () => {
                                                     [asset.id]: event.target.value,
                                                 }))
                                             }
-                                            className="rounded border border-neutral-800 bg-neutral-900 px-2 py-1 text-[11px] text-neutral-200"
+                                            className="rounded border border-neutral-800 bg-neutral-900 px-2 py-1 text-xs text-neutral-200"
                                         >
                                             <option value="">Choose replacement…</option>
                                             <option value="built-in">Inter · Built-in</option>
@@ -244,10 +244,9 @@ const SceneFontManager: React.FC = () => {
                                     )}
                                     <Button
                                         variant="danger-outline"
-                                        size="full"
+                                        size="sm"
                                         disabled={count > 0 && !replacementByAsset[asset.id]}
                                         onClick={() => removeFont(asset)}
-                                        className="text-[10px] uppercase tracking-wide"
                                     >
                                         {count ? 'Replace & remove' : 'Remove'}
                                     </Button>

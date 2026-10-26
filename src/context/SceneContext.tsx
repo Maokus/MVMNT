@@ -383,20 +383,20 @@ export function SceneProvider({ children }: { children: React.ReactNode }) {
                         <p className="mt-2 text-sm leading-6 text-neutral-400">{unsavedChangesPrompt.message}</p>
                         <div className="mt-5 flex justify-end gap-3">
                             <Button
-                                variant="neutral"
-                                size="full"
+                                variant="secondary"
+                                size="md"
                                 onClick={() => chooseUnsavedChangesDecision('discard')}
                             >
                                 Don’t save
                             </Button>
                             <Button
-                                variant="neutral"
-                                size="full"
+                                variant="secondary"
+                                size="md"
                                 onClick={() => chooseUnsavedChangesDecision('cancel')}
                             >
                                 Cancel
                             </Button>
-                            <Button variant="primary" size="full" onClick={() => chooseUnsavedChangesDecision('save')}>
+                            <Button variant="primary" size="md" onClick={() => chooseUnsavedChangesDecision('save')}>
                                 Save
                             </Button>
                         </div>
