@@ -5,6 +5,7 @@ import {
     encodePropertyOwner,
     findKeyframeAtTick,
     nodePropertyTarget,
+    type PropertyTarget,
 } from '@automation/types';
 import { automationEvaluator } from '@automation/automation-evaluator';
 import { useSceneSelection } from '@context/SceneSelectionContext';
@@ -47,6 +48,8 @@ import { MultiSelectionPropertySearch } from './MultiSelectionPropertySearch';
 import { TransformSection, TransformSectionScope } from './TransformSection';
 import { propertySearchMatches, propertyVisibleForSearch, sectionVisibleForSearch } from './propertySearch';
 import { BLEND_MODE_CHOICES, normalizeElementOutputBlendMode } from '@utils/blend-modes';
+import type { ElementPropertyDefinition } from '@mvmnt-app/plugin-sdk';
+import type { MacroType } from '@state/scene/macros';
 
 const fields = HOST_NODE_PROPERTY_SCHEMA.filter(
     (field): field is (typeof HOST_NODE_PROPERTY_SCHEMA)[number] & { path: keyof NodeTransform } =>
@@ -104,6 +107,58 @@ export function nodeTransformSearchHasMatches(searchTerm: string): boolean {
             section.properties.flatMap((property) => [property.label, property.key])
         )
     );
+}
+
+function macroTypeForProperty(type: string): MacroType {
+    return type === 'longString' ? 'string' : (type as MacroType);
+}
+
+function createMacroForTargets(
+    property: ElementPropertyDefinition,
+    value: unknown,
+    targets: PropertyTarget[],
+    macros: ReturnType<typeof useSceneStore.getState>['macros']
+): boolean {
+    const base =
+        (property.label || property.key || 'Macro')
+            .replace(/[^a-zA-Z0-9]+/g, ' ')
+            .trim()
+            .split(/\s+/)
+            .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+            .join('') || 'Macro';
+    let name = base;
+    let suffix = 1;
+    while (macros.byId[name]) name = `${base}${suffix++}`;
+
+    const type = macroTypeForProperty(property.type);
+    const initial = value ?? property.default;
+    const normalizedValue =
+        type === 'number'
+            ? typeof initial === 'number' && Number.isFinite(initial)
+                ? initial
+                : 0
+            : type === 'boolean'
+              ? Boolean(initial)
+              : type === 'string'
+                ? typeof initial === 'string'
+                    ? initial
+                    : ''
+                : initial;
+    const result = dispatchSceneCommand(
+        {
+            type: 'batch',
+            commands: [
+                { type: 'createMacro', macroId: name, definition: { type, value: normalizedValue, options: {} } },
+                ...targets.map((target) => ({
+                    type: 'updatePropertyTargetBinding' as const,
+                    target,
+                    binding: { type: 'macro' as const, macroId: name },
+                })),
+            ],
+        },
+        { source: 'NodeTransformPanel.createMacro' }
+    );
+    return result.success;
 }
 
 export function NodeTransformPanel({ searchTerm = '' }: { searchTerm?: string } = {}) {
@@ -680,6 +735,14 @@ function NodeTransformPanelContent({ searchTerm = '' }: { searchTerm?: string })
                         { source: 'NodeTransformPanel.macro' }
                     )
                 }
+                onCreate={() => {
+                    const definition = hostPropertyDescriptors(nodes[0].id).find(
+                        (descriptor) => descriptor.definition.key === path
+                    )?.definition;
+                    return definition
+                        ? createMacroForTargets(definition, raw, [nodePropertyTarget(nodes[0].id, path)], macros)
+                        : false;
+                }}
             />
         );
     }
@@ -831,7 +894,9 @@ function MultiSelectionCommonContent({ nodes, searchTerm = '' }: { nodes: SceneN
                                                 )}
                                                 macros={macros}
                                                 options={macros.allIds.filter(
-                                                    (id) => macros.byId[id]?.type === template.definition.type
+                                                    (id) =>
+                                                        macros.byId[id]?.type ===
+                                                        macroTypeForProperty(template.definition.type)
                                                 )}
                                                 onAssign={(macroId) => {
                                                     const commands: SceneCommand[] = targets.map((target, index) => ({
@@ -846,6 +911,14 @@ function MultiSelectionCommonContent({ nodes, searchTerm = '' }: { nodes: SceneN
                                                         { source: 'NodeTransformPanel.commonContent.macro' }
                                                     );
                                                 }}
+                                                onCreate={() =>
+                                                    createMacroForTargets(
+                                                        template.definition,
+                                                        values[0],
+                                                        targets,
+                                                        macros
+                                                    )
+                                                }
                                             />
                                         ) : null
                                     }

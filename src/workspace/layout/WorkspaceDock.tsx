@@ -411,14 +411,14 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
         <div
             ref={dockRef}
             data-dock-side={side}
-            className={`relative flex min-h-0 shrink-0 flex-col bg-panel border-border ${isHorizontal ? 'w-full' : ''}`}
+            className={`relative flex min-h-0 min-w-0 shrink-0 flex-col bg-panel border-border ${isHorizontal ? 'w-full' : ''}`}
             style={isHorizontal ? { height: size } : { width: size }}
         >
             {dockSections.map((section, position) => (
                 <div
                     key={section.index}
                     data-dock-section={section.index}
-                    className="flex min-h-0 flex-col"
+                    className="flex min-h-0 min-w-0 flex-col"
                     style={{ flexGrow: sectionWeight[position] ?? 1, flexBasis: 0 }}
                 >
                     {position > 0 && !isHorizontal ? (
@@ -468,7 +468,7 @@ const WorkspaceDock: React.FC<WorkspaceDockProps> = ({ side }) => {
                             </button>
                         ))}
                     </div>
-                    <div className="flex min-h-0 flex-1 flex-col" data-panel-body={section.active ?? undefined}>
+                    <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-panel-body={section.active ?? undefined}>
                         {section.active != null ? (
                             <WorkspacePanelBody key={section.active} id={section.active} />
                         ) : null}

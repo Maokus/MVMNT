@@ -67,9 +67,7 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = (props) => {
             onPointerDownCapture={() => activateCommandSurface('properties')}
             onFocusCapture={() => activateCommandSurface('properties')}
         >
-            <div className="p-4 text-[12px] text-neutral-400">
-                Select an element to edit its properties.
-            </div>
+            <div className="p-4 text-[12px] text-neutral-400">Select an element to edit its properties.</div>
         </div>
     );
 };

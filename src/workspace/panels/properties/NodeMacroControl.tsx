@@ -8,6 +8,7 @@ export function NodeMacroControl({
     macros,
     options,
     onAssign,
+    onCreate,
     hasAssignment = Boolean(bindingMacroId),
 }: {
     path: string;
@@ -15,6 +16,7 @@ export function NodeMacroControl({
     macros: ReturnType<typeof useSceneStore.getState>['macros'];
     options: string[];
     onAssign: (macroId: string) => void;
+    onCreate?: () => boolean;
     hasAssignment?: boolean;
 }) {
     const [open, setOpen] = useState(false);
@@ -56,7 +58,7 @@ export function NodeMacroControl({
                         <FaLink size={12} aria-hidden="true" />
                     )}
                 </span>
-                {(options.length > 0 || hasAssignment) && (
+                {(options.length > 0 || hasAssignment || onCreate) && (
                     <span className="ae-macro-caret inline-flex">
                         <FaChevronDown size={10} aria-hidden="true" />
                     </span>
@@ -78,6 +80,17 @@ export function NodeMacroControl({
                                 {macros.byId[id]?.name ?? id}
                             </button>
                         ))}
+                        {onCreate ? (
+                            <button
+                                type="button"
+                                className="ae-macro-option"
+                                onClick={() => {
+                                    if (onCreate()) setOpen(false);
+                                }}
+                            >
+                                + Assign to New Macro
+                            </button>
+                        ) : null}
                         {hasAssignment ? (
                             <>
                                 <div className="ae-macro-divider" />

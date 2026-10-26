@@ -11,6 +11,7 @@ export type TimelineCommandId =
     | 'timeline.reorderTracks'
     | 'timeline.addMidiClip'
     | 'timeline.removeMidiClips'
+    | 'timeline.removeClips'
     | 'timeline.updateMidiClips'
     | 'timeline.setMultipleMidiClipOffsets'
     | 'timeline.pasteMidiClips'

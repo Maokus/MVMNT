@@ -75,7 +75,7 @@ export const WorkspacePanelBody: React.FC<WorkspacePanelBodyProps> = ({ id }) =>
             );
         case 'properties':
             return (
-                <div className="flex-1 overflow-y-auto p-0 space-y-4">
+                <div className="min-w-0 flex-1 overflow-y-auto p-0 space-y-4">
                     <div className="properties-config" id="propertiesConfig">
                         <PropertiesPanel
                             element={selectedElement}

@@ -9,3 +9,11 @@ export const BUILD_INFO = createBuildInfo({
     builtAt: __MVMNT_BUILD_DATE__,
     isPackaged: __MVMNT_BUILD_CHANNEL__ !== 'development',
 });
+
+export async function readRuntimeBuildInfo() {
+    try {
+        return (await window.mvmntDesktop?.app.getBuildInfo()) ?? BUILD_INFO;
+    } catch {
+        return BUILD_INFO;
+    }
+}

@@ -251,7 +251,6 @@ const TimelineRuler: React.FC = () => {
 
             {/* Loop UI removed for now */}
 
-
             {playEnd > playStart && (
                 <>
                     <div

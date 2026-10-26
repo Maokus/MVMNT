@@ -16,7 +16,7 @@ import { toAnalyticsProperties, validateAnalyticsEvent } from './schema';
 export interface CreateAnalyticsServiceOptions {
     providerFactory: AnalyticsProviderFactory;
     isEnabled: () => boolean;
-    context: () => AnalyticsContext;
+    context: () => AnalyticsContext | Promise<AnalyticsContext>;
     storage?: () => Storage | null;
     eventTarget?: () => Window | null;
 }
@@ -136,7 +136,9 @@ export function createAnalyticsService(options: CreateAnalyticsServiceOptions): 
                     .then(async (createdProvider) => {
                         try {
                             if (generation !== consentGeneration || getConsent() !== 'granted') return null;
-                            await createdProvider.initialize(options.context());
+                            const context = await options.context();
+                            if (generation !== consentGeneration || getConsent() !== 'granted') return null;
+                            await createdProvider.initialize(context);
                             if (generation !== consentGeneration || getConsent() !== 'granted') {
                                 createdProvider.setEnabled(false);
                                 createdProvider.shutdown({ clearPersistence: true });
