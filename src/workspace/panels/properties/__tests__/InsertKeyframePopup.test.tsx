@@ -2,9 +2,32 @@ import React from 'react';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import InsertKeyframePopup from '../InsertKeyframePopup';
+import * as sceneCommands from '@state/scene';
 
 describe('InsertKeyframePopup', () => {
-    afterEach(cleanup);
+    afterEach(() => {
+        cleanup();
+        vi.restoreAllMocks();
+    });
+
+    it('inserts the hovered property with Enter while keeping search focused', () => {
+        const dispatch = vi.spyOn(sceneCommands, 'dispatchSceneCommand').mockImplementation(() => undefined as never);
+        const onClose = vi.fn();
+        render(<InsertKeyframePopup position={{ x: 20, y: 20 }} nodeId="node:one" onClose={onClose} />);
+        const search = screen.getByPlaceholderText('Search property…');
+        expect(search).toHaveFocus();
+        fireEvent.mouseEnter(screen.getByText('Rotation').closest('button')!);
+        expect(search).toHaveFocus();
+        fireEvent.keyDown(search, { key: 'Enter' });
+        expect(dispatch).toHaveBeenCalledWith(
+            expect.objectContaining({
+                type: 'enablePropertyAutomation',
+                target: { owner: { kind: 'node', id: 'node:one' }, propertyPath: 'rotation' },
+            }),
+            expect.objectContaining({ source: 'insert-keyframe-popup' })
+        );
+        expect(onClose).toHaveBeenCalledOnce();
+    });
 
     it('lists the selected node transforms and grouped transform shortcuts', () => {
         render(<InsertKeyframePopup position={{ x: 20, y: 20 }} nodeId="node:one" onClose={vi.fn()} />);

@@ -2,6 +2,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AudioFeatureCacheStatus } from '@audio/features/audioFeatureTypes';
 import { useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
 import { useTimelineStore } from '@state/timelineStore';
+import { Button } from './Button';
+import { PopupCard } from './PopupCard';
+import { ProgressBar } from './ProgressBar';
 
 function formatProgressLabel(statuses: AudioFeatureCacheStatus[]): string {
     const activeStatus = statuses.find((status) => status.state === 'pending');
@@ -74,54 +77,33 @@ export const CacheDiagnosticsPopup: React.FC = () => {
 
     return (
         <div className="pointer-events-none fixed bottom-4 left-4 z-[70] max-w-[320px] sm:max-w-xs md:max-w-sm">
-            <div className="pointer-events-auto flex flex-col gap-3 rounded-lg border border-amber-400/40 bg-neutral-950/95 p-4 text-[12px] text-neutral-100 shadow-[0_12px_24px_rgba(0,0,0,0.45)] backdrop-blur">
-                <div className="text-[13px] font-semibold text-amber-100">
-                    {isCalculating ? 'Calculating audio features' : 'Audio analysis required'}
-                </div>
-                {isCalculating ? (
-                    <div className="space-y-1" aria-live="polite">
-                        <div className="flex items-center justify-between text-neutral-200">
-                            <span>{formatProgressLabel(pendingStatuses)}</span>
-                            <span>{progress}%</span>
+            <div className="pointer-events-auto">
+                <PopupCard title={isCalculating ? 'Calculating audio features' : 'Audio analysis required'}>
+                    {isCalculating ? (
+                        <div className="space-y-1" aria-live="polite">
+                            <div className="flex items-center justify-between text-neutral-200">
+                                <span>{formatProgressLabel(pendingStatuses)}</span>
+                                <span>{progress}%</span>
+                            </div>
+                            <ProgressBar value={progress} label="Audio feature calculation progress" tone="emerald" />
                         </div>
-                        <div
-                            className="h-2 w-full overflow-hidden rounded bg-neutral-800"
-                            role="progressbar"
-                            aria-label="Audio feature calculation progress"
-                            aria-valuemin={0}
-                            aria-valuemax={100}
-                            aria-valuenow={progress}
-                        >
-                            <div
-                                className="h-full rounded bg-emerald-400 transition-[width] duration-150"
-                                style={{ width: `${progress}%` }}
-                            />
-                        </div>
-                    </div>
-                ) : (
-                    <p className="m-0 text-neutral-200">
-                        elements exist which require feature tracks that are not yet calculated. Calculate requested
-                        feature tracks?
-                    </p>
-                )}
-                <div className="flex flex-wrap justify-end gap-2">
-                    <button
-                        type="button"
-                        className="rounded border border-neutral-700 px-3 py-1 text-[12px] font-medium text-neutral-300 transition hover:bg-neutral-800"
-                        onClick={handleDismiss}
-                    >
-                        {isCalculating ? 'Hide' : 'Dismiss'}
-                    </button>
-                    {!isCalculating && (
-                        <button
-                            type="button"
-                            className="rounded border border-emerald-400/60 bg-emerald-500/20 px-3 py-1 text-[12px] font-medium text-emerald-100 transition hover:bg-emerald-500/30"
-                            onClick={handleCalculate}
-                        >
-                            Calculate
-                        </button>
+                    ) : (
+                        <p className="m-0 text-neutral-200">
+                            elements exist which require feature tracks that are not yet calculated. Calculate requested
+                            feature tracks?
+                        </p>
                     )}
-                </div>
+                    <div className="flex flex-wrap justify-end gap-2">
+                        <Button variant="muted" size="sm" onClick={handleDismiss}>
+                            {isCalculating ? 'Hide' : 'Dismiss'}
+                        </Button>
+                        {!isCalculating && (
+                            <Button variant="accent" size="sm" onClick={handleCalculate}>
+                                Calculate
+                            </Button>
+                        )}
+                    </div>
+                </PopupCard>
             </div>
         </div>
     );

@@ -34,8 +34,8 @@ const TrackList: React.FC<TrackListProps> = ({ trackIds, activeTab, setActiveTab
             type="button"
             className={`timeline-track-tab ${
                 activeTab === tab
-                    ? 'bg-blue-600/70 text-white'
-                    : 'bg-neutral-800/60 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-700/60'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-neutral-800 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800'
             }`}
             onClick={() => setActiveTab(tab)}
         >

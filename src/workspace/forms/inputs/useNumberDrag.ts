@@ -1,5 +1,6 @@
 import { useCallback, useRef } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
+import { createDragSessionId } from '@workspace/components/dragSession';
 
 type GetCurrentValue = () => number;
 
@@ -82,7 +83,7 @@ export function useNumberDrag(options: UseNumberDragOptions) {
         const startValueRaw = getCurrentValue();
         const startValue = isFinite(startValueRaw) ? startValueRaw : 0;
 
-        const sessionId = `number-drag-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+        const sessionId = createDragSessionId('number-drag');
 
         dragStateRef.current = {
             pointerId: e.pointerId,

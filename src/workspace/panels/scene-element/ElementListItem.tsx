@@ -153,7 +153,7 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
                                 title="Edit element ID"
                                 aria-label="Edit element ID"
                             >
-                                <FaPen />
+                                <FaPen size={14} />
                             </button>
                         </>
                     )}
@@ -170,7 +170,7 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
                     title={`${element.visible ? 'Hide' : 'Show'} element`}
                     aria-label={`${element.visible ? 'Hide' : 'Show'} element`}
                 >
-                    {element.visible ? <FaEye /> : <FaEyeSlash />}
+                    {element.visible ? <FaEye size={14} /> : <FaEyeSlash size={14} />}
                 </button>
 
                 <div className="element-list-item__reorder-actions">
@@ -181,7 +181,7 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
                         aria-label="Move up"
                         disabled={index === 0}
                     >
-                        <FaArrowUp />
+                        <FaArrowUp size={14} />
                     </button>
                     <button
                         className="element-list-item__icon-button"
@@ -190,7 +190,7 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
                         aria-label="Move down"
                         disabled={index === totalElements - 1}
                     >
-                        <FaArrowDown />
+                        <FaArrowDown size={14} />
                     </button>
                 </div>
                 <button
@@ -199,7 +199,7 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
                     title="Duplicate element"
                     aria-label="Duplicate element"
                 >
-                    <FaClone />
+                    <FaClone size={14} />
                 </button>
                 <button
                     className="element-list-item__icon-button element-list-item__delete-button"
@@ -207,7 +207,7 @@ const ElementListItem: React.FC<ElementListItemProps> = ({
                     title="Delete element"
                     aria-label="Delete element"
                 >
-                    <FaTrash />
+                    <FaTrash size={14} />
                 </button>
             </div>
         </div>

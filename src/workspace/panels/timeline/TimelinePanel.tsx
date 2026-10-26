@@ -25,6 +25,7 @@ import { useTimelineNavigation } from './hooks/useTimelineNavigation';
 import { useTimelinePointerControls } from './hooks/useTimelinePointerControls';
 import { useAutoFollow } from './hooks/useAutoFollow';
 import { formatBytes } from '@audio/audioMemoryDiagnostics';
+import { Button } from '@workspace/components/Button';
 import { activateCommandSurface } from '@context/commands/commandContext';
 
 const TimelinePanel: React.FC = () => {
@@ -103,7 +104,7 @@ const TimelinePanel: React.FC = () => {
                 onDrop={onPanelDrop}
             >
                 {/* Header: left add-track + time indicator, center transport, right view + loop + quantize */}
-                <div className="timeline-header relative z-30 grid flex-none grid-cols-3 items-center border-b border-neutral-800 bg-neutral-900/40 px-2 py-1">
+                <div className="timeline-header relative z-30 grid flex-none grid-cols-3 items-center border-b border-neutral-800 bg-neutral-900 px-2 py-1">
                     {/* Left: Add track buttons + time indicator */}
                     <div className="flex items-center gap-3">
                         <TrackImportButtons
@@ -122,10 +123,10 @@ const TimelinePanel: React.FC = () => {
                                 autoKeying ? 'Auto-keying: On (click to disable)' : 'Auto-keying: Off (click to enable)'
                             }
                             onClick={() => setAutoKeying(!autoKeying)}
-                            className={`px-2 py-1 rounded border border-neutral-700 flex items-center justify-center transition-colors mr-2 ${
+                            className={`px-2 py-1 rounded border border-neutral-800 flex items-center justify-center transition-colors mr-2 ${
                                 autoKeying
-                                    ? 'bg-red-600/70 text-white border-red-400/70'
-                                    : 'bg-neutral-900/60 text-neutral-200 hover:bg-neutral-800/60'
+                                    ? 'bg-red-600 text-white border-red-800'
+                                    : 'bg-neutral-900 text-neutral-200 hover:bg-neutral-800'
                             }`}
                         >
                             <FaCircle className="text-[12px]" />
@@ -149,7 +150,7 @@ const TimelinePanel: React.FC = () => {
                             <TempoRangeProvider>
                                 <div className="h-full w-full overflow-y-auto overflow-x-hidden">
                                     <div className="flex min-h-full">
-                                        <div className="tracklist-container relative z-10 w-60 shrink-0 border-r border-neutral-800 bg-neutral-900/40">
+                                        <div className="tracklist-container relative z-10 w-60 shrink-0 border-r border-neutral-800 bg-neutral-900">
                                             <TrackList
                                                 trackIds={trackIds}
                                                 activeTab={activeTab}
@@ -178,13 +179,13 @@ const TimelinePanel: React.FC = () => {
                     </CurveHeightProvider>
                 </div>
                 {isDragActive && (
-                    <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center border-2 border-dashed border-blue-500/80 bg-blue-500/10 text-blue-100 text-sm font-semibold uppercase tracking-wide">
+                    <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center border-2 border-dashed border-blue-500 text-blue-100 text-sm font-semibold uppercase tracking-wide">
                         Drop MIDI or audio files to add tracks
                     </div>
                 )}
                 {audioImportProgress.active && (
                     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/45">
-                        <div className="w-[min(420px,calc(100%-32px))] rounded border border-neutral-700 bg-neutral-950 p-4 shadow-2xl">
+                        <div className="w-[min(420px,calc(100%-32px))] rounded border border-neutral-800 bg-neutral-950 p-4 ">
                             <div className="flex items-start justify-between gap-4">
                                 <div>
                                     <div className="text-sm font-semibold text-neutral-100">Importing audio</div>
@@ -195,14 +196,14 @@ const TimelinePanel: React.FC = () => {
                                             : ''}
                                     </div>
                                 </div>
-                                <button
-                                    type="button"
+                                <Button
+                                    variant="panel"
+                                    size="full"
                                     onClick={cancelAudioImport}
                                     disabled={audioImportProgress.cancelRequested}
-                                    className="rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs text-neutral-200 hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
                                 >
                                     {audioImportProgress.cancelRequested ? 'Canceling...' : 'Cancel'}
-                                </button>
+                                </Button>
                             </div>
                             <div className="mt-3 truncate text-xs text-neutral-300">
                                 {audioImportProgress.currentFile ?? 'Preparing batch...'}

@@ -4,6 +4,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { ITEM_ID_REGEX } from '../CommunityPage';
+import { downloadItem } from '../communityApi';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -123,6 +124,48 @@ describe('CommunityPage deep link', () => {
         await waitFor(() => expect(screen.getByText('Community')).toBeInTheDocument());
         expect(mockFetchItemById).not.toHaveBeenCalled();
         expect(screen.queryByText('Plugin not found')).toBeNull();
+        expect(mockFetchItems).toHaveBeenCalledWith('newest', 'plugin', 0, undefined, undefined);
+    });
+
+    it('still allows browsing all items and templates', async () => {
+        await renderPage('/community');
+        await userEvent.click(screen.getByRole('button', { name: 'All' }));
+        await waitFor(() => expect(mockFetchItems).toHaveBeenLastCalledWith('newest', 'all', 0, undefined, undefined));
+        await userEvent.click(screen.getByRole('button', { name: 'Templates' }));
+        await waitFor(() =>
+            expect(mockFetchItems).toHaveBeenLastCalledWith('newest', 'template', 0, undefined, undefined)
+        );
+    });
+
+    it('refreshes the open detail count after downloading, including a template deep link', async () => {
+        const template = { ...SAMPLE_ITEM, type: 'template', plugin_uid: null };
+        mockFetchItemById.mockResolvedValueOnce(template).mockResolvedValue({ ...template, downloads_count: 43 });
+        vi.mocked(downloadItem).mockResolvedValue('https://cdn.example.com/file.mvt');
+        const open = vi.spyOn(window, 'open').mockImplementation(() => null);
+        await renderPage(`/community?id=${VALID_ID}`);
+        await screen.findByText('42 downloads');
+
+        await userEvent.click(screen.getByRole('button', { name: /^download$/i }));
+
+        await screen.findByText('43 downloads');
+        expect(downloadItem).toHaveBeenCalledWith(template, null);
+        expect(open).toHaveBeenCalledWith('https://cdn.example.com/file.mvt', '_blank');
+        open.mockRestore();
+    });
+
+    it('shows download recording failures instead of reporting success', async () => {
+        mockFetchItemById.mockResolvedValue(SAMPLE_ITEM);
+        vi.mocked(downloadItem).mockRejectedValue(new Error('Unable to record download'));
+        const open = vi.spyOn(window, 'open').mockImplementation(() => null);
+        await renderPage(`/community?id=${VALID_ID}`);
+        await screen.findByText('42 downloads');
+
+        await userEvent.click(screen.getByRole('button', { name: /^download$/i }));
+
+        await screen.findByText('Unable to record download');
+        expect(open).not.toHaveBeenCalled();
+        expect(mockFetchItemById).toHaveBeenCalledTimes(1);
+        open.mockRestore();
     });
 
     it('auto-opens detail modal for a valid, found ID', async () => {

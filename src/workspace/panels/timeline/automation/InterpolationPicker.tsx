@@ -10,6 +10,7 @@
  */
 
 import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { clamp01 } from '@math/transforms/numeric';
 import { resolveParametricEasing } from '@math/animation/easing-parametric';
 import {
     DEFAULT_BACK_OVERSHOOT,
@@ -119,7 +120,7 @@ const ModeThumbnail: React.FC<{
                 // Simple cubic bezier approximation for thumbnail
                 const v = t * t * (3 - 2 * t);
                 const x = 2 + t * (THUMB_W - 4);
-                const y = THUMB_H - 2 - Math.max(0, Math.min(1, v)) * (THUMB_H - 4);
+                const y = THUMB_H - 2 - clamp01(v) * (THUMB_H - 4);
                 pts.push(`${x.toFixed(1)},${y.toFixed(1)}`);
             }
             return pts.join(' ');

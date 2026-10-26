@@ -2,7 +2,8 @@ import React from 'react';
 // Using Tailwind component classes defined in tailwind.css
 import { Link } from 'react-router-dom';
 import './aboutpage.css';
-import { BUILD_INFO } from '@app/build-info';
+import { BUILD_INFO, readRuntimeBuildInfo } from '@app/build-info';
+import type { BuildInfo } from '../../electron/shared/build-info';
 
 const channelLabels = {
     development: 'Development',
@@ -10,9 +11,9 @@ const channelLabels = {
     stable: 'Stable',
 } as const;
 
-function updatePolicy(): string {
-    if (BUILD_INFO.channel === 'development') return 'Development build — update checks disabled.';
-    if (BUILD_INFO.channel === 'nightly') return 'Testing build — install newer testing artifacts manually.';
+function updatePolicy(buildInfo: BuildInfo): string {
+    if (buildInfo.channel === 'development') return 'Development build — update checks disabled.';
+    if (buildInfo.channel === 'nightly') return 'Testing build — install newer testing artifacts manually.';
     return 'Stable build — checks GitHub for new releases; updates are downloaded manually.';
 }
 
@@ -21,13 +22,25 @@ function updatePolicy(): string {
  * Reuses MenuBar + global styles for consistency.
  */
 const AboutPage: React.FC = () => {
+    const [buildInfo, setBuildInfo] = React.useState(BUILD_INFO);
+
+    React.useEffect(() => {
+        let mounted = true;
+        void readRuntimeBuildInfo().then((info) => {
+            if (mounted) setBuildInfo(info);
+        });
+        return () => {
+            mounted = false;
+        };
+    }, []);
+
     return (
         <div className="min-h-screen bg-neutral-800 text-neutral-200 px-6 py-10">
             <main className="max-w-5xl mx-auto">
                 <div className="flex justify-between items-start mb-10">
                     <div>
                         <h1 className="text-4xl font-extrabold tracking-tight text-white">
-                            MVMNT <span className="text-indigo-400">v{BUILD_INFO.displayVersion}</span>
+                            MVMNT <span className="text-indigo-400">v{buildInfo.displayVersion}</span>
                         </h1>
                         <p className=" text-neutral-400 leading-relaxed max-w-2xl text-sm">
                             Music Visualization & Motion eNgineering Tools
@@ -50,21 +63,21 @@ const AboutPage: React.FC = () => {
                 </div>
 
                 <div className="about-body">
-                    <section className="mb-8 rounded-lg border border-neutral-700 bg-neutral-900/50 p-4">
+                    <section className="mb-8 rounded border border-neutral-800 bg-neutral-900 p-4">
                         <h2 className="mb-3 text-lg font-semibold text-white">Build information</h2>
                         <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-[8rem_1fr]">
                             <dt className="text-neutral-500">Version</dt>
-                            <dd>{BUILD_INFO.displayVersion}</dd>
+                            <dd>{buildInfo.displayVersion}</dd>
                             <dt className="text-neutral-500">Channel</dt>
-                            <dd>{channelLabels[BUILD_INFO.channel]}</dd>
+                            <dd>{channelLabels[buildInfo.channel]}</dd>
                             <dt className="text-neutral-500">Commit</dt>
-                            <dd className="font-mono">{BUILD_INFO.commit}</dd>
+                            <dd className="font-mono">{buildInfo.commit}</dd>
                             <dt className="text-neutral-500">Build date</dt>
                             <dd>
-                                <time dateTime={BUILD_INFO.builtAt}>{BUILD_INFO.builtAt}</time>
+                                <time dateTime={buildInfo.builtAt}>{buildInfo.builtAt}</time>
                             </dd>
                         </dl>
-                        <p className="mt-3 text-sm text-neutral-400">{updatePolicy()}</p>
+                        <p className="mt-3 text-sm text-neutral-400">{updatePolicy(buildInfo)}</p>
                     </section>
                     <div className="acknowledgements-boxes">
                         <section>

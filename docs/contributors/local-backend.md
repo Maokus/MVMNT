@@ -45,6 +45,22 @@ supabase migration new <descriptive_name>
 supabase db reset
 ```
 
+Verify download counting and access policies against the migrated local database:
+
+```bash
+psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+  -v ON_ERROR_STOP=1 -f supabase/tests/community-download-count.sql
+```
+
+The test runs in a transaction and rolls back its fixtures. It checks signed-out and
+signed-in downloads, prevents user impersonation, and checks that downloaders cannot
+read other authors' download records or directly change their totals.
+
+Deploy pending migrations with the normal backend release before releasing client
+changes that depend on them. The download-count repair restores totals from existing
+download records while preserving higher historical totals. Downloads that failed to
+create a record cannot be recovered.
+
 Stop the local containers without deleting their data:
 
 ```bash

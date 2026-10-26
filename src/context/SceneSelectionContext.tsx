@@ -153,10 +153,10 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         if (propertiesHeader) {
             if (element) {
                 const truncatedId = element.id.length > 15 ? element.id.substring(0, 12) + '...' : element.id;
-                propertiesHeader.textContent = `⚙️ Properties | ${truncatedId}`;
+                propertiesHeader.textContent = `Properties | ${truncatedId}`;
                 propertiesHeader.title = `Properties | ${element.id}`;
             } else {
-                propertiesHeader.textContent = '⚙️ Properties';
+                propertiesHeader.textContent = 'Properties';
                 propertiesHeader.title = '';
             }
         }

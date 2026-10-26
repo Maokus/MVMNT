@@ -1,4 +1,4 @@
-import { BUILD_INFO } from './build-info';
+import { BUILD_INFO, readRuntimeBuildInfo } from './build-info';
 import type { BuildChannel } from '../../electron/shared/build-info';
 import {
     ANALYTICS_CONSENT_STORAGE_KEY,
@@ -44,12 +44,13 @@ function coarsePlatform(): AnalyticsContext['platform'] {
     return 'other';
 }
 
-function analyticsContext(): AnalyticsContext {
+export async function analyticsContext(): Promise<AnalyticsContext> {
+    const buildInfo = await readRuntimeBuildInfo();
     return {
-        app_version: BUILD_INFO.version,
-        app_release_line: BUILD_INFO.releaseLine,
-        build_channel: BUILD_INFO.channel,
-        build_commit: BUILD_INFO.commit,
+        app_version: buildInfo.version,
+        app_release_line: buildInfo.releaseLine,
+        build_channel: buildInfo.channel,
+        build_commit: buildInfo.commit,
         runtime: window.mvmntDesktop ? 'desktop' : 'browser',
         platform: coarsePlatform(),
         consent_policy_version: ANALYTICS_POLICY_VERSION,

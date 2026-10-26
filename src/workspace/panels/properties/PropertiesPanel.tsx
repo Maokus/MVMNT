@@ -1,6 +1,5 @@
 import React from 'react';
 import ElementPropertiesPanel from './ElementPropertiesPanel';
-import GlobalPropertiesPanel from './GlobalPropertiesPanel';
 import { useSceneSelection } from '@context/SceneSelectionContext';
 import type { ElementBindings } from '@state/sceneStore';
 import type { SceneCommandOptions } from '@state/scene';
@@ -34,8 +33,8 @@ interface PropertiesPanelProps {
 
 const PropertiesPanel: React.FC<PropertiesPanelProps> = (props) => {
     const { element, schema, onConfigChange, refreshToken = 0 } = props;
-    const { visualizer, selectedNodeIds } = useSceneSelection();
-    // Show ElementPropertiesPanel when an element is selected, otherwise show GlobalPropertiesPanel
+    const { selectedNodeIds } = useSceneSelection();
+    // Selected elements get the inspector; otherwise the tab shows an empty state.
     if (selectedNodeIds.length) {
         return (
             <div
@@ -63,21 +62,12 @@ const PropertiesPanel: React.FC<PropertiesPanelProps> = (props) => {
 
     return (
         <div
+            className="node-properties-shell"
             data-command-surface="properties"
             onPointerDownCapture={() => activateCommandSurface('properties')}
             onFocusCapture={() => activateCommandSurface('properties')}
         >
-            <GlobalPropertiesPanel
-                visualizer={visualizer}
-                refreshToken={refreshToken}
-                onExport={props.onExport}
-                exportStatus={props.exportStatus}
-                canExport={props.canExport}
-                exportSettings={props.exportSettings}
-                onExportSettingsChange={props.onExportSettingsChange}
-                debugSettings={props.debugSettings}
-                onDebugSettingsChange={props.onDebugSettingsChange}
-            />
+            <div className="p-4 text-[12px] text-neutral-400">Select an element to edit its properties.</div>
         </div>
     );
 };

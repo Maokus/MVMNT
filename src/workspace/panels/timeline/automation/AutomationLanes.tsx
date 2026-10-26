@@ -68,12 +68,12 @@ const ChannelLane: React.FC<{ channel: AutomationChannel; width: number }> = ({ 
 
     return (
         <div data-channel-id={channel.id}>
-            <div className="relative border-b border-neutral-800/60" style={{ height: AUTOMATION_ROW_HEIGHT }}>
+            <div className="relative border-b border-neutral-800" style={{ height: AUTOMATION_ROW_HEIGHT }}>
                 <AutomationLaneRow channel={channel} width={width} />
             </div>
             {curveExpanded && (
                 <div
-                    className="border-b border-neutral-800/60"
+                    className="border-b border-neutral-800"
                     style={{ height: curveHeight }}
                     onDoubleClick={handleCurveDoubleClick}
                 >
@@ -671,7 +671,7 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
     return (
         <div
             ref={containerRef}
-            className="automation-lanes relative border-t border-neutral-700"
+            className="automation-lanes relative border-t border-neutral-800"
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
@@ -690,7 +690,7 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
             {/* Cross-lane selection box overlay */}
             {selBoxRect && (
                 <div
-                    className="absolute bg-blue-400/10 border border-blue-400 pointer-events-none"
+                    className="absolute border border-blue-400 pointer-events-none"
                     style={{
                         left: selBoxRect.x,
                         top: selBoxRect.y,

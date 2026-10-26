@@ -1,11 +1,11 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { FaLink, FaSearch, FaTimes } from 'react-icons/fa';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
     channelForTarget,
     elementPropertyTarget,
     encodePropertyOwner,
     findKeyframeAtTick,
     nodePropertyTarget,
+    type PropertyTarget,
 } from '@automation/types';
 import { automationEvaluator } from '@automation/automation-evaluator';
 import { useSceneSelection } from '@context/SceneSelectionContext';
@@ -32,7 +32,6 @@ import { dispatchPropertyEdits, propertyEditMergeKey, effectiveValueForTarget } 
 import { elementPropertyDescriptors, hostPropertyDescriptors } from '@state/scene/propertyCatalog';
 import { resolveAutomationValueType } from './KeyframeControl';
 import { AggregateTransformSession } from './aggregateTransformSession';
-import { hoveredPropertyRef } from './hoveredPropertyRef';
 import { CommandContextMenu } from '@workspace/components/CommandContextMenu';
 import { readFiniteTransformInput, unwrapTransformInputValue } from './nodeTransformInput';
 import { resolveNodeTransformValue } from './nodeTransformValue';
@@ -43,9 +42,14 @@ import {
     updateTargetBindingCommand,
 } from './nodeTransformCommands';
 import { NodeStateRows } from './NodeStateRows';
+import { TransformRow } from './TransformRow';
+import { NodeMacroControl } from './NodeMacroControl';
+import { MultiSelectionPropertySearch } from './MultiSelectionPropertySearch';
 import { TransformSection, TransformSectionScope } from './TransformSection';
 import { propertySearchMatches, propertyVisibleForSearch, sectionVisibleForSearch } from './propertySearch';
 import { BLEND_MODE_CHOICES, normalizeElementOutputBlendMode } from '@utils/blend-modes';
+import type { ElementPropertyDefinition } from '@mvmnt-app/plugin-sdk';
+import type { MacroType } from '@state/scene/macros';
 
 const fields = HOST_NODE_PROPERTY_SCHEMA.filter(
     (field): field is (typeof HOST_NODE_PROPERTY_SCHEMA)[number] & { path: keyof NodeTransform } =>
@@ -105,207 +109,56 @@ export function nodeTransformSearchHasMatches(searchTerm: string): boolean {
     );
 }
 
-function MultiSelectionPropertySearch({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-    return (
-        <div className="ae-search-bar ae-multi-selection-search">
-            <FaSearch className="ae-search-leading-icon" aria-hidden="true" />
-            <input
-                className="ae-search-input"
-                type="search"
-                aria-label="Search selected properties"
-                placeholder="Search selected properties…"
-                value={value}
-                onChange={(event) => onChange(event.target.value)}
-            />
-            {value ? (
-                <button
-                    type="button"
-                    className="ae-search-close"
-                    onClick={() => onChange('')}
-                    title="Clear property search"
-                    aria-label="Clear property search"
-                >
-                    <FaTimes aria-hidden="true" />
-                </button>
-            ) : null}
-        </div>
-    );
+function macroTypeForProperty(type: string): MacroType {
+    return type === 'longString' ? 'string' : (type as MacroType);
 }
 
-interface TransformRowProps {
-    label: string;
-    id: string;
-    value: number;
-    schema?: Record<string, unknown>;
-    suffix?: string;
-    readOnly?: boolean;
-    mixed?: boolean;
-    onChange?: (value: number, change?: FormInputChange) => void;
-    automation?: React.ReactNode;
-    macro?: React.ReactNode;
-    uncommitted?: boolean;
-    hoverProperty?: { owner: { kind: 'node'; id: string }; propertyKey: string; propertyType: string };
-}
+function createMacroForTargets(
+    property: ElementPropertyDefinition,
+    value: unknown,
+    targets: PropertyTarget[],
+    macros: ReturnType<typeof useSceneStore.getState>['macros']
+): boolean {
+    const base =
+        (property.label || property.key || 'Macro')
+            .replace(/[^a-zA-Z0-9]+/g, ' ')
+            .trim()
+            .split(/\s+/)
+            .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+            .join('') || 'Macro';
+    let name = base;
+    let suffix = 1;
+    while (macros.byId[name]) name = `${base}${suffix++}`;
 
-function TransformRow({
-    label,
-    id,
-    value,
-    schema,
-    suffix,
-    readOnly,
-    mixed,
-    onChange,
-    automation,
-    macro,
-    uncommitted = false,
-    hoverProperty,
-}: TransformRowProps) {
-    return (
-        <PropertyControlRow
-            label={suffix ? `${label} (${suffix})` : label}
-            animationControl={automation}
-            macroControl={macro}
-            className={uncommitted ? 'ae-property-uncommitted' : undefined}
-            onMouseEnter={
-                hoverProperty
-                    ? () => {
-                          hoveredPropertyRef.current = hoverProperty;
-                      }
-                    : undefined
-            }
-            onMouseLeave={
-                hoverProperty
-                    ? () => {
-                          if (
-                              hoveredPropertyRef.current?.owner.kind === 'node' &&
-                              hoveredPropertyRef.current.owner.id === hoverProperty.owner.id &&
-                              hoveredPropertyRef.current.propertyKey === hoverProperty.propertyKey
-                          )
-                              hoveredPropertyRef.current = null;
-                      }
-                    : undefined
-            }
-        >
-            {mixed ? (
-                <input
-                    className="node-transform-mixed"
-                    defaultValue=""
-                    placeholder="Mixed"
-                    disabled={readOnly}
-                    onBlur={(event) => {
-                        const next = Number(event.currentTarget.value);
-                        if (event.currentTarget.value.trim() && Number.isFinite(next)) onChange?.(next);
-                        event.currentTarget.value = '';
-                    }}
-                    onKeyDown={(event) => {
-                        if (event.key === 'Enter') event.currentTarget.blur();
-                    }}
-                />
-            ) : (
-                <FormInput
-                    id={id}
-                    type="number"
-                    value={Number.isFinite(value) ? Number(value.toFixed(4)) : 0}
-                    schema={schema ?? { step: 1 }}
-                    disabled={readOnly}
-                    onChange={(change) => {
-                        const next = readFiniteTransformInput(change);
-                        if (next != null) onChange?.(next, change as FormInputChange);
-                    }}
-                />
-            )}
-        </PropertyControlRow>
+    const type = macroTypeForProperty(property.type);
+    const initial = value ?? property.default;
+    const normalizedValue =
+        type === 'number'
+            ? typeof initial === 'number' && Number.isFinite(initial)
+                ? initial
+                : 0
+            : type === 'boolean'
+              ? Boolean(initial)
+              : type === 'string'
+                ? typeof initial === 'string'
+                    ? initial
+                    : ''
+                : initial;
+    const result = dispatchSceneCommand(
+        {
+            type: 'batch',
+            commands: [
+                { type: 'createMacro', macroId: name, definition: { type, value: normalizedValue, options: {} } },
+                ...targets.map((target) => ({
+                    type: 'updatePropertyTargetBinding' as const,
+                    target,
+                    binding: { type: 'macro' as const, macroId: name },
+                })),
+            ],
+        },
+        { source: 'NodeTransformPanel.createMacro' }
     );
-}
-
-function NodeMacroControl({
-    path,
-    bindingMacroId,
-    macros,
-    options,
-    onAssign,
-    hasAssignment = Boolean(bindingMacroId),
-}: {
-    path: string;
-    bindingMacroId?: string;
-    macros: ReturnType<typeof useSceneStore.getState>['macros'];
-    options: string[];
-    onAssign: (macroId: string) => void;
-    hasAssignment?: boolean;
-}) {
-    const [open, setOpen] = useState(false);
-    const rootRef = useRef<HTMLDivElement>(null);
-    useEffect(() => {
-        if (!open) return;
-        const close = (event: MouseEvent) => {
-            if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-        };
-        document.addEventListener('mousedown', close);
-        return () => document.removeEventListener('mousedown', close);
-    }, [open]);
-    return (
-        <div ref={rootRef} className="ae-macro-assignment">
-            <button
-                type="button"
-                className={`ae-macro-trigger${hasAssignment ? ' assigned' : ''}`}
-                title={
-                    bindingMacroId
-                        ? `Macro: ${macros.byId[bindingMacroId]?.name ?? bindingMacroId}`
-                        : hasAssignment
-                          ? 'Mixed macro assignments'
-                          : 'Assign macro'
-                }
-                aria-label={`${path} macro`}
-                onClick={() => setOpen((value) => !value)}
-            >
-                <span className="ae-macro-label-text">
-                    {bindingMacroId ? (
-                        `🎵 ${macros.byId[bindingMacroId]?.name ?? bindingMacroId}`
-                    ) : hasAssignment ? (
-                        '🎵 Mixed'
-                    ) : (
-                        <FaLink />
-                    )}
-                </span>
-                {(options.length > 0 || hasAssignment) && <span className="ae-macro-caret">▼</span>}
-            </button>
-            {open ? (
-                <div className="ae-macro-menu">
-                    <div className="ae-macro-options">
-                        {options.map((id) => (
-                            <button
-                                key={id}
-                                type="button"
-                                className="ae-macro-option"
-                                onClick={() => {
-                                    onAssign(id);
-                                    setOpen(false);
-                                }}
-                            >
-                                {macros.byId[id]?.name ?? id}
-                            </button>
-                        ))}
-                        {hasAssignment ? (
-                            <>
-                                <div className="ae-macro-divider" />
-                                <button
-                                    type="button"
-                                    className="ae-macro-option danger"
-                                    onClick={() => {
-                                        onAssign('');
-                                        setOpen(false);
-                                    }}
-                                >
-                                    Remove Macro
-                                </button>
-                            </>
-                        ) : null}
-                    </div>
-                </div>
-            ) : null}
-        </div>
-    );
+    return result.success;
 }
 
 export function NodeTransformPanel({ searchTerm = '' }: { searchTerm?: string } = {}) {
@@ -882,6 +735,14 @@ function NodeTransformPanelContent({ searchTerm = '' }: { searchTerm?: string })
                         { source: 'NodeTransformPanel.macro' }
                     )
                 }
+                onCreate={() => {
+                    const definition = hostPropertyDescriptors(nodes[0].id).find(
+                        (descriptor) => descriptor.definition.key === path
+                    )?.definition;
+                    return definition
+                        ? createMacroForTargets(definition, raw, [nodePropertyTarget(nodes[0].id, path)], macros)
+                        : false;
+                }}
             />
         );
     }
@@ -926,242 +787,6 @@ function MultiSelectionOutputBlendMode({ nodes, searchTerm = '' }: { nodes: Scen
             </PropertyControlRow>
         </TransformSection>
     );
-}
-
-/** Optional bulk-local editor for extensions; the main inspector omits it because those host fields are shown above. */
-export function MultiSelectionCommonProperties({ nodes }: { nodes: SceneNode[] }) {
-    const tick = useTimelineStore((state) => state.timeline.currentTick);
-    const autoKey = useTimelineStore((state) => state.transport.autoKeying);
-    const nodeBindings = useSceneStore((state) => state.nodeBindings);
-    const channels = useSceneStore((state) => state.automation.channels);
-    const macros = useSceneStore((state) => state.macros);
-    const descriptors = hostPropertyDescriptors('__multi__').filter(
-        (descriptor) => descriptor.definition.type === 'number'
-    );
-
-    const valuesFor = (path: string) =>
-        nodes.map((node) => effectiveValueForTarget(useSceneStore.getState(), nodePropertyTarget(node.id, path), tick));
-    const commonValue = (values: unknown[]) =>
-        values.every((value) => Object.is(value, values[0])) ? values[0] : undefined;
-
-    const editAll = (path: string, displayValue: unknown, change?: FormInputChange) => {
-        const descriptor = descriptors.find((candidate) => candidate.definition.key === path);
-        if (!descriptor) return;
-        const value = descriptor.presentation.fromDisplay(displayValue);
-        const targets = nodes.map((node) => nodePropertyTarget(node.id, path));
-        const session = change?.meta?.mergeSession;
-        dispatchPropertyEdits(
-            targets.map((target) => ({
-                target,
-                value,
-                valueType: descriptor.definition.type === 'number' ? ('number' as const) : ('boolean' as const),
-                automatable: descriptor.capabilities.automatable,
-            })),
-            {
-                tick,
-                autoKey,
-                source: 'NodeTransformPanel.common',
-                mergeKey: session ? propertyEditMergeKey(targets, session.id) : undefined,
-                transient: session ? !session.finalize : undefined,
-            }
-        );
-    };
-
-    return (
-        <TransformSection title="Common Local Properties">
-            {descriptors.map((descriptor) => {
-                const path = descriptor.definition.key;
-                const targetValues = valuesFor(path);
-                const shared = commonValue(targetValues);
-                const display = descriptor.presentation.toDisplay(shared);
-                const valueType = descriptor.definition.type === 'number' ? 'number' : 'boolean';
-                const targetBindings = nodes.map((node) => nodeBindings[node.id]?.[path]);
-                const firstBinding = targetBindings[0];
-                const commonMacroId =
-                    targetBindings.every(
-                        (binding) =>
-                            binding?.type === 'macro' &&
-                            firstBinding?.type === 'macro' &&
-                            binding.macroId === firstBinding.macroId
-                    ) && firstBinding?.type === 'macro'
-                        ? firstBinding.macroId
-                        : undefined;
-                const macroOptions = macros.allIds.filter((id) => macros.byId[id]?.type === valueType);
-
-                return (
-                    <TransformRow
-                        key={path}
-                        label={descriptor.definition.label}
-                        id={`node-multi-${path}`}
-                        value={typeof display === 'number' ? display : 0}
-                        mixed={shared === undefined}
-                        suffix={descriptor.presentation.unit}
-                        schema={{ ...descriptor.definition }}
-                        readOnly={targetBindings.some((binding) => binding?.type === 'macro')}
-                        automation={
-                            descriptor.capabilities.automatable ? (
-                                <BulkKeyframeControl
-                                    nodes={nodes}
-                                    path={path}
-                                    values={targetValues}
-                                    valueType={valueType}
-                                />
-                            ) : null
-                        }
-                        macro={
-                            descriptor.capabilities.macroAssignable ? (
-                                <NodeMacroControl
-                                    path={path}
-                                    bindingMacroId={commonMacroId}
-                                    hasAssignment={targetBindings.some((binding) => binding?.type === 'macro')}
-                                    macros={macros}
-                                    options={macroOptions}
-                                    onAssign={(macroId) => {
-                                        const commands: SceneCommand[] = nodes.map((node, index) => ({
-                                            type: 'updatePropertyTargetBinding',
-                                            target: nodePropertyTarget(node.id, path),
-                                            binding: macroId
-                                                ? { type: 'macro', macroId }
-                                                : { type: 'constant', value: targetValues[index] },
-                                        }));
-                                        dispatchSceneCommand(
-                                            { type: 'batch', commands },
-                                            { source: 'NodeTransformPanel.common.macro' }
-                                        );
-                                    }}
-                                />
-                            ) : null
-                        }
-                        onChange={(value, change) => editAll(path, value, change)}
-                    />
-                );
-            })}
-        </TransformSection>
-    );
-
-    function BulkKeyframeControl({
-        nodes: selectedNodes,
-        path,
-        values,
-        valueType,
-    }: {
-        nodes: SceneNode[];
-        path: string;
-        values: unknown[];
-        valueType: 'number' | 'boolean';
-    }) {
-        const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
-        const targets = selectedNodes.map((node) => nodePropertyTarget(node.id, path));
-        const targetChannels = targets.map((target) => channelForTarget({ channels }, target));
-        const automatedCount = targetChannels.filter(Boolean).length;
-        const keysHere = targetChannels.filter(
-            (channel) => channel && findKeyframeAtTick(channel.keyframes, tick)
-        ).length;
-        const allKeyed = keysHere === targets.length;
-        const stateClass = automatedCount === 0 ? 'inactive' : allKeyed ? 'active' : 'automated';
-        const title =
-            automatedCount === 0
-                ? 'Enable automation for selection'
-                : allKeyed
-                  ? 'Remove playhead keys from selection'
-                  : `Add playhead keys (${automatedCount}/${targets.length} already automated)`;
-
-        const disableAutomation = () => {
-            const commands: SceneCommand[] = targetChannels.flatMap((channel, index) =>
-                channel
-                    ? [
-                          {
-                              type: 'disablePropertyAutomation' as const,
-                              target: targets[index],
-                              fallbackValue: values[index],
-                          },
-                      ]
-                    : []
-            );
-            if (commands.length) {
-                dispatchSceneCommand(commands.length === 1 ? commands[0] : { type: 'batch', commands }, {
-                    source: 'NodeTransformPanel.common.keyframe',
-                });
-            }
-        };
-
-        return (
-            <>
-                <button
-                    type="button"
-                    className={`ae-keyframe-toggle ${stateClass}`}
-                    title={title}
-                    aria-label={title}
-                    onClick={(event) => {
-                        event.stopPropagation();
-                        if (allKeyed) {
-                            const commands: SceneCommand[] = targetChannels.flatMap((channel) =>
-                                channel ? [{ type: 'removeKeyframe' as const, channelId: channel.id, tick }] : []
-                            );
-                            dispatchSceneCommand(
-                                { type: 'batch', commands },
-                                { source: 'NodeTransformPanel.common.keyframe' }
-                            );
-                            useSceneEditorStore.getState().clearTransientNodeTransforms(
-                                selectedNodes.map((node) => node.id),
-                                [path as keyof NodeTransform]
-                            );
-                            return;
-                        }
-                        dispatchPropertyEdits(
-                            targets.map((target, index) => ({ target, value: values[index], valueType })),
-                            { tick, autoKey: true, source: 'NodeTransformPanel.common.keyframe' }
-                        );
-                        useSceneEditorStore.getState().clearTransientNodeTransforms(
-                            selectedNodes.map((node) => node.id),
-                            [path as keyof NodeTransform]
-                        );
-                    }}
-                    onContextMenu={(event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        if (automatedCount) setMenuPosition({ x: event.clientX, y: event.clientY });
-                    }}
-                >
-                    {automatedCount === 0 ? (
-                        <svg
-                            width="10"
-                            height="10"
-                            viewBox="0 0 10 10"
-                            className="ae-keyframe-stopwatch"
-                            aria-hidden="true"
-                        >
-                            <rect x="3.5" y="0.5" width="3" height="1.2" rx="0.6" fill="currentColor" />
-                            <line x1="5" y1="1.7" x2="5" y2="2.8" stroke="currentColor" strokeWidth="1" />
-                            <circle cx="5" cy="6" r="3.2" fill="none" stroke="currentColor" strokeWidth="1" />
-                            <line x1="5" y1="6" x2="5" y2="4" stroke="currentColor" strokeWidth="1" />
-                            <line x1="5" y1="6" x2="7" y2="6" stroke="currentColor" strokeWidth="1" />
-                        </svg>
-                    ) : (
-                        <svg
-                            width="10"
-                            height="10"
-                            viewBox="0 0 10 10"
-                            className="ae-keyframe-diamond"
-                            aria-hidden="true"
-                        >
-                            <path d="M5 0 L10 5 L5 10 L0 5 Z" />
-                        </svg>
-                    )}
-                </button>
-                {menuPosition ? (
-                    <CommandContextMenu
-                        position={menuPosition}
-                        onClose={() => setMenuPosition(null)}
-                        ariaLabel="Transform automation actions"
-                        entries={[
-                            { label: 'Disable automation for selection', danger: true, onSelect: disableAutomation },
-                        ]}
-                    />
-                ) : null}
-            </>
-        );
-    }
 }
 
 function MultiSelectionCommonContent({ nodes, searchTerm = '' }: { nodes: SceneNode[]; searchTerm?: string }) {
@@ -1269,7 +894,9 @@ function MultiSelectionCommonContent({ nodes, searchTerm = '' }: { nodes: SceneN
                                                 )}
                                                 macros={macros}
                                                 options={macros.allIds.filter(
-                                                    (id) => macros.byId[id]?.type === template.definition.type
+                                                    (id) =>
+                                                        macros.byId[id]?.type ===
+                                                        macroTypeForProperty(template.definition.type)
                                                 )}
                                                 onAssign={(macroId) => {
                                                     const commands: SceneCommand[] = targets.map((target, index) => ({
@@ -1284,6 +911,14 @@ function MultiSelectionCommonContent({ nodes, searchTerm = '' }: { nodes: SceneN
                                                         { source: 'NodeTransformPanel.commonContent.macro' }
                                                     );
                                                 }}
+                                                onCreate={() =>
+                                                    createMacroForTargets(
+                                                        template.definition,
+                                                        values[0],
+                                                        targets,
+                                                        macros
+                                                    )
+                                                }
                                             />
                                         ) : null
                                     }

@@ -25,6 +25,16 @@
         background: var(--twc-background);
         color: #fff;
         height: 100vh;
+        /* Text selection is off for non-interactive chrome; fields and drag sources opt back in below. */
+        user-select: none;
+    }
+
+    /* Form fields need selection, and Chromium will not start a native drag from a user-select: none node. */
+    input,
+    textarea,
+    [contenteditable='true'],
+    [draggable='true'] {
+        user-select: text;
     }
 
     a {
@@ -39,7 +49,7 @@
     }
 
     .menu-bar {
-        @apply border-b px-4 py-2 flex items-center justify-between gap-5 h-12 shrink-0;
+        @apply border-b px-4 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-5 h-12 shrink-0;
         background-color: var(--twc-menubar);
         border-color: var(--twc-border);
     }
@@ -53,7 +63,15 @@
     }
 
     .scene-name-section {
-        @apply flex-1 justify-center relative;
+        @apply min-w-0 justify-center relative;
+    }
+
+    .quick-actions {
+        @apply justify-self-start;
+    }
+
+    .menu-actions {
+        @apply justify-self-end;
     }
 
     .scene-name-container {
@@ -165,7 +183,8 @@
     }
 
     .preview-panel:focus-visible {
-        box-shadow: inset 0 0 0 1px #5cc8ff;
+        outline: 1px solid #5cc8ff;
+        outline-offset: -1px;
     }
 
     .canvas-container {
@@ -277,7 +296,6 @@
     .setting-group select:focus {
         @apply outline-none;
         border-color: var(--twc-accent);
-        box-shadow: 0 0 0 2px color-mix(in oklab, var(--twc-accent) 20%, transparent);
     }
 
     .setting-group input[type='checkbox'] {
@@ -308,16 +326,8 @@
     [data-tutorial-step='render'] [data-tutorial-target='render'] {
         position: relative;
         z-index: 10;
-        outline: 3px solid rgb(129 140 248);
-        outline-offset: 3px;
-        box-shadow: 0 0 0 7px rgb(99 102 241 / 0.25);
-        animation: tutorial-target-pulse 1.5s ease-in-out infinite;
-    }
-
-    @keyframes tutorial-target-pulse {
-        50% {
-            box-shadow: 0 0 0 11px rgb(99 102 241 / 0.08);
-        }
+        outline: 2px solid #5cc8ff;
+        outline-offset: 2px;
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -977,9 +987,8 @@
 
     .ae-easing-picker-popover {
         @apply rounded border p-2;
-        background: rgba(30, 30, 30, 0.97);
+        background: #1e1e1e;
         border-color: rgba(255, 255, 255, 0.12);
-        backdrop-filter: blur(8px);
         box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
         max-width: 260px;
     }
@@ -1090,9 +1099,8 @@
     /* Automation lane context menu */
     .ae-context-menu {
         @apply rounded border py-1;
-        background: rgba(30, 30, 30, 0.97);
+        background: #1e1e1e;
         border-color: rgba(255, 255, 255, 0.12);
-        backdrop-filter: blur(8px);
         box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
         min-width: 160px;
     }
@@ -1445,10 +1453,6 @@
         @apply m-0 text-[11px] font-semibold uppercase tracking-wide text-neutral-300;
     }
 
-    .inspector-panel-header__add-button {
-        @apply inline-flex h-6 items-center justify-center rounded-sm border border-[#1177bb] bg-[#0e639c] px-2 text-[11px] font-medium text-white transition-colors hover:border-[#1890d4] hover:bg-[#1177bb];
-    }
-
     .inspector-elements-scroll {
         @apply flex-1 overflow-y-auto p-1.5 min-h-0;
     }
@@ -1635,7 +1639,6 @@
         height: 2px;
         border-radius: 2px;
         background: #5cc8ff;
-        box-shadow: 0 0 4px rgba(92, 200, 255, 0.65);
     }
 
     .scene-node-row.drop-before::before {
@@ -1715,11 +1718,29 @@
     }
 
     .command-context-menu {
-        @apply fixed z-[1400] flex min-w-[180px] flex-col rounded-sm border border-[#4a4a4a] bg-[#252526] py-1 text-[11px] shadow-xl;
+        @apply fixed z-[1400] flex min-w-[180px] flex-col overflow-hidden rounded-sm border border-neutral-800 bg-[#252526] text-[11px] shadow-xl;
+    }
+
+    .workspace-menu-item {
+        @apply flex w-full items-center bg-transparent text-left text-neutral-300;
+    }
+
+    .workspace-menu-item:hover,
+    .workspace-menu-item:focus-visible,
+    .workspace-menu-item[data-active='true'],
+    .command-context-menu button:hover,
+    .command-context-menu button:focus {
+        @apply bg-[#0e639c] text-white outline-none;
+    }
+
+    .workspace-menu-item:hover .workspace-menu-description,
+    .workspace-menu-item:focus-visible .workspace-menu-description,
+    .workspace-menu-item[data-active='true'] .workspace-menu-description {
+        @apply text-white/80;
     }
 
     .command-context-menu button {
-        @apply flex h-7 items-center gap-2 bg-transparent px-2.5 text-left text-neutral-300 hover:bg-[#0e639c] hover:text-white focus:bg-[#0e639c] focus:text-white focus:outline-none disabled:pointer-events-none disabled:opacity-30;
+        @apply flex h-7 items-center gap-2 bg-transparent px-2.5 text-left text-neutral-300 disabled:pointer-events-none disabled:opacity-30;
     }
 
     .command-context-menu button.is-danger:hover,
@@ -1968,15 +1989,11 @@
     }
 
     .timeline-clip--midi {
-        box-shadow:
-            inset 2px 0 0 rgba(191, 219, 254, 0.75),
-            0 1px 2px rgba(0, 0, 0, 0.3);
+        box-shadow: inset 2px 0 0 rgba(191, 219, 254, 0.75);
     }
 
     .timeline-clip--audio {
-        box-shadow:
-            inset 2px 0 0 rgba(167, 243, 208, 0.75),
-            0 1px 2px rgba(0, 0, 0, 0.3);
+        box-shadow: inset 2px 0 0 rgba(167, 243, 208, 0.75);
     }
 
     .ae-property-controls {
@@ -2153,6 +2170,14 @@
 /* Responsive rules ported */
 @layer components {
     @media (max-width: 1200px) {
+        .menu-bar {
+            @apply grid-cols-2 h-auto min-h-12 gap-y-2 py-2;
+        }
+
+        .scene-name-section {
+            @apply col-span-2 row-start-1 justify-self-center;
+        }
+
         .main-workspace {
             @apply flex-col;
         }
@@ -2170,7 +2195,7 @@
 
     @media (max-width: 768px) {
         .menu-bar {
-            @apply flex-wrap h-auto min-h-12 p-2;
+            @apply p-2;
         }
 
         .menu-section {

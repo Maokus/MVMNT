@@ -17,6 +17,7 @@ import {
     parseFontSelectionToken,
     type FontAsset,
 } from '@state/scene/fonts';
+import { Button } from '@workspace/components/Button';
 
 type Section = 'project' | 'google' | 'built-in' | 'device';
 
@@ -155,31 +156,28 @@ const SceneFontManager: React.FC = () => {
     return (
         <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="inline-flex overflow-hidden rounded border border-neutral-700 bg-neutral-900/60 text-[10px] font-semibold uppercase tracking-wide text-neutral-300">
+                <div className="inline-flex overflow-hidden rounded border border-neutral-800 bg-neutral-900 text-[10px] font-semibold uppercase tracking-wide text-neutral-300">
                     {(['project', 'google', 'built-in', 'device'] as Section[]).map((item) => (
-                        <button
+                        <Button
                             key={item}
-                            type="button"
+                            variant="ghost"
+                            size="sm"
                             onClick={() => setSection(item)}
-                            className={`px-3 py-1.5 capitalize ${section === item ? 'bg-sky-500/20 text-sky-200' : 'hover:bg-neutral-800'}`}
+                            className={`capitalize ${section === item ? 'bg-neutral-800 text-white' : ''}`}
                         >
                             {item}
-                        </button>
+                        </Button>
                     ))}
                 </div>
-                <button
-                    type="button"
-                    onClick={() => fileInput.current?.click()}
-                    className="rounded border border-sky-600 bg-sky-500/20 px-3 py-1.5 text-[10px] uppercase tracking-wide text-sky-100 hover:bg-sky-500/30"
-                >
+                <Button variant="primary" size="md" onClick={() => fileInput.current?.click()}>
                     Upload font
-                </button>
+                </Button>
             </div>
 
             {operationError && <p className="text-[11px] text-rose-400">{operationError}</p>}
 
             {section === 'project' && (
-                <div className="space-y-2 rounded border border-neutral-700 bg-neutral-900/40 p-3">
+                <div className="space-y-2 rounded border border-neutral-800 bg-neutral-900 p-3">
                     <div className="flex items-center justify-between text-xs text-neutral-400">
                         <span>Project Fonts · embedded in this file</span>
                         <span>{formatBytes(fonts.totalBytes)}</span>
@@ -188,7 +186,7 @@ const SceneFontManager: React.FC = () => {
                     {projectFonts.map((asset) => {
                         const count = usageCount(snapshot, asset.id);
                         return (
-                            <div key={asset.id} className="rounded border border-neutral-800 bg-neutral-950/70 p-3">
+                            <div key={asset.id} className="rounded border border-neutral-800 bg-neutral-950 p-3">
                                 <div className="flex items-start justify-between gap-3">
                                     <div>
                                         <div className="text-sm font-semibold text-neutral-100">{asset.family}</div>
@@ -231,7 +229,7 @@ const SceneFontManager: React.FC = () => {
                                                     [asset.id]: event.target.value,
                                                 }))
                                             }
-                                            className="rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-[11px] text-neutral-200"
+                                            className="rounded border border-neutral-800 bg-neutral-900 px-2 py-1 text-xs text-neutral-200"
                                         >
                                             <option value="">Choose replacement…</option>
                                             <option value="built-in">Inter · Built-in</option>
@@ -244,14 +242,14 @@ const SceneFontManager: React.FC = () => {
                                                 ))}
                                         </select>
                                     )}
-                                    <button
-                                        type="button"
+                                    <Button
+                                        variant="danger-outline"
+                                        size="sm"
                                         disabled={count > 0 && !replacementByAsset[asset.id]}
                                         onClick={() => removeFont(asset)}
-                                        className="rounded border border-rose-700 px-2 py-1 text-[10px] uppercase tracking-wide text-rose-300 disabled:opacity-40"
                                     >
                                         {count ? 'Replace & remove' : 'Remove'}
-                                    </button>
+                                    </Button>
                                 </div>
                             </div>
                         );
@@ -260,7 +258,7 @@ const SceneFontManager: React.FC = () => {
             )}
 
             {section === 'google' && (
-                <div className="space-y-3 rounded border border-neutral-700 bg-neutral-900/40 p-3">
+                <div className="space-y-3 rounded border border-neutral-800 bg-neutral-900 p-3">
                     <p className="text-xs text-neutral-400">
                         Selecting a family downloads every available weight and style and embeds it in the project.
                     </p>
@@ -270,32 +268,33 @@ const SceneFontManager: React.FC = () => {
                             value={query}
                             onChange={(event) => setQuery(event.target.value)}
                             placeholder="Search Google Fonts…"
-                            className="w-full rounded bg-neutral-800 py-2 pl-8 pr-3 text-xs text-neutral-100 outline-none focus:ring-2 focus:ring-sky-500"
+                            className="w-full rounded border border-transparent bg-neutral-800 py-2 pl-8 pr-3 text-xs text-neutral-100 outline-none focus:border-sky-500"
                         />
                     </label>
                     {loadingCatalog && <p className="text-xs text-neutral-500">Loading catalog…</p>}
                     {catalogError && <p className="text-xs text-rose-400">{catalogError}</p>}
                     <div className="max-h-[280px] overflow-y-auto">
                         {filteredCatalog.map((family) => (
-                            <button
+                            <Button
                                 key={family.family}
-                                type="button"
+                                variant="list-row"
+                                size="full"
                                 disabled={Boolean(download)}
                                 onClick={() => void downloadFamily(family)}
-                                className="flex w-full items-center justify-between rounded px-3 py-2 text-left text-xs text-neutral-200 hover:bg-neutral-800 disabled:opacity-50"
+                                className="text-xs"
                             >
                                 <span>{family.family}</span>
                                 <span className="text-[10px] uppercase tracking-wide text-neutral-500">
                                     {family.variants.length} faces · Download
                                 </span>
-                            </button>
+                            </Button>
                         ))}
                     </div>
                 </div>
             )}
 
             {section === 'built-in' && (
-                <div className="rounded border border-neutral-700 bg-neutral-900/40 p-3">
+                <div className="rounded border border-neutral-800 bg-neutral-900 p-3">
                     <div className="text-sm font-semibold text-neutral-100" style={{ fontFamily: 'Inter' }}>
                         Inter
                     </div>
@@ -307,7 +306,7 @@ const SceneFontManager: React.FC = () => {
             )}
 
             {section === 'device' && (
-                <div className="rounded border border-amber-700/60 bg-amber-950/20 p-3">
+                <div className="rounded border border-amber-800 bg-amber-950 p-3">
                     <p className="text-xs text-amber-200">
                         Device fonts are not embedded and may render differently on another computer.
                     </p>
@@ -318,18 +317,14 @@ const SceneFontManager: React.FC = () => {
             )}
 
             {download && (
-                <div className="rounded border border-sky-700 bg-neutral-950 p-3 text-xs text-neutral-200">
+                <div className="rounded border border-neutral-800 bg-neutral-950 p-3 text-xs text-neutral-200">
                     <div className="flex items-center justify-between">
                         <span>
                             Embedding {download.family}… {download.completed}/{download.total}
                         </span>
-                        <button
-                            type="button"
-                            onClick={() => downloadController.current?.abort()}
-                            className="rounded border border-neutral-600 px-2 py-1"
-                        >
+                        <Button variant="secondary" size="sm" onClick={() => downloadController.current?.abort()}>
                             Cancel
-                        </button>
+                        </Button>
                     </div>
                     <div className="mt-2 h-1 overflow-hidden rounded bg-neutral-800">
                         <div

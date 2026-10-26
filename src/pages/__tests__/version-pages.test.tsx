@@ -4,8 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import AboutPage from '../AboutPage';
 import HomePage from '../HomePage';
 
-vi.mock('@app/build-info', () => ({
-    BUILD_INFO: {
+vi.mock('@app/build-info', () => {
+    const BUILD_INFO = {
         version: '0.16.0',
         releaseLine: '0.16.0',
         displayVersion: '0.16.0',
@@ -14,8 +14,12 @@ vi.mock('@app/build-info', () => ({
         builtAt: '2026-08-12T00:00:00Z',
         isPackaged: true,
         updateChecksEnabled: true,
-    },
-}));
+    };
+    return {
+        BUILD_INFO,
+        readRuntimeBuildInfo: async () => (await window.mvmntDesktop?.app.getBuildInfo?.()) ?? BUILD_INFO,
+    };
+});
 
 vi.mock('@workspace/templates/easyModeTemplates', () => ({ easyModeTemplates: [] }));
 
@@ -67,6 +71,37 @@ describe('version pages', () => {
         expect(screen.getByText('Stable')).toBeInTheDocument();
         expect(screen.getByText('61ed441360d49f9647c975afed40ef920c2c93b4')).toBeInTheDocument();
         expect(screen.getByText(/updates are downloaded manually/i)).toBeInTheDocument();
+    });
+
+    it('shows the packaged nightly channel when renderer metadata says stable', async () => {
+        Object.defineProperty(window, 'mvmntDesktop', {
+            configurable: true,
+            value: {
+                app: {
+                    getBuildInfo: vi.fn().mockResolvedValue({
+                        version: '0.16.0-nightly.20261013.42',
+                        releaseLine: '0.16.0',
+                        displayVersion: '0.16.0-nightly.20261013.42',
+                        channel: 'nightly',
+                        commit: 'nightly42',
+                        builtAt: '2026-10-13T12:00:00Z',
+                        isPackaged: true,
+                        updateChecksEnabled: false,
+                    }),
+                },
+            },
+        });
+
+        render(
+            <MemoryRouter>
+                <AboutPage />
+            </MemoryRouter>
+        );
+
+        expect(await screen.findByText('Nightly')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'MVMNT v0.16.0-nightly.20261013.42' })).toBeInTheDocument();
+        expect(screen.getByText('nightly42')).toBeInTheDocument();
+        expect(screen.getByText(/install newer testing artifacts manually/i)).toBeInTheDocument();
     });
 
     it('shows a safe download action when GitHub reports a newer stable release', async () => {

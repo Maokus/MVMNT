@@ -5,6 +5,7 @@ import TimelineTrackSelect from './TimelineTrackSelect';
 import { AudioAnalysisProfileSelect } from './AudioAnalysisProfileSelect';
 import AssetSelect from './AssetSelect';
 import { useNumberDrag } from './useNumberDrag';
+import { parseNumberInputWithExpression } from './numberInput';
 import ColorInput from './ColorInput';
 import ColorAlphaInput from './ColorAlphaInput';
 
@@ -148,32 +149,7 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
     }
 
     if (type === 'number') {
-        const evaluateNumberInput = (rawValue: string): number | null => {
-            const trimmed = rawValue.trim();
-            if (!trimmed) return null;
-
-            const direct = Number(trimmed);
-            if (!Number.isNaN(direct) && Number.isFinite(direct)) {
-                return direct;
-            }
-
-            const allowedPattern = /^[\d+\-*/().\s]+$/;
-            if (!allowedPattern.test(trimmed)) {
-                return null;
-            }
-
-            try {
-                // eslint-disable-next-line no-new-func
-                const computed = new Function(`"use strict"; return (${trimmed});`)();
-                if (typeof computed === 'number' && Number.isFinite(computed)) {
-                    return computed;
-                }
-            } catch {
-                return null;
-            }
-
-            return null;
-        };
+        const evaluateNumberInput = parseNumberInputWithExpression;
 
         const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
             const inputValue = e.target.value;
@@ -303,7 +279,7 @@ const FormInput: React.FC<FormInputProps> = ({ id, type, value, schema, disabled
                 title={title}
                 onChange={handleTextareaChange}
                 rows={4}
-                className="w-full px-2 py-1 border border-control2 rounded text-xs bg-control text-white resize-y font-mono min-w-0 focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
+                className="w-full px-2 py-1 border border-control2 rounded text-xs bg-control text-white resize-y font-mono min-w-0 focus:outline-none focus:border-accent"
             />
         );
     }

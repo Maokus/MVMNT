@@ -15,6 +15,11 @@ import { getMidiClipLocalBounds } from '@state/timeline/midiClips';
 import { getAudioClipTimelineBounds } from '@state/timeline/audioClips';
 import { createTimingContext } from '@state/timelineTime';
 import { getNextImportedTrackName } from '../hooks/importTrackName';
+import {
+    AUDIO_IMPORT_BAD_FORMAT,
+    AUDIO_IMPORT_FAILED_LOG,
+    unableToImportAudioFileMessage,
+} from '@workspace/userMessages';
 
 type Props = {
     trackIds: string[];
@@ -124,24 +129,9 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
             ];
         }
         if (clipTimelineSelection.type === 'range') {
-            const selectedIndexes = clipTimelineSelection.range.trackIds
-                .map((id) => trackIds.indexOf(id))
-                .filter((index) => index >= 0)
-                .sort((a, b) => a - b);
-            if (!selectedIndexes.length) return [];
-            const left = toX(clipTimelineSelection.range.startTick, w);
-            const right = toX(clipTimelineSelection.range.endTick, w);
-            const first = selectedIndexes[0];
-            const last = selectedIndexes[selectedIndexes.length - 1];
-            return [
-                {
-                    type: 'range' as const,
-                    left: Math.min(left, right),
-                    top: first * rowHeight,
-                    width: Math.max(1, Math.abs(right - left)),
-                    height: (last - first + 1) * rowHeight,
-                },
-            ];
+            // No persistent box for range selections: the live marquee shows the
+            // rect while dragging, and member clips highlight individually.
+            return [];
         }
         if (clipTimelineSelection.type === 'clips') {
             // Per-track segments: one highlight per track that has selected clips
@@ -256,12 +246,9 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
                         clipName: audio.name,
                     });
                 } catch (error) {
-                    console.error('Failed to import audio track', error);
-                    const reason =
-                        error instanceof Error
-                            ? error.message
-                            : 'The format may be unsupported or the file may be corrupted.';
-                    alert(`Unable to import ${audio.name}. ${reason}`);
+                    console.error(AUDIO_IMPORT_FAILED_LOG, error);
+                    const reason = error instanceof Error ? error.message : AUDIO_IMPORT_BAD_FORMAT;
+                    alert(unableToImportAudioFileMessage(audio.name, reason));
                 }
             }
             if (ignored > 0) {
@@ -274,13 +261,14 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
         [addMidiTrack, addAudioTrack, snapTicks, toTick, toX, width]
     );
 
-    // Cross-track drag: ghost clips and row highlight
-    const targetRowIndex = crossTrackDrag ? trackIds.indexOf(crossTrackDrag.targetTrackId) : -1;
+    // Cross-track drag: target row highlight (only when actually changing tracks)
+    const isCrossTrackMove = crossTrackDrag?.previews.some((p) => p.sourceTrackId !== p.targetTrackId) ?? false;
+    const targetRowIndex = isCrossTrackMove && crossTrackDrag ? trackIds.indexOf(crossTrackDrag.targetTrackId) : -1;
     const w = Math.max(1, width);
 
     return (
         <div
-            className="timeline-lanes relative border-t border-neutral-800 bg-neutral-900/40"
+            className="timeline-lanes relative border-t border-neutral-800 bg-neutral-900"
             ref={containerRef}
             onDragOver={onDragOver}
             onDragEnter={onDragOver}
@@ -413,7 +401,7 @@ const TrackLanes: React.FC<Props> = ({ trackIds, activeTab }) => {
             )}
 
             {activeTab === 'automation' && (
-                <div className="relative border-t border-neutral-700">
+                <div className="relative border-t border-neutral-800">
                     <div className="border-b border-neutral-800" style={{ height: AUTOMATION_HEADER_HEIGHT }} />
                     {tempoEnabled && tempoLaneVisible && (
                         <div style={{ height: TEMPO_LANE_HEIGHT }}>

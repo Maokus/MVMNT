@@ -518,14 +518,16 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     async updateMidiClips(input: UpdateMidiClipsPayload) {
         await timelineCommandGateway.dispatchById('timeline.updateMidiClips', input, { source: 'timeline-store' });
     },
-    async setMultipleMidiClipOffsets(input: SetMultipleMidiClipOffsetsPayload) {
+    async setMultipleMidiClipOffsets(input: SetMultipleMidiClipOffsetsPayload, mergeKey?: string) {
         await timelineCommandGateway.dispatchById('timeline.setMultipleMidiClipOffsets', input, {
             source: 'timeline-store',
+            mergeKey,
         });
     },
-    async moveMidiClipsBetweenTracks(input: MoveMidiClipsBetweenTracksPayload) {
+    async moveMidiClipsBetweenTracks(input: MoveMidiClipsBetweenTracksPayload, mergeKey?: string) {
         await timelineCommandGateway.dispatchById('timeline.moveMidiClipsBetweenTracks', input, {
             source: 'timeline-store',
+            mergeKey,
         });
     },
     async addAudioClip(input: AddAudioClipPayload) {
@@ -547,14 +549,16 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
     async updateAudioClips(input: UpdateAudioClipsPayload) {
         await timelineCommandGateway.dispatchById('timeline.updateAudioClips', input, { source: 'timeline-store' });
     },
-    async setMultipleAudioClipOffsets(input: SetMultipleAudioClipOffsetsPayload) {
+    async setMultipleAudioClipOffsets(input: SetMultipleAudioClipOffsetsPayload, mergeKey?: string) {
         await timelineCommandGateway.dispatchById('timeline.setMultipleAudioClipOffsets', input, {
             source: 'timeline-store',
+            mergeKey,
         });
     },
-    async moveAudioClipsBetweenTracks(input: MoveAudioClipsBetweenTracksPayload) {
+    async moveAudioClipsBetweenTracks(input: MoveAudioClipsBetweenTracksPayload, mergeKey?: string) {
         await timelineCommandGateway.dispatchById('timeline.moveAudioClipsBetweenTracks', input, {
             source: 'timeline-store',
+            mergeKey,
         });
     },
     async addAudioTrack(input: {

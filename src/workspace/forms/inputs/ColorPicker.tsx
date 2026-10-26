@@ -21,6 +21,8 @@ import {
     type ColorFieldMode,
     type HsvaColor,
 } from './colorPickerUtils';
+import { createDragSessionId } from '@workspace/components/dragSession';
+import { SCREEN_COLOR_SAMPLE_FAILED } from '@workspace/userMessages';
 
 export interface ColorPickerGesture {
     id: string;
@@ -71,7 +73,7 @@ const colorDrafts = (color: HsvaColor): InputDrafts => {
 const isSameColor = (first: HsvaColor, second: HsvaColor, includeAlpha: boolean): boolean =>
     hsvaToHex(first, includeAlpha) === hsvaToHex(second, includeAlpha);
 
-const createSessionId = (): string => `color-drag-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+const createSessionId = (): string => createDragSessionId('color-drag');
 
 interface EmitOptions {
     gesture?: ColorPickerGesture;
@@ -310,7 +312,7 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({ color, includeAlpha = 
             emit(sampled, { preserveHue: true, record: true });
         } catch (cause) {
             if (mountedRef.current && (cause as Error)?.name !== 'AbortError') {
-                setEyeDropperError('Could not sample a screen color.');
+                setEyeDropperError(SCREEN_COLOR_SAMPLE_FAILED);
             }
         } finally {
             if (eyeDropperAbortRef.current === abortController) eyeDropperAbortRef.current = null;
@@ -321,7 +323,7 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({ color, includeAlpha = 
     const rgba = hsvaToRgba(color);
     const saturationStyle = { backgroundColor: `hsl(${color.h}, 100%, 50%)` };
     const alphaStyle = {
-        backgroundImage: `linear-gradient(to right, rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, 0), rgb(${rgba.r}, ${rgba.g}, ${rgba.b}))`,
+        backgroundColor: `rgb(${rgba.r}, ${rgba.g}, ${rgba.b})`,
     };
     const saturationValue = `Saturation ${Math.round(color.s)}%, brightness ${Math.round(color.v)}%`;
     const toneColors = useMemo(() => generateTonePalette(color.h), [color.h]);

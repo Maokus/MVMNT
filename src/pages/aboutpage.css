@@ -22,7 +22,7 @@
 }
 
 .acknowledgements-boxes section {
-    @apply p-6 rounded-xl bg-neutral-900/70 border border-neutral-800 lg:col-span-1;
+    @apply p-6 rounded bg-neutral-900 border border-neutral-800 lg:col-span-1;
 }
 
 .acknowledgements-boxes section h3 {

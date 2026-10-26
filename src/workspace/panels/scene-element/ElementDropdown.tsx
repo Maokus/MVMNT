@@ -114,24 +114,21 @@ const ElementDropdown: React.FC<ElementDropdownProps> = ({ onAddElement, onClose
     return (
         <div
             ref={dropdownRef}
-            className={`relative z-[1000] overflow-visible rounded border border-control2 bg-menubar shadow-lg ${className ?? ''}`}
+            className={`relative z-[1000] overflow-visible rounded border border-neutral-800 bg-panel ${className ?? ''}`}
             style={style}
             onMouseLeave={scheduleClose}
             onMouseEnter={clearCloseTimeout}
         >
             <div ref={innerWrapperRef} className="relative flex items-start">
-                <div className="flex max-h-[320px] min-w-[200px] flex-col overflow-y-auto border-r border-control2 bg-menubar">
+                <div className="flex max-h-[320px] min-w-[200px] flex-col overflow-y-auto rounded bg-panel">
                     {categoryEntries.map(({ category }) => (
                         <button
                             type="button"
                             key={category}
                             onMouseEnter={(event) => handleCategoryEnter(category, event)}
                             onFocus={(event) => handleCategoryFocus(category, event)}
-                            className={`flex items-center gap-2 px-3 py-2 text-left text-[13px] transition-colors ${
-                                openCategory === category
-                                    ? 'bg-neutral-800/80 text-white'
-                                    : 'text-neutral-300 hover:bg-neutral-800/70 hover:text-white'
-                            }`}
+                            className="workspace-menu-item gap-2 px-2 py-2 text-[13px]"
+                            data-active={openCategory === category}
                         >
                             <FaChevronLeft className="text-xs opacity-70" />
                             <span className="font-medium">{formattedCategoryName(category)}</span>
@@ -150,20 +147,20 @@ const ElementDropdown: React.FC<ElementDropdownProps> = ({ onAddElement, onClose
                             }}
                         />
                         <div
-                            className="absolute min-w-[220px] rounded border border-control2 bg-panel shadow-xl"
+                            className="absolute min-w-[220px] overflow-hidden rounded border border-neutral-800 bg-panel"
                             style={{
                                 top: submenuTop,
                                 left: 0,
                                 transform: `translateX(calc(-100% - ${WALKWAY_WIDTH}px))`,
                             }}
                         >
-                            <div className="rounded bg-panel/90 p-1">
+                            <div>
                                 {openItems.map((type: any) => (
                                     <button
                                         type="button"
                                         key={type.type}
                                         onClick={() => handleItemClick(type.type)}
-                                        className="flex w-full items-center justify-between gap-2 rounded px-3 py-2 text-left text-[13px] text-neutral-200 transition-colors hover:bg-neutral-800/70 hover:text-white"
+                                        className="workspace-menu-item justify-between gap-2 px-2 py-2 text-[13px]"
                                         title={type.description}
                                     >
                                         <span>{type.name}</span>

@@ -109,6 +109,7 @@ export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
         position: { x: number; y: number };
     } | null>(null);
     const [renameValue, setRenameValue] = useState<string | null>(null);
+    const rowRef = useRef<HTMLDivElement>(null);
     const renameRef = useRef<HTMLInputElement>(null);
     const expandTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const { selectNode, reparentSelectedNodes, updateElementId } = useSceneSelection();
@@ -139,6 +140,14 @@ export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
             renameRef.current?.select();
         }
     }, [isRenaming]);
+    useEffect(() => {
+        if (renameValue === null) return;
+        const cancelOnOutsidePointerDown = (event: PointerEvent) => {
+            if (!renameRef.current?.contains(event.target as Node)) setRenameValue(null);
+        };
+        document.addEventListener('pointerdown', cancelOnOutsidePointerDown, true);
+        return () => document.removeEventListener('pointerdown', cancelOnOutsidePointerDown, true);
+    }, [renameValue]);
     useEffect(
         () => () => {
             if (expandTimerRef.current) clearTimeout(expandTimerRef.current);
@@ -146,20 +155,24 @@ export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
         []
     );
 
+    const endRename = () => {
+        setRenameValue(null);
+        rowRef.current?.focus();
+    };
     const commitRename = () => {
         const name = renameValue?.trim();
         if (!name || name === rowLabel) {
-            setRenameValue(null);
+            endRename();
             return;
         }
         if (node.kind === 'element') {
             updateElementId(node.elementId, name);
             // updateElementId may show a blocking validation alert. Finish the
             // controlled input update only after that callback has returned.
-            setRenameValue(null);
+            endRename();
             return;
         }
-        setRenameValue(null);
+        endRename();
         dispatchSceneCommand({ type: 'setNodeName', nodeId: node.id, name }, { source: 'SceneNodeTree.rename' });
     };
     const select = (event: React.MouseEvent) => {
@@ -239,6 +252,7 @@ export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
         <>
             <div
                 className={`scene-node-row${selected ? ' is-selected' : ''}${active ? ' is-active' : ''}${descendantSelected ? ' has-selected-descendant' : ''}${dropPosition ? ` drop-${dropPosition}` : ''}`}
+                ref={rowRef}
                 style={{ paddingLeft: `${depth * 14 + 5}px` }}
                 role="treeitem"
                 tabIndex={active ? 0 : -1}
@@ -295,11 +309,14 @@ export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
                         value={renameValue}
                         onClick={(event) => event.stopPropagation()}
                         onChange={(event) => setRenameValue(event.target.value)}
-                        onBlur={commitRename}
+                        onBlur={() => setRenameValue(null)}
                         onKeyDown={(event) => {
-                            if (event.key === 'Enter') event.currentTarget.blur();
+                            if (event.key === 'Enter') {
+                                event.preventDefault();
+                                commitRename();
+                            }
                             if (event.key === 'Escape') {
-                                setRenameValue(null);
+                                endRename();
                                 event.stopPropagation();
                             }
                         }}
@@ -380,6 +397,24 @@ export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
     );
 }
 
+export function resolveTreeRowTarget(
+    visible: readonly string[],
+    activeNodeId: string | null,
+    key: string
+): string | undefined {
+    const index = activeNodeId ? visible.indexOf(activeNodeId) : -1;
+    if (index < 0) {
+        if (key === 'ArrowDown' || key === 'Home') return visible[0];
+        if (key === 'ArrowUp' || key === 'End') return visible.at(-1);
+        return undefined;
+    }
+    if (key === 'ArrowDown') return visible[index + 1];
+    if (key === 'ArrowUp') return visible[index - 1];
+    if (key === 'Home') return visible[0];
+    if (key === 'End') return visible.at(-1);
+    return undefined;
+}
+
 export function SceneNodeTree() {
     const graph = useSceneStore((state) => state.graph);
     const selectedNodeIds = useSelectionStore((state) => state.selectedNodeIds);
@@ -405,30 +440,19 @@ export function SceneNodeTree() {
         requestAnimationFrame(() => document.querySelector<HTMLElement>('.scene-node-row.is-active')?.focus());
     const navigate = (event: React.KeyboardEvent) => {
         if (isTextEditingTarget(event.target)) return;
-        if (!activeNodeId) return;
-        const index = visible.indexOf(activeNodeId);
-        const active = graph.nodesById[activeNodeId];
-        let target: string | undefined;
-        if (event.key === 'ArrowUp') target = visible[index - 1];
-        if (event.key === 'ArrowDown') target = visible[index + 1];
-        if (event.key === 'Home') target = visible[0];
-        if (event.key === 'End') target = visible.at(-1);
+        const active = activeNodeId ? graph.nodesById[activeNodeId] : undefined;
+        let target = resolveTreeRowTarget(visible, activeNodeId, event.key);
         if (event.key === 'ArrowRight' && active?.kind === 'group') {
             if (expandedNodeIds[active.id] === false) useSelectionStore.getState().toggleNodeExpanded(active.id);
             else target = [...active.children].reverse()[0];
         }
-        if (event.key === 'ArrowLeft') {
-            if (active?.kind === 'group' && expandedNodeIds[active.id] !== false) {
+        if (event.key === 'ArrowLeft' && active) {
+            if (active.kind === 'group' && expandedNodeIds[active.id] !== false) {
                 useSelectionStore.getState().toggleNodeExpanded(active.id);
                 event.preventDefault();
                 return;
             }
-            if (active?.parentId && active.parentId !== graph.rootId) target = active.parentId;
-        }
-        if (event.key === ' ' && activeNodeId) {
-            event.preventDefault();
-            selectNode(activeNodeId, { toggle: event.metaKey || event.ctrlKey });
-            return;
+            if (active.parentId && active.parentId !== graph.rootId) target = active.parentId;
         }
         if (event.key === 'F2' && activeNodeId) {
             event.preventDefault();
@@ -450,6 +474,8 @@ export function SceneNodeTree() {
             role="tree"
             aria-label="Scene hierarchy"
             data-command-surface="scene-tree"
+            data-panel-autofocus
+            tabIndex={-1}
             onPointerDownCapture={() => activateCommandSurface('scene-tree')}
             onFocusCapture={() => activateCommandSurface('scene-tree')}
             onKeyDown={navigate}

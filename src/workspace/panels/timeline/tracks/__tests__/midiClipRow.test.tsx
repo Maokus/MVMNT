@@ -125,4 +125,32 @@ describe('TrackRowBlock MIDI clips', () => {
         expect(dragStart.defaultPrevented).toBe(true);
         expect((firstClip as HTMLElement).draggable).toBe(false);
     });
+
+    it('builds live move previews for every selected clip on same-track drag', () => {
+        const { container } = render(
+            <TrackRowBlock trackId="midi1" trackIndex={0} laneWidth={1000} laneHeight={60} onHoverSnapX={() => {}} />
+        );
+
+        const clips = container.querySelectorAll('[data-clip="1"]');
+        const firstClip = clips[0] as Element;
+        const secondClip = clips[1] as Element;
+
+        // Select clip-a, shift-select clip-b, then grab clip-a for a horizontal drag.
+        // Native mouse events: this jsdom lacks PointerEvent init support, so
+        // fireEvent would drop the clientX/clientY/shiftKey the drag needs.
+        const dispatch = (target: Element, type: string, init: MouseEventInit) => {
+            act(() => {
+                target.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, ...init }));
+            });
+        };
+        dispatch(firstClip, 'pointerdown', { button: 0, clientX: 20, clientY: 30 });
+        dispatch(secondClip, 'pointerdown', { button: 0, shiftKey: true, clientX: 620, clientY: 30 });
+        dispatch(firstClip, 'pointerdown', { button: 0, clientX: 20, clientY: 30 });
+        // +100px on a 1000px lane over a 1600-tick view = +160 ticks, no vertical movement.
+        dispatch(firstClip, 'pointermove', { clientX: 120, clientY: 30 });
+
+        const drag = useTimelineStore.getState()._crossTrackDrag;
+        expect(drag?.previews).toHaveLength(2);
+        expect(drag?.previews.map((p) => p.previewOffsetTicks).sort((a, b) => a - b)).toEqual([160, 1120]);
+    });
 });
