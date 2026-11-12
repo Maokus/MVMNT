@@ -319,9 +319,9 @@
 
     [data-tutorial-step='play'] [data-tutorial-target='play'],
     [data-tutorial-step='edit-title'] [data-tutorial-target='edit-title'],
-    [data-tutorial-step='import-midi'] [data-tutorial-target='import-midi'],
+    [data-tutorial-step='import-midi'] [data-tutorial-target='import-files'],
     [data-tutorial-step='connect-midi'] [data-tutorial-target='connect-midi'],
-    [data-tutorial-step='import-audio'] [data-tutorial-target='import-audio'],
+    [data-tutorial-step='import-audio'] [data-tutorial-target='import-files'],
     [data-tutorial-step='save'] [data-tutorial-target='save'],
     [data-tutorial-step='render'] [data-tutorial-target='render'] {
         position: relative;

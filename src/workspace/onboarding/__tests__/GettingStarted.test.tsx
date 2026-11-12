@@ -67,11 +67,13 @@ describe('tutorial checklist', () => {
     it('guides MIDI, audio, and rendering without task-performing buttons', () => {
         const callbacks = props();
         const { rerender } = render(<GettingStarted {...callbacks} played edited step="import-midi" />);
-        expect(screen.getByText(/Choose your MIDI file/)).toBeVisible();
+        expect(screen.getByText(/Choose your MIDI file with the highlighted Import files button/)).toBeVisible();
         rerender(<GettingStarted {...callbacks} played edited midiImported step="connect-midi" />);
         expect(screen.getByText(/Select your imported track/)).toBeVisible();
         rerender(<GettingStarted {...callbacks} played edited midiImported midiConnected step="import-audio" />);
-        expect(screen.getByText(/Choose the matching audio file/)).toBeVisible();
+        expect(
+            screen.getByText(/Choose the matching audio file with the highlighted Import files button/)
+        ).toBeVisible();
         rerender(
             <GettingStarted {...callbacks} played edited midiImported midiConnected audioImported saved step="render" />
         );

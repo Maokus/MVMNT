@@ -14,19 +14,23 @@ Exports: `MultiTrackChoice`, `MultiTrackDecisionState` (types re-used by `useMid
 
 Handles MIDI file parsing, optional tempo-map extraction, and single-vs-split track import. Depends on `useImportModals` callbacks passed as options.
 
-Returns: `fileRef` (hidden `<input>` ref), `importMidiFile(file)`, `handleAddFile` (onChange handler).
+Returns: `importMidiFile(file)`. Picker state belongs to `useMediaImport`.
 
 ### useAudioImport.ts
 
 Validates and imports audio files into the store. Guards against MIDI files being dropped on the audio input.
 
-Returns: `audioFileRef`, `importAudioFile(file)`, `handleAddAudio` (onChange handler).
+Returns: `importAudioFile(file)`, `importAudioFiles(files)`, `audioImportProgress`, and `cancelAudioImport`. Picker state belongs to `useMediaImport`.
+
+### useMediaImport.ts
+
+Owns the shared MIDI/audio file picker, deduplication, classification, and busy guard. Imports MIDI files sequentially before passing audio files to the audio batch importer. Both the picker and panel drops use `importFiles(files)`.
 
 ## Interaction hooks
 
 ### useFileDrop.ts
 
-Manages the drag-and-drop overlay. Uses a counter-based enter/leave scheme to correctly handle child elements triggering drag events. Deduplicates dropped files and dispatches them to `importMidiFile` or `importAudioFile`.
+Manages the drag-and-drop overlay. Uses a counter-based enter/leave scheme to correctly handle child elements triggering drag events. Passes dropped files to the shared `importFiles` coordinator.
 
 Returns: `isDragActive`, and five `onPanel*` event handlers to spread onto the panel root div.
 

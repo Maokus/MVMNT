@@ -1,14 +1,11 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { DragEventHandler } from 'react';
-import { isMidiFile, isAudioFile } from '../utils/fileTypeUtils';
 
 interface UseFileDropOptions {
-    importMidiFile: (file: File) => Promise<boolean>;
-    importAudioFile: (file: File) => Promise<boolean>;
-    importAudioFiles?: (files: File[]) => Promise<unknown>;
+    importFiles: (files: File[]) => Promise<void>;
 }
 
-export function useFileDrop({ importMidiFile, importAudioFile, importAudioFiles }: UseFileDropOptions) {
+export function useFileDrop({ importFiles }: UseFileDropOptions) {
     const dragCounterRef = useRef(0);
     const [isDragActive, setIsDragActive] = useState(false);
 
@@ -35,49 +32,6 @@ export function useFileDrop({ importMidiFile, importAudioFile, importAudioFiles 
         const types = dt.types ? Array.from(dt.types) : [];
         return types.includes('Files');
     }, []);
-
-    const handleDroppedFiles = useCallback(
-        async (files: File[]) => {
-            if (!files.length) return;
-            const unique: File[] = [];
-            const seen = new Set<string>();
-            for (const file of files) {
-                const key = `${file.name}__${file.size}__${file.lastModified}__${file.type}`;
-                if (seen.has(key)) continue;
-                seen.add(key);
-                unique.push(file);
-            }
-            if (!unique.length) return;
-            const midiFiles: File[] = [];
-            const audioFiles: File[] = [];
-            for (const file of unique) {
-                if (isMidiFile(file)) {
-                    midiFiles.push(file);
-                    continue;
-                }
-                if (isAudioFile(file)) {
-                    audioFiles.push(file);
-                }
-            }
-            for (const midi of midiFiles) {
-                await importMidiFile(midi);
-            }
-            if (importAudioFiles) {
-                await importAudioFiles(audioFiles);
-            } else {
-                for (const audio of audioFiles) {
-                    await importAudioFile(audio);
-                }
-            }
-            const ignored = unique.length - midiFiles.length - audioFiles.length;
-            if (ignored > 0) {
-                alert(
-                    `Ignored ${ignored} file${ignored > 1 ? 's' : ''}. Only MIDI (.mid/.midi) and common audio formats are supported.`
-                );
-            }
-        },
-        [importMidiFile, importAudioFile, importAudioFiles]
-    );
 
     const onPanelDragEnter = useCallback<DragEventHandler<HTMLDivElement>>(
         (e) => {
@@ -123,9 +77,9 @@ export function useFileDrop({ importMidiFile, importAudioFile, importAudioFiles 
             e.stopPropagation();
             const files = Array.from(e.dataTransfer.files ?? []);
             if (!files.length) return;
-            void handleDroppedFiles(files);
+            void importFiles(files);
         },
-        [hasFiles, handleDroppedFiles]
+        [hasFiles, importFiles]
     );
 
     const onPanelDropCapture = useCallback<DragEventHandler<HTMLDivElement>>(() => {

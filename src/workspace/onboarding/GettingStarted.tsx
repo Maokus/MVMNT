@@ -113,7 +113,8 @@ export function GettingStarted({
                                 <p className="text-sm font-medium">{midiReady ? '✓' : '3.'} Add your MIDI</p>
                                 {step === 'import-midi' && (
                                     <p className="mt-1 text-xs leading-5 text-neutral-300">
-                                        Choose your MIDI file with the highlighted MIDI import control.
+                                        Choose your MIDI file with the highlighted Import files button. You can select
+                                        audio files at the same time.
                                     </p>
                                 )}
                                 {step === 'connect-midi' && (
@@ -127,7 +128,7 @@ export function GettingStarted({
                                 <p className="text-sm font-medium">{audioImported ? '✓' : '4.'} Add your audio</p>
                                 {step === 'import-audio' && (
                                     <p className="mt-1 text-xs leading-5 text-neutral-300">
-                                        Choose the matching audio file with the highlighted Audio import control.
+                                        Choose the matching audio file with the highlighted Import files button.
                                     </p>
                                 )}
                             </li>

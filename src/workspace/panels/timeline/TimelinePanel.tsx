@@ -16,10 +16,9 @@ import { CurveRangeProvider } from './context/curveRangeContext';
 import { TempoRangeProvider } from './context/tempoRangeContext';
 import TimeIndicator from './header/TimeIndicator';
 import HeaderRightControls from './header/HeaderRightControls';
-import TrackImportButtons from './header/TrackImportButtons';
+import { TrackImportButton } from './header/TrackImportButton';
 import { useImportModals } from './hooks/useImportModals';
-import { useMidiImport } from './hooks/useMidiImport';
-import { useAudioImport } from './hooks/useAudioImport';
+import { useMediaImport } from './hooks/useMediaImport';
 import { useFileDrop } from './hooks/useFileDrop';
 import { useTimelineNavigation } from './hooks/useTimelineNavigation';
 import { useTimelinePointerControls } from './hooks/useTimelinePointerControls';
@@ -50,13 +49,14 @@ const TimelinePanel: React.FC = () => {
     } = useImportModals();
 
     // File import
-    const { fileRef, importMidiFile, handleAddFile } = useMidiImport({ requestImportMode, requestTempoImport });
-    const { audioFileRef, importAudioFile, importAudioFiles, handleAddAudio, audioImportProgress, cancelAudioImport } =
-        useAudioImport();
+    const { fileRef, handleChange, importFiles, stage, busy, audioImportProgress, cancelAudioImport } = useMediaImport({
+        requestImportMode,
+        requestTempoImport,
+    });
 
     // Drag-and-drop overlay
     const { isDragActive, onPanelDragEnter, onPanelDragOver, onPanelDragLeave, onPanelDrop, onPanelDropCapture } =
-        useFileDrop({ importMidiFile, importAudioFile, importAudioFiles });
+        useFileDrop({ importFiles });
 
     // View navigation and keyboard shortcuts
     const { fitAll, zoomToSelection, centerOnPlayhead } = useTimelineNavigation();
@@ -105,14 +105,14 @@ const TimelinePanel: React.FC = () => {
             >
                 {/* Header: left add-track + time indicator, center transport, right view + loop + quantize */}
                 <div className="timeline-header relative z-30 grid flex-none grid-cols-3 items-center border-b border-neutral-800 bg-neutral-900 px-2 py-1">
-                    {/* Left: Add track buttons + time indicator */}
+                    {/* Left: Import files + time indicator */}
                     <div className="flex items-center gap-3">
-                        <TrackImportButtons
-                            fileRef={fileRef}
-                            audioFileRef={audioFileRef}
-                            onAddFile={handleAddFile}
-                            onAddAudio={handleAddAudio}
-                        />
+                        <TrackImportButton fileRef={fileRef} onChange={handleChange} busy={busy} />
+                        {stage === 'midi' && (
+                            <span role="status" className="text-xs text-neutral-300">
+                                Importing MIDI…
+                            </span>
+                        )}
                         <TimeIndicator />
                     </div>
                     {/* Center: Auto-keying toggle + transport controls */}

@@ -1,5 +1,4 @@
-import { useCallback, useRef } from 'react';
-import type { ChangeEvent } from 'react';
+import { useCallback } from 'react';
 import { timelineCommandGateway, useTimelineStore } from '@state/timelineStore';
 import { parseMIDIFileToData } from '@core/midi/midi-library';
 import { splitMidiDataByTracks } from '@core/midi/midi-ingest';
@@ -12,14 +11,13 @@ import { getNextImportedTrackName } from './importTrackName';
 import { normalizeTimeSignature } from '@core/timing/meter';
 import { analytics } from '@app/analytics';
 
-interface UseMidiImportOptions {
+export interface UseMidiImportOptions {
     requestImportMode: (info: MultiTrackDecisionState) => Promise<MultiTrackChoice>;
     requestTempoImport: (count: number, hasExisting: boolean) => Promise<TempoImportChoice>;
 }
 
 export function useMidiImport({ requestImportMode, requestTempoImport }: UseMidiImportOptions) {
     const addMidiTrack = useTimelineStore((s) => s.addMidiTrack);
-    const fileRef = useRef<HTMLInputElement | null>(null);
 
     const importMidiFile = useCallback(
         async (file: File) => {
@@ -133,17 +131,5 @@ export function useMidiImport({ requestImportMode, requestTempoImport }: UseMidi
         [addMidiTrack, requestImportMode, requestTempoImport]
     );
 
-    const handleAddFile = useCallback(
-        async (e: ChangeEvent<HTMLInputElement>) => {
-            const files = Array.from(e.target.files ?? []);
-            if (!files.length) return;
-            if (fileRef.current) fileRef.current.value = '';
-            for (const file of files) {
-                await importMidiFile(file);
-            }
-        },
-        [importMidiFile]
-    );
-
-    return { fileRef, importMidiFile, handleAddFile };
+    return { importMidiFile };
 }

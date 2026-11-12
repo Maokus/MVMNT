@@ -1,5 +1,4 @@
 import { useCallback, useRef, useState } from 'react';
-import type { ChangeEvent } from 'react';
 import { useTimelineStore } from '@state/timelineStore';
 import {
     AUDIO_IMPORT_DANGER_BYTES,
@@ -41,7 +40,6 @@ const idleProgress: AudioImportProgressState = {
 
 export function useAudioImport() {
     const addAudioTrack = useTimelineStore((s) => s.addAudioTrack);
-    const audioFileRef = useRef<HTMLInputElement | null>(null);
     const cancelRequestedRef = useRef(false);
     const [audioImportProgress, setAudioImportProgress] = useState<AudioImportProgressState>(idleProgress);
 
@@ -218,15 +216,5 @@ export function useAudioImport() {
         [importAudioFile]
     );
 
-    const handleAddAudio = useCallback(
-        async (e: ChangeEvent<HTMLInputElement>) => {
-            const files = Array.from(e.target.files ?? []);
-            if (!files.length) return;
-            await importAudioFiles(files);
-            if (audioFileRef.current) audioFileRef.current.value = '';
-        },
-        [importAudioFiles]
-    );
-
-    return { audioFileRef, importAudioFile, importAudioFiles, handleAddAudio, audioImportProgress, cancelAudioImport };
+    return { importAudioFile, importAudioFiles, audioImportProgress, cancelAudioImport };
 }
