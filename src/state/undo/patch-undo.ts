@@ -331,7 +331,7 @@ class PatchUndoController implements UndoController {
     }
 
     private restoreRollback(snapshot: ReturnType<PatchUndoController['captureRollback']>): void {
-        useSceneStore.getState().importScene(snapshot.scene, { preserveSceneClipboard: true });
+        useSceneStore.getState().importScene(snapshot.scene, { preserveSceneClipboard: true, preserveSceneView: true });
         restoreTimelineStoreSnapshot(
             (timelineSnapshot) => useTimelineStore.setState(timelineSnapshot),
             snapshot.timeline as TimelineStoreSnapshot

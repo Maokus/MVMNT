@@ -606,6 +606,26 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         return { enabled: editable };
     }, []);
 
+    const setAllGroupsExpanded = (expanded: boolean) => {
+        const groupIds = Object.values(useSceneStore.getState().graph.nodesById)
+            .filter((node) => node.kind === 'group')
+            .map((node) => node.id);
+        useSelectionStore.getState().setNodesExpanded(groupIds, expanded);
+        // Filtering deliberately reveals descendants; clear it so Collapse All takes effect.
+        if (!expanded) useSceneEditorStore.getState().setAutomationSearchQuery('');
+    };
+    useCommandHandler(SCENE_COMMANDS.collapseAllGroups, {
+        run: () => setAllGroupsExpanded(false),
+        getState: () => ({
+            enabled: Object.values(useSceneStore.getState().graph.nodesById).some((node) => node.kind === 'group'),
+        }),
+    });
+    useCommandHandler(SCENE_COMMANDS.expandAllGroups, {
+        run: () => setAllGroupsExpanded(true),
+        getState: () => ({
+            enabled: Object.values(useSceneStore.getState().graph.nodesById).some((node) => node.kind === 'group'),
+        }),
+    });
     useCommandHandler(SCENE_COMMANDS.copy, {
         run: copySelectedNodes,
         getState: () => getSceneCommandState(SCENE_COMMANDS.copy),

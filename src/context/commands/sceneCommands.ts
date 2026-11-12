@@ -1,6 +1,8 @@
 import { defineCommand } from './commandRegistry';
 
 export const SCENE_COMMANDS = {
+    collapseAllGroups: 'scene.collapse-all-groups',
+    expandAllGroups: 'scene.expand-all-groups',
     copy: 'scene.copy-selection',
     paste: 'scene.paste',
     pasteWithoutAutomation: 'scene.paste-without-automation',
@@ -41,3 +43,6 @@ defineCommand({
     title: 'Duplicate Without Automation',
     category: 'Scene',
 });
+
+defineCommand({ id: SCENE_COMMANDS.collapseAllGroups, title: 'Collapse All Groups', category: 'View' });
+defineCommand({ id: SCENE_COMMANDS.expandAllGroups, title: 'Expand All Groups', category: 'View' });

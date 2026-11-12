@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 
 interface ChannelRange {
     autoRange: boolean;
@@ -43,11 +43,11 @@ export function CurveRangeProvider({ children }: { children: React.ReactNode }) 
         }));
     }, []);
 
-    return (
-        <CurveRangeContext.Provider value={{ getRange, setAutoRange, setManualRange, displayedRefs }}>
-            {children}
-        </CurveRangeContext.Provider>
+    const value = useMemo(
+        () => ({ getRange, setAutoRange, setManualRange, displayedRefs }),
+        [getRange, setAutoRange, setManualRange]
     );
+    return <CurveRangeContext.Provider value={value}>{children}</CurveRangeContext.Provider>;
 }
 
 export function useCurveRange(channelId: string): ChannelRange {

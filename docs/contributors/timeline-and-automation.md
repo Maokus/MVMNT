@@ -60,3 +60,20 @@ edits.
 
 Automation implementation and tests live in `src/automation/`, `src/bindings/`, and the scene
 command suites.
+
+## Group visibility and rendering
+
+The scene hierarchy and automation timeline share group expansion state. Their **Group view
+options** menus expose **Collapse All Groups** and **Expand All Groups** without a keyboard
+binding. Collapse All clears the automation filter because filtering deliberately reveals matching
+properties inside folded groups. Selection remains unchanged, and folding is outside document
+persistence and undo. Ctrl/Cmd-clicking a scene-tree group arrow includes its nested groups.
+
+**Open projects with groups collapsed** is an application preference, enabled by default and saved
+locally. It applies on document import, replacing stale group expansion IDs. Changing it does not
+refold the current scene. Paste, ordinary edits, and undo preserve manual expansion choices.
+
+Automation SVG rows and curve editors mount near the vertical viewport, retaining fixed-height
+placeholders outside it. Pointer interactions and focused controls stay mounted until they finish.
+Header keyframe summaries are indexed per channel edit. Horizontal rendering uses sorted keyframe
+bounds, and playhead highlighting subscribes to the highlighted keyframe rather than every tick.

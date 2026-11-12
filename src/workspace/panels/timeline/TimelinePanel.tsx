@@ -148,7 +148,10 @@ const TimelinePanel: React.FC = () => {
                     <CurveHeightProvider>
                         <CurveRangeProvider>
                             <TempoRangeProvider>
-                                <div className="h-full w-full overflow-y-auto overflow-x-hidden">
+                                <div
+                                    data-timeline-scroll-viewport
+                                    className="h-full w-full overflow-y-auto overflow-x-hidden"
+                                >
                                     <div className="flex min-h-full">
                                         <div className="tracklist-container relative z-10 w-60 shrink-0 border-r border-neutral-800 bg-neutral-900">
                                             <TrackList

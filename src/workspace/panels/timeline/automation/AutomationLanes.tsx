@@ -1,3 +1,5 @@
+import { AutomationViewportRow } from './AutomationViewportRow';
+import { indexHeaderKeyframes, lowerBoundTick } from './keyframeIndex';
 /**
  * AutomationLanes — right-column container for automation dope-sheet rows.
  *
@@ -5,7 +7,7 @@
  * the structure of AutomationTrackLabels in the left column.
  */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSceneStore } from '@state/sceneStore';
 import { useSceneEditorStore } from '@state/sceneEditorStore';
 import { useTimelineStore } from '@state/timelineStore';
@@ -56,6 +58,92 @@ interface CrossLaneSelBox {
     shiftKey: boolean;
 }
 
+const HeaderKeyframes = React.memo(function HeaderKeyframes({
+    channels,
+    width,
+    dotDrag,
+    onPointerDown,
+}: {
+    channels: AutomationChannel[];
+    width: number;
+    dotDrag: DotDragState | null;
+    onPointerDown: (event: React.PointerEvent<SVGElement>, tick: number) => void;
+}) {
+    const { toX, toTickExact } = useTickScale();
+    const index = useMemo(() => indexHeaderKeyframes(channels), [channels]);
+    const selected = useSelectionStore((state) => state.selectedKeyframes);
+    const selectedByChannel = useMemo(() => {
+        const result = new Map<string, Array<{ tick: number }>>();
+        for (const key of selected) {
+            const ticks = result.get(key.channelId) ?? [];
+            ticks.push({ tick: key.tick });
+            result.set(key.channelId, ticks);
+        }
+        for (const ticks of result.values()) ticks.sort((a, b) => a.tick - b.tick);
+        return result;
+    }, [selected]);
+    const getTickSelectionState = (tick: number): 'none' | 'partial' | 'full' => {
+        const owners = index.owners.get(tick)!;
+        let count = 0;
+        for (const id of owners) {
+            const ticks = selectedByChannel.get(id) ?? [];
+            const first = lowerBoundTick(ticks, tick - 0.5);
+            for (let i = first; i < ticks.length && ticks[i].tick < tick + 0.5; i++) {
+                if (Math.abs(ticks[i].tick - tick) < 0.5) {
+                    count++;
+                    break;
+                }
+            }
+        }
+        return count === 0 ? 'none' : count === owners.size ? 'full' : 'partial';
+    };
+    const cy = AUTOMATION_HEADER_HEIGHT / 2;
+    const s = HEADER_DIAMOND_SIZE;
+    const visibleTicks = index.ticks.slice(
+        lowerBoundTick(index.ticks, toTickExact(-s, width)),
+        lowerBoundTick(index.ticks, toTickExact(width + s, width)) + 1
+    );
+    return (
+        <svg width={width} height={AUTOMATION_HEADER_HEIGHT} style={{ display: 'block', overflow: 'visible' }}>
+            {visibleTicks.map(({ tick }) => {
+                const x = toX(tick, width);
+                if (x < -s || x > width + s) return null;
+                const selState = getTickSelectionState(tick);
+                const isDragging =
+                    dotDrag !== null &&
+                    Math.abs(tick - dotDrag.primaryCurTick) < 0.5 &&
+                    dotDrag.moves.some((m) => Math.abs(m.baseTick - tick) < 0.5);
+                const fill =
+                    selState === 'full'
+                        ? '#ffffff'
+                        : selState === 'partial'
+                          ? 'rgba(255,255,255,0.45)'
+                          : 'rgba(96,165,250,0.55)';
+                const stroke = selState === 'none' ? 'rgba(96,165,250,0.5)' : '#60a5fa';
+                const strokeWidth = selState === 'none' ? 1 : 1.5;
+                const size = selState !== 'none' || isDragging ? s + 1 : s;
+                return (
+                    <g
+                        key={tick}
+                        style={{ cursor: dotDrag ? 'grabbing' : 'grab' }}
+                        onPointerDown={(e) => onPointerDown(e, tick)}
+                    >
+                        <path
+                            d={`M${x},${cy - size} L${x - size},${cy} L${x},${cy + size} L${x + size},${cy} Z`}
+                            fill={fill}
+                            stroke={stroke}
+                            strokeWidth={strokeWidth}
+                            strokeLinejoin="round"
+                        />
+                        {/* Larger hit area */}
+                        <rect x={x - s - 4} y={cy - s - 4} width={s * 2 + 8} height={s * 2 + 8} fill="transparent" />
+                    </g>
+                );
+            })}
+        </svg>
+    );
+});
+
 /** Single channel lane + optional curve pane. */
 const ChannelLane: React.FC<{ channel: AutomationChannel; width: number }> = ({ channel, width }) => {
     const curveExpanded = useCurveEditorExpanded(channel.id);
@@ -68,17 +156,21 @@ const ChannelLane: React.FC<{ channel: AutomationChannel; width: number }> = ({ 
 
     return (
         <div data-channel-id={channel.id}>
-            <div className="relative border-b border-neutral-800" style={{ height: AUTOMATION_ROW_HEIGHT }}>
-                <AutomationLaneRow channel={channel} width={width} />
-            </div>
-            {curveExpanded && (
-                <div
-                    className="border-b border-neutral-800"
-                    style={{ height: curveHeight }}
-                    onDoubleClick={handleCurveDoubleClick}
-                >
-                    <AutomationCurvePane channel={channel} width={width} />
+            <AutomationViewportRow height={AUTOMATION_ROW_HEIGHT}>
+                <div className="relative border-b border-neutral-800" style={{ height: AUTOMATION_ROW_HEIGHT }}>
+                    <AutomationLaneRow channel={channel} width={width} />
                 </div>
+            </AutomationViewportRow>
+            {curveExpanded && (
+                <AutomationViewportRow height={curveHeight}>
+                    <div
+                        className="border-b border-neutral-800"
+                        style={{ height: curveHeight }}
+                        onDoubleClick={handleCurveDoubleClick}
+                    >
+                        <AutomationCurvePane channel={channel} width={width} />
+                    </div>
+                </AutomationViewportRow>
             )}
         </div>
     );
@@ -87,13 +179,13 @@ const ChannelLane: React.FC<{ channel: AutomationChannel; width: number }> = ({ 
 /** Lanes for a single element's automation channels. */
 const SceneNodeAutomationLanes: React.FC<{ row: AutomatedSceneNodeView; width: number }> = ({ row, width }) => {
     const expanded = useAutomationExpanded({ kind: 'node', id: row.nodeId });
-    const channels = [...row.hostChannels, ...row.contentChannels];
+    const channels = useMemo(
+        () => [...row.hostChannels, ...row.contentChannels],
+        [row.hostChannels, row.contentChannels]
+    );
     const searchQuery = useSceneEditorStore((s) => s.automationSearchQuery);
     const { toX, toTick } = useTickScale();
     const snapTick = useSnapTicks();
-
-    // Track selection state to drive diamond visuals
-    const selectedKeyframes = useSelectionStore((s) => s.selectedKeyframes);
 
     const headerRef = useRef<HTMLDivElement>(null);
     const [dotDrag, _setDotDrag] = useState<DotDragState | null>(null);
@@ -102,20 +194,6 @@ const SceneNodeAutomationLanes: React.FC<{ row: AutomatedSceneNodeView; width: n
         dotDragRef.current = next;
         _setDotDrag(next);
     }, []);
-
-    // Selection state per tick: 'none' | 'partial' | 'full'
-    const getTickSelectionState = useCallback(
-        (tick: number): 'none' | 'partial' | 'full' => {
-            const channelsAtTick = channels.filter((ch) => ch.keyframes.some((kf) => Math.abs(kf.tick - tick) < 0.5));
-            if (channelsAtTick.length === 0) return 'none';
-            const selectedCount = channelsAtTick.filter((ch) =>
-                selectedKeyframes.some((k) => k.channelId === ch.id && Math.abs(k.tick - tick) < 0.5)
-            ).length;
-            if (selectedCount === 0) return 'none';
-            return selectedCount === channelsAtTick.length ? 'full' : 'partial';
-        },
-        [channels, selectedKeyframes]
-    );
 
     const handleDiamondPointerDown = useCallback(
         (e: React.PointerEvent<SVGElement>, tick: number) => {
@@ -300,10 +378,6 @@ const SceneNodeAutomationLanes: React.FC<{ row: AutomatedSceneNodeView; width: n
 
     const isExpanded = lowerQuery ? true : expanded;
 
-    const kfTicks = Array.from(new Set(channels.flatMap((ch) => ch.keyframes.map((kf) => kf.tick))));
-    const cy = AUTOMATION_HEADER_HEIGHT / 2;
-    const s = HEADER_DIAMOND_SIZE;
-
     return (
         <>
             {/* Element header with SVG diamond indicators */}
@@ -319,49 +393,14 @@ const SceneNodeAutomationLanes: React.FC<{ row: AutomatedSceneNodeView; width: n
                     setDotDrag(null);
                 }}
             >
-                <svg width={width} height={AUTOMATION_HEADER_HEIGHT} style={{ display: 'block', overflow: 'visible' }}>
-                    {kfTicks.map((tick) => {
-                        const x = toX(tick, width);
-                        if (x < -s || x > width + s) return null;
-                        const selState = getTickSelectionState(tick);
-                        const isDragging =
-                            dotDrag !== null &&
-                            Math.abs(tick - dotDrag.primaryCurTick) < 0.5 &&
-                            dotDrag.moves.some((m) => Math.abs(m.baseTick - tick) < 0.5);
-                        const fill =
-                            selState === 'full'
-                                ? '#ffffff'
-                                : selState === 'partial'
-                                  ? 'rgba(255,255,255,0.45)'
-                                  : 'rgba(96,165,250,0.55)';
-                        const stroke = selState === 'none' ? 'rgba(96,165,250,0.5)' : '#60a5fa';
-                        const strokeWidth = selState === 'none' ? 1 : 1.5;
-                        const size = selState !== 'none' || isDragging ? s + 1 : s;
-                        return (
-                            <g
-                                key={tick}
-                                style={{ cursor: dotDrag ? 'grabbing' : 'grab' }}
-                                onPointerDown={(e) => handleDiamondPointerDown(e, tick)}
-                            >
-                                <path
-                                    d={`M${x},${cy - size} L${x - size},${cy} L${x},${cy + size} L${x + size},${cy} Z`}
-                                    fill={fill}
-                                    stroke={stroke}
-                                    strokeWidth={strokeWidth}
-                                    strokeLinejoin="round"
-                                />
-                                {/* Larger hit area */}
-                                <rect
-                                    x={x - s - 4}
-                                    y={cy - s - 4}
-                                    width={s * 2 + 8}
-                                    height={s * 2 + 8}
-                                    fill="transparent"
-                                />
-                            </g>
-                        );
-                    })}
-                </svg>
+                <AutomationViewportRow height={AUTOMATION_HEADER_HEIGHT}>
+                    <HeaderKeyframes
+                        channels={channels}
+                        width={width}
+                        dotDrag={dotDrag}
+                        onPointerDown={handleDiamondPointerDown}
+                    />
+                </AutomationViewportRow>
             </div>
 
             {/* Channel lane rows (when expanded) */}
@@ -704,4 +743,4 @@ const AutomationLanes: React.FC<AutomationLanesProps> = ({ width }) => {
     );
 };
 
-export default AutomationLanes;
+export default React.memo(AutomationLanes);

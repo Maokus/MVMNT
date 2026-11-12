@@ -1,3 +1,5 @@
+import { AutomationViewportRow } from './AutomationViewportRow';
+import { SceneGroupViewMenu } from '@workspace/components/SceneGroupViewMenu';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     FaChevronDown,
@@ -191,7 +193,6 @@ const CurveRangeControls: React.FC<{ channelId: string; curveHeight: number }> =
 const ChannelRow: React.FC<{ channelId: string }> = ({ channelId }) => {
     const curveExpanded = useCurveEditorExpanded(channelId);
     const channel = useSceneStore(useCallback((s) => s.automation.channels[channelId], [channelId]));
-    const currentTick = useTimelineStore((s) => s.timeline.currentTick);
     const seekTick = useTimelineStore((s) => s.seekTick);
     const curveHeight = useCurveHeight(channelId);
     const propertyPath = channel?.target.propertyPath ?? '';
@@ -218,86 +219,90 @@ const ChannelRow: React.FC<{ channelId: string }> = ({ channelId }) => {
     const goPrevKeyframe = useCallback(() => {
         if (!channel) return;
         const ticks = channel.keyframes.map((kf) => kf.tick).sort((a, b) => a - b);
-        const prev = [...ticks].reverse().find((t) => t < currentTick - 0.5);
+        const prev = [...ticks].reverse().find((t) => t < useTimelineStore.getState().timeline.currentTick - 0.5);
         if (prev !== undefined) seekTick(prev);
-    }, [channel, currentTick, seekTick]);
+    }, [channel, seekTick]);
 
     const goNextKeyframe = useCallback(() => {
         if (!channel) return;
         const ticks = channel.keyframes.map((kf) => kf.tick).sort((a, b) => a - b);
-        const next = ticks.find((t) => t > currentTick + 0.5);
+        const next = ticks.find((t) => t > useTimelineStore.getState().timeline.currentTick + 0.5);
         if (next !== undefined) seekTick(next);
-    }, [channel, currentTick, seekTick]);
+    }, [channel, seekTick]);
 
     return (
         <>
-            <div
-                className="flex items-center justify-between gap-1 pl-6 pr-2 border-b border-neutral-800 text-neutral-400 hover:bg-neutral-800"
-                style={{ height: AUTOMATION_ROW_HEIGHT }}
-                onDoubleClick={toggleCurve}
-            >
-                <span className="text-[11px] truncate" title={propertyPath}>
-                    <span className="text-neutral-500 mr-1">
-                        {channel?.target.owner.kind === 'node' ? 'Host' : 'Content'}
+            <AutomationViewportRow height={AUTOMATION_ROW_HEIGHT}>
+                <div
+                    className="flex items-center justify-between gap-1 pl-6 pr-2 border-b border-neutral-800 text-neutral-400 hover:bg-neutral-800"
+                    style={{ height: AUTOMATION_ROW_HEIGHT }}
+                    onDoubleClick={toggleCurve}
+                >
+                    <span className="text-[11px] truncate" title={propertyPath}>
+                        <span className="text-neutral-500 mr-1">
+                            {channel?.target.owner.kind === 'node' ? 'Host' : 'Content'}
+                        </span>
+                        {descriptor?.definition.label ?? propertyPath}
+                        {descriptor?.presentation.unit ?? ''}
                     </span>
-                    {descriptor?.definition.label ?? propertyPath}
-                    {descriptor?.presentation.unit ?? ''}
-                </span>
-                <div className="flex items-center gap-1">
-                    <Button
-                        variant="icon"
-                        size="full"
-                        title="Previous keyframe (J)"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            goPrevKeyframe();
-                        }}
-                    >
-                        <FaAngleLeft className="text-xs" />
-                    </Button>
-                    <Button
-                        variant="icon"
-                        size="full"
-                        title="Next keyframe (K)"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            goNextKeyframe();
-                        }}
-                    >
-                        <FaAngleRight className="text-xs" />
-                    </Button>
-                    {channel?.valueType !== 'string' && (
+                    <div className="flex items-center gap-1">
                         <Button
                             variant="icon"
                             size="full"
-                            title={curveExpanded ? 'Hide curve editor' : 'Show curve editor'}
+                            title="Previous keyframe (J)"
                             onClick={(e) => {
                                 e.stopPropagation();
-                                toggleCurve();
+                                goPrevKeyframe();
                             }}
                         >
-                            <FaChartLine className="text-xs" />
+                            <FaAngleLeft className="text-xs" />
                         </Button>
-                    )}
-                    <Button
-                        variant="icon"
-                        size="full"
-                        title={`Remove automation: ${propertyPath}`}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            dispatchSceneCommand({
-                                type: 'disablePropertyAutomation',
-                                target: channel?.target,
-                            });
-                        }}
-                    >
-                        <FaTimes className="text-xs" />
-                    </Button>
+                        <Button
+                            variant="icon"
+                            size="full"
+                            title="Next keyframe (K)"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                goNextKeyframe();
+                            }}
+                        >
+                            <FaAngleRight className="text-xs" />
+                        </Button>
+                        {channel?.valueType !== 'string' && (
+                            <Button
+                                variant="icon"
+                                size="full"
+                                title={curveExpanded ? 'Hide curve editor' : 'Show curve editor'}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleCurve();
+                                }}
+                            >
+                                <FaChartLine className="text-xs" />
+                            </Button>
+                        )}
+                        <Button
+                            variant="icon"
+                            size="full"
+                            title={`Remove automation: ${propertyPath}`}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                dispatchSceneCommand({
+                                    type: 'disablePropertyAutomation',
+                                    target: channel?.target,
+                                });
+                            }}
+                        >
+                            <FaTimes className="text-xs" />
+                        </Button>
+                    </div>
                 </div>
-            </div>
+            </AutomationViewportRow>
             {/* Curve editor spacer in left column — height synced with right-column curve pane */}
             {curveExpanded && channel?.valueType !== 'string' && (
-                <CurveRangeControls channelId={channelId} curveHeight={curveHeight} />
+                <AutomationViewportRow height={curveHeight}>
+                    <CurveRangeControls channelId={channelId} curveHeight={curveHeight} />
+                </AutomationViewportRow>
             )}
         </>
     );
@@ -419,6 +424,7 @@ const AutomationTrackLabels: React.FC = () => {
                 style={{ height: AUTOMATION_HEADER_HEIGHT }}
             >
                 <span className="text-[10px] font-semibold uppercase tracking-wider flex-1">Automation</span>
+                <SceneGroupViewMenu />
             </div>
 
             {/* Search bar */}
@@ -449,4 +455,4 @@ const AutomationTrackLabels: React.FC = () => {
     );
 };
 
-export default AutomationTrackLabels;
+export default React.memo(AutomationTrackLabels);

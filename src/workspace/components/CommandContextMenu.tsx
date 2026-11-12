@@ -11,6 +11,7 @@ export interface CommandMenuEntry {
     shortcut?: string;
     icon?: React.ReactNode;
     danger?: boolean;
+    checked?: boolean;
     disabled?: boolean;
     separator?: boolean;
     onSelect?: () => void;
@@ -133,7 +134,8 @@ export function CommandContextMenu({
                     <button
                         key={`${entry.commandId ?? entry.label}-${index}`}
                         type="button"
-                        role="menuitem"
+                        role={entry.checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
+                        aria-checked={entry.checked}
                         className={entry.danger ? 'is-danger' : undefined}
                         disabled={disabled}
                         // The menu focuses its first item on open; move focus with the pointer so
@@ -141,7 +143,11 @@ export function CommandContextMenu({
                         onPointerEnter={(event) => event.currentTarget.focus({ preventScroll: true })}
                         onClick={invoke}
                     >
-                        {entry.icon}
+                        {entry.checked !== undefined ? (
+                            <span aria-hidden="true">{entry.checked ? '✓' : ''}</span>
+                        ) : (
+                            entry.icon
+                        )}
                         <span>{entry.label ?? metadata?.title ?? entry.commandId}</span>
                         {displayShortcut(entry.shortcut ?? metadata?.defaultShortcut) ? (
                             <kbd>{displayShortcut(entry.shortcut ?? metadata?.defaultShortcut)}</kbd>

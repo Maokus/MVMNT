@@ -73,6 +73,7 @@ interface SelectionActions {
     setEditingContainerId(nodeId: string | null): void;
     toggleNodeExpanded(nodeId: string): void;
     setNodesExpanded(nodeIds: string[], expanded: boolean): void;
+    initializeSceneExpansion(graph: SceneGraphState, collapsed: boolean): void;
     setSelectionPivot(pivot: { x: number; y: number } | null): void;
     reconcileSceneNodes(graph: SceneGraphState, previousGraph?: SceneGraphState): void;
     /** Set tracks as active selection domain. */
@@ -271,6 +272,15 @@ export const useSelectionStore = createWithEqualityFn<SelectionStoreState>(
             set((state) => ({
                 expandedNodeIds: { ...state.expandedNodeIds, [nodeId]: state.expandedNodeIds[nodeId] === false },
             }));
+        },
+        initializeSceneExpansion(graph, collapsed) {
+            set({
+                expandedNodeIds: Object.fromEntries(
+                    Object.values(graph.nodesById)
+                        .filter((node) => node.kind === 'group')
+                        .map((node) => [node.id, !collapsed])
+                ),
+            });
         },
         setNodesExpanded(nodeIds, expanded) {
             set((state) => {

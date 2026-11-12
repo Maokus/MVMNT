@@ -1,3 +1,4 @@
+import { SceneGroupViewMenu } from '@workspace/components/SceneGroupViewMenu';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
     FaChevronDown,
@@ -308,6 +309,7 @@ export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
                     <button
                         className="scene-node-disclosure"
                         aria-label={expanded ? 'Collapse group' : 'Expand group'}
+                        title="Ctrl/Cmd-click to expand or collapse this group and all descendants"
                         onClick={(event) => {
                             event.stopPropagation();
                             if (event.metaKey || event.ctrlKey)
@@ -560,6 +562,7 @@ export function SceneNodeTree() {
                 >
                     <FaTrash />
                 </button>
+                <SceneGroupViewMenu />
             </div>
             {menuPosition ? (
                 <CommandContextMenu

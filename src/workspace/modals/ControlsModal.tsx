@@ -54,6 +54,7 @@ const sections = [
             ['← / →', 'Collapse, expand, or step in and out of a group'],
             ['Home / End', 'Jump to the first or last hierarchy row'],
             ['F2', 'Rename the selected hierarchy row'],
+            ['⌘/Ctrl + click group arrow', 'Expand / collapse the group and all descendants'],
             ['⌘/Ctrl + G', 'Group selected elements'],
             ['⌘/Ctrl + Shift + G', 'Ungroup selected elements'],
             ['⌘/Ctrl + C / V', 'Copy / paste elements and groups'],

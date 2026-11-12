@@ -93,7 +93,9 @@ export function createSceneCommandGateway(dependencies: SceneCommandGatewayDepen
                 const rollbackErrors: unknown[] = [];
                 if (rollbackSnapshot) {
                     try {
-                        dependencies.store.getState().importScene(rollbackSnapshot, { preserveSceneClipboard: true });
+                        dependencies.store
+                            .getState()
+                            .importScene(rollbackSnapshot, { preserveSceneClipboard: true, preserveSceneView: true });
                     } catch (rollbackError) {
                         rollbackErrors.push(rollbackError);
                     }

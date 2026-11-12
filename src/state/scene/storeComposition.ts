@@ -1,3 +1,4 @@
+import { useSceneViewPreferencesStore } from '@state/sceneViewPreferencesStore';
 import { type StateCreator } from 'zustand';
 import { createWithEqualityFn } from 'zustand/traditional';
 import type { Macro } from '@state/scene/macros';
@@ -321,7 +322,10 @@ export interface SceneStoreActions {
     deleteFontAsset: (assetId: string) => void;
     acknowledgeFontLicensing: (timestamp?: number) => void;
     clearScene: () => void;
-    importScene: (payload: SceneImportPayload, options?: { preserveSceneClipboard?: boolean }) => void;
+    importScene: (
+        payload: SceneImportPayload,
+        options?: { preserveSceneClipboard?: boolean; preserveSceneView?: boolean }
+    ) => void;
     exportSceneDraft: () => SceneStoreComputedExport;
     replaceMacros: (payload: SceneSerializedMacros | null | undefined) => void;
     setAutomationChannel: (channel: AutomationChannel) => void;
@@ -1562,6 +1566,7 @@ const createUncomposedSceneStoreState = (
         }));
         // An intentionally empty document is still initialized. This prevents
         // workspace bootstrap from treating a blank scene as a fresh launch.
+        useSelectionStore.getState().initializeSceneExpansion(emptyGraph, false);
         useSceneEditorStore.getState().markHydrated();
     },
 
@@ -1579,6 +1584,11 @@ const createUncomposedSceneStoreState = (
                 graphIndexes,
             })
         );
+        if (!options?.preserveSceneView) {
+            useSelectionStore
+                .getState()
+                .initializeSceneExpansion(get().graph, useSceneViewPreferencesStore.getState().openGroupsCollapsed);
+        }
         useSceneEditorStore.getState().markHydrated(options);
     },
 

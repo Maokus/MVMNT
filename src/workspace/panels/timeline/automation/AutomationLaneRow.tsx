@@ -1,3 +1,4 @@
+import { keyframeTickAtPlayhead, lowerBoundTick } from './keyframeIndex';
 /**
  * AutomationLaneRow — SVG dope-sheet row for a single automation channel.
  *
@@ -86,10 +87,12 @@ interface DragState {
 // ---------------------------------------------------------------------------
 
 const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width }) => {
-    const { toX, toTick } = useTickScale();
+    const { toX, toTick, toTickExact } = useTickScale();
     const quantize = useTimelineStore((s) => s.transport.quantize);
     const bpb = useTimelineStore((s) => s.timeline.beatsPerBar || 4);
-    const currentTick = useTimelineStore((s) => s.timeline.currentTick);
+    const atPlayheadTick = useTimelineStore(
+        useCallback((s) => keyframeTickAtPlayhead(channel.keyframes, s.timeline.currentTick), [channel.keyframes])
+    );
     const ppq = CANONICAL_PPQ;
 
     const selectedKeyframes = useSelectionStore(
@@ -145,7 +148,8 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
         }> = [];
         const segments: Array<{ x1: number; x2: number; tick: number }> = [];
 
-        for (let i = 0; i < kfs.length; i++) {
+        const first = Math.max(0, lowerBoundTick(kfs, toTickExact(-12, width)) - 1);
+        for (let i = first; i < kfs.length; i++) {
             const kf = kfs[i];
             const x = toX(kf.tick, width);
             const prevKf = i > 0 ? kfs[i - 1] : null;
@@ -171,15 +175,17 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                       ? getKeyframeHalfShape(kf.segmentInterpolation, kf.rightHandleType, 'right')
                       : 'diamond';
 
-            diamonds.push({ kf, x, leftShape, rightShape });
+            if (x >= -12 && x <= width + 12) diamonds.push({ kf, x, leftShape, rightShape });
 
             if (i > 0) {
                 const prevX = toX(kfs[i - 1].tick, width);
-                segments.push({ x1: prevX, x2: x, tick: kfs[i - 1].tick });
+                if (x >= 0 && prevX <= width)
+                    segments.push({ x1: Math.max(0, prevX), x2: Math.min(width, x), tick: kfs[i - 1].tick });
             }
+            if (x > width + 12) break;
         }
         return { diamonds, segments };
-    }, [channel.keyframes, toX, width]);
+    }, [channel.keyframes, channel.valueType, toX, toTickExact, width]);
 
     // -----------------------------------------------------------------------
     // Keyframe pointer-down — sets up drag state
@@ -682,7 +688,7 @@ const AutomationLaneRow: React.FC<AutomationLaneRowProps> = ({ channel, width })
                 {/* Keyframe icons */}
                 {elements.diamonds.map(({ kf, x, leftShape, rightShape }) => {
                     const sel = isSelected(kf.tick);
-                    const atPlayhead = Math.abs(kf.tick - currentTick) < 0.5;
+                    const atPlayhead = kf.tick === atPlayheadTick;
                     const dSize = sel ? KEYFRAME_DIAMOND_SIZE + 2 : KEYFRAME_DIAMOND_SIZE;
                     const fill = sel ? '#ffffff' : 'rgba(96,165,250,0.6)';
                     const stroke = sel ? '#60a5fa' : 'rgba(96,165,250,0.5)';

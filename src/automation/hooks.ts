@@ -96,7 +96,13 @@ export function useAutomatedOwners() {
 }
 
 export function useAutomationSceneNodes() {
-    return useSceneStore(useCallback((state) => selectAutomationSceneNodes(state), []));
+    const channels = useSceneStore((state) => state.automation.channels);
+    const graph = useSceneStore((state) => state.graph);
+    const elements = useSceneStore((state) => state.elements);
+    return useMemo(
+        () => selectAutomationSceneNodes({ automation: { channels }, graph, elements }),
+        [channels, graph, elements]
+    );
 }
 
 /** Returns whether an owner is expanded in the automation section. */

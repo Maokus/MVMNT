@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useState } from 'react';
+import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import { CURVE_EDITOR_HEIGHT } from '../constants';
 
 interface CurveHeightCtx {
@@ -20,7 +20,8 @@ export function CurveHeightProvider({ children }: { children: React.ReactNode })
         setHeights((prev) => ({ ...prev, [channelId]: Math.max(60, Math.min(400, height)) }));
     }, []);
 
-    return <CurveHeightContext.Provider value={{ getHeight, setHeight }}>{children}</CurveHeightContext.Provider>;
+    const value = useMemo(() => ({ getHeight, setHeight }), [getHeight, setHeight]);
+    return <CurveHeightContext.Provider value={value}>{children}</CurveHeightContext.Provider>;
 }
 
 export function useCurveHeight(channelId: string): number {

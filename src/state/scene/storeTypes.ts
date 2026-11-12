@@ -161,7 +161,10 @@ export interface SceneStoreActions {
     deleteFontAsset(assetId: string): void;
     acknowledgeFontLicensing(timestamp?: number): void;
     clearScene(): void;
-    importScene(payload: SceneImportPayload, options?: { preserveSceneClipboard?: boolean }): void;
+    importScene(
+        payload: SceneImportPayload,
+        options?: { preserveSceneClipboard?: boolean; preserveSceneView?: boolean }
+    ): void;
     exportSceneDraft(): SceneSnapshot;
     replaceMacros(payload: SceneSerializedMacros | null | undefined): void;
     setAutomationChannel(channel: AutomationChannel): void;
