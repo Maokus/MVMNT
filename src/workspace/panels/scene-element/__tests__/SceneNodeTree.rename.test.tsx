@@ -114,7 +114,7 @@ describe('SceneNodeTree element ID editing', () => {
         expect(sceneActions.updateElementId).toHaveBeenLastCalledWith('second', 'renamed-second');
     });
 
-    it('does not intercept right click with an application context menu', () => {
+    it('keeps the native context menu while editing an element ID', () => {
         const graph = createFlatSceneGraph(['element']);
         const root = graph.nodesById[graph.rootId];
         if (root.kind !== 'root') throw new Error('invalid fixture');
@@ -122,8 +122,9 @@ describe('SceneNodeTree element ID editing', () => {
         render(
             <NodeRow graph={graph} node={graph.nodesById['element:element']} siblingIds={root.children} depth={0} />
         );
+        fireEvent.doubleClick(screen.getByText('element'));
         const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true });
-        screen.getByText('element').closest('.scene-node-row')?.dispatchEvent(event);
+        screen.getByDisplayValue('element').dispatchEvent(event);
 
         expect(event.defaultPrevented).toBe(false);
         expect(screen.queryByRole('menu')).not.toBeInTheDocument();

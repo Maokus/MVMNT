@@ -54,7 +54,13 @@ export function useSceneShortcuts(args: UseSceneShortcutsArgs): void {
             if (isCommandSurfaceActive('scene-tree', event) && matchesShortcut(event, { key: 'a', primary: true })) {
                 return getCommandState(SCENE_COMMANDS.selectAll).enabled;
             }
+            if (matchesShortcut(event, { key: 'v', primary: true, shift: true }))
+                return getCommandState(SCENE_COMMANDS.pasteWithoutAutomation).enabled;
+            if (matchesShortcut(event, { key: 'v', primary: true }))
+                return getCommandState(SCENE_COMMANDS.paste).enabled;
             if (selection.activeTarget !== 'elements') return false;
+            if (matchesShortcut(event, { key: 'c', primary: true }))
+                return getCommandState(SCENE_COMMANDS.copy).enabled;
             if (matchesShortcut(event, { key: 'g', primary: true }))
                 return getCommandState(SCENE_COMMANDS.group).enabled;
             if (matchesShortcut(event, { key: 'g', primary: true, shift: true }))
@@ -72,6 +78,18 @@ export function useSceneShortcuts(args: UseSceneShortcutsArgs): void {
         },
         handle: (event) => {
             const selected = useSelectionStore.getState().selectedNodeIds;
+            if (matchesShortcut(event, { key: 'v', primary: true, shift: true })) {
+                event.preventDefault();
+                return executeCommand(SCENE_COMMANDS.pasteWithoutAutomation);
+            }
+            if (matchesShortcut(event, { key: 'v', primary: true })) {
+                event.preventDefault();
+                return executeCommand(SCENE_COMMANDS.paste);
+            }
+            if (matchesShortcut(event, { key: 'c', primary: true })) {
+                event.preventDefault();
+                return executeCommand(SCENE_COMMANDS.copy);
+            }
             if (matchesShortcut(event, { key: 'a', primary: true })) {
                 event.preventDefault();
                 return executeCommand(SCENE_COMMANDS.selectAll);

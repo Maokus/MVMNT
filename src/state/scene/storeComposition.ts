@@ -321,7 +321,7 @@ export interface SceneStoreActions {
     deleteFontAsset: (assetId: string) => void;
     acknowledgeFontLicensing: (timestamp?: number) => void;
     clearScene: () => void;
-    importScene: (payload: SceneImportPayload) => void;
+    importScene: (payload: SceneImportPayload, options?: { preserveSceneClipboard?: boolean }) => void;
     exportSceneDraft: () => SceneStoreComputedExport;
     replaceMacros: (payload: SceneSerializedMacros | null | undefined) => void;
     setAutomationChannel: (channel: AutomationChannel) => void;
@@ -1565,7 +1565,7 @@ const createUncomposedSceneStoreState = (
         useSceneEditorStore.getState().markHydrated();
     },
 
-    importScene: (input) => {
+    importScene: (input, options) => {
         set((state) =>
             normalizeSceneImportState(state, input, {
                 defaultSettings: DEFAULT_SCENE_SETTINGS,
@@ -1579,7 +1579,7 @@ const createUncomposedSceneStoreState = (
                 graphIndexes,
             })
         );
-        useSceneEditorStore.getState().markHydrated();
+        useSceneEditorStore.getState().markHydrated(options);
     },
 
     exportSceneDraft: () => exportSceneDraft(get()),

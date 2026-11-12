@@ -56,6 +56,8 @@ const sections = [
             ['F2', 'Rename the selected hierarchy row'],
             ['⌘/Ctrl + G', 'Group selected elements'],
             ['⌘/Ctrl + Shift + G', 'Ungroup selected elements'],
+            ['⌘/Ctrl + C / V', 'Copy / paste elements and groups'],
+            ['⌘/Ctrl + Shift + V', 'Paste without automation (pose at copy time)'],
             ['⌘/Ctrl + D', 'Duplicate selected elements'],
             ['Delete / Backspace', 'Delete selection in the active editor'],
             ['⌘/Ctrl + A', 'Select all in scene tree'],

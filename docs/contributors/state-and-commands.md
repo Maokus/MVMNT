@@ -98,6 +98,23 @@ Use the shared `CommandContextMenu` for contextual actions. Right-clicking an al
 preserves the selection; right-clicking an unselected item first makes it the sole active selection.
 Menu entries should use command IDs whenever the same action is available elsewhere.
 
+### Scene clipboard
+
+Scene Copy and Paste operate on selected subtrees, including nested groups. Copy captures both
+full automation and a pose evaluated at the current playhead. Paste Without Automation uses that
+captured pose; Duplicate Without Automation evaluates the selection when the command runs. Both
+variants remove keyframes while retaining macro assignments and audio/MIDI references.
+
+The clipboard belongs to the transient scene editor store and is limited to the current project.
+Project imports and blank scenes clear it; paste and undo preserve it. Scene paste reuses existing
+macros and creates independent automation channels. Paste targets the selected group, the selected
+element's parent immediately after that element, or the scene root with no selection. Local
+transforms are retained.
+
+The scene tree context menu exposes both paste and duplicate variants. Ctrl/Cmd+Shift+V pastes
+without automation in the scene tree or preview. Text fields retain native clipboard behavior,
+and timeline clip/keyframe editors retain their own clipboard shortcuts.
+
 ## Undo and telemetry
 
 Scene and timeline gateways publish committed commands to undo and separately emit observational

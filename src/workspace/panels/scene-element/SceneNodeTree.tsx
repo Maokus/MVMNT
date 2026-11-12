@@ -35,6 +35,19 @@ import { useTimelineStore } from '@state/timelineStore';
 import { hasAnimatedReparentHierarchy, type ReparentMode } from '@state/scene/reparenting';
 import { CommandContextMenu } from '@workspace/components/CommandContextMenu';
 
+const sceneMenuEntries = [
+    { commandId: SCENE_COMMANDS.copy },
+    { commandId: SCENE_COMMANDS.paste },
+    { commandId: SCENE_COMMANDS.pasteWithoutAutomation },
+    { separator: true },
+    { commandId: SCENE_COMMANDS.duplicate },
+    { commandId: SCENE_COMMANDS.duplicateWithoutAutomation },
+    { separator: true },
+    { commandId: SCENE_COMMANDS.group },
+    { commandId: SCENE_COMMANDS.ungroup },
+    { commandId: SCENE_COMMANDS.delete, danger: true },
+];
+
 export type DropPosition = 'before' | 'inside' | 'after';
 
 export function resolveTreeDropTarget(
@@ -98,6 +111,7 @@ export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
     const expandedNodeIds = useSelectionStore((state) => state.expandedNodeIds);
     const toggleNodeExpanded = useSelectionStore((state) => state.toggleNodeExpanded);
     const setNodesExpanded = useSelectionStore((state) => state.setNodesExpanded);
+    const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
     const [dropPosition, setDropPosition] = useState<DropPosition | null>(null);
     const [dropError, setDropError] = useState<string | null>(null);
     const [pendingReparent, setPendingReparent] = useState<{
@@ -260,6 +274,19 @@ export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
                 aria-expanded={node.kind === 'group' ? expanded : undefined}
                 draggable={!effectivelyLocked && renameValue === null}
                 onClick={select}
+                onContextMenu={(event) => {
+                    if (isTextEditingTarget(event.target)) return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    activateCommandSurface('scene-tree');
+                    if (!selected) selectNode(node.id);
+                    else {
+                        const selection = useSelectionStore.getState();
+                        if (selection.activeTarget !== 'elements')
+                            selection.selectSceneNodes(selection.selectedNodeIds, selection.activeNodeId);
+                    }
+                    setMenuPosition({ x: event.clientX, y: event.clientY });
+                }}
                 onDoubleClick={(event) => {
                     if ((event.target as Element).closest('button')) return;
                     setRenameValue(rowLabel);
@@ -369,6 +396,14 @@ export function NodeRow({ graph, node, siblingIds, depth }: NodeRowProps) {
                     {dropError}
                 </div>
             ) : null}
+            {menuPosition ? (
+                <CommandContextMenu
+                    position={menuPosition}
+                    entries={sceneMenuEntries}
+                    ariaLabel="Scene actions"
+                    onClose={() => setMenuPosition(null)}
+                />
+            ) : null}
             {pendingReparent ? (
                 <CommandContextMenu
                     position={pendingReparent.position}
@@ -416,6 +451,7 @@ export function resolveTreeRowTarget(
 }
 
 export function SceneNodeTree() {
+    const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
     const graph = useSceneStore((state) => state.graph);
     const selectedNodeIds = useSelectionStore((state) => state.selectedNodeIds);
     const activeNodeId = useSelectionStore((state) => state.activeNodeId);
@@ -479,6 +515,13 @@ export function SceneNodeTree() {
             onPointerDownCapture={() => activateCommandSurface('scene-tree')}
             onFocusCapture={() => activateCommandSurface('scene-tree')}
             onKeyDown={navigate}
+            onContextMenu={(event) => {
+                if (isTextEditingTarget(event.target)) return;
+                event.preventDefault();
+                activateCommandSurface('scene-tree');
+                useSelectionStore.getState().selectSceneNodes([], null);
+                setMenuPosition({ x: event.clientX, y: event.clientY });
+            }}
         >
             <div className="scene-node-toolbar" role="toolbar" aria-label="Scene hierarchy actions">
                 <span className="scene-node-selection-count">
@@ -518,9 +561,18 @@ export function SceneNodeTree() {
                     <FaTrash />
                 </button>
             </div>
+            {menuPosition ? (
+                <CommandContextMenu
+                    position={menuPosition}
+                    entries={sceneMenuEntries}
+                    ariaLabel="Scene actions"
+                    onClose={() => setMenuPosition(null)}
+                />
+            ) : null}
             <div className="scene-node-column-hint" aria-hidden="true">
                 <FaLayerGroup /> <span>Front</span>
             </div>
+            {rows.length === 0 ? <div className="no-selection">No elements in scene</div> : null}
             {rows.map((nodeId) => (
                 <NodeRow
                     key={nodeId}

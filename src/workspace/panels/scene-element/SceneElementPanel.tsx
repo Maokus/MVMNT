@@ -1,19 +1,20 @@
 import React from 'react';
 import { SceneNodeTree } from './SceneNodeTree';
+import { activateCommandSurface } from '@context/commands/commandContext';
 import { useSceneSelection as useSceneSelectionContext } from '@context/SceneSelectionContext';
 
 const SceneElementPanel: React.FC = () => {
-    const { selectElement, elements } = useSceneSelectionContext();
+    const { selectElement } = useSceneSelectionContext();
 
     return (
-        <div className="scene-editor">
+        <div
+            className="scene-editor"
+            data-command-surface="scene-tree"
+            onPointerDownCapture={() => activateCommandSurface('scene-tree')}
+        >
             <div className="elements-panel">
                 <div className="element-list">
-                    {elements.length === 0 ? (
-                        <div className="no-selection">No elements in scene</div>
-                    ) : (
-                        <SceneNodeTree />
-                    )}
+                    <SceneNodeTree />
                 </div>
                 {/* Clear selection when clicking empty space */}
                 <div

@@ -1,3 +1,4 @@
+import { AutomationCurve } from '@automation/automation-curve';
 import {
     createOpaqueChannelId,
     encodePropertyTarget,
@@ -43,6 +44,8 @@ export interface SceneSubtreeBundle {
 export interface SceneSubtreeImportOptions {
     parentId?: string;
     targetIndex?: number;
+    /** Reuse macros that still exist in the current document. */
+    reuseMacros?: boolean;
 }
 
 function cloneValue<T>(value: T): T {
@@ -136,6 +139,28 @@ export function createSceneSubtreeBundle(state: SceneStoreState, nodeIds: readon
     };
 }
 
+/** Capture a static pose without changing the full-fidelity source bundle. */
+export function withoutSubtreeAutomation(bundle: SceneSubtreeBundle, tick: number): SceneSubtreeBundle {
+    const result = cloneValue(bundle);
+    const freezeBindings = (bindings: ElementBindings): ElementBindings =>
+        Object.fromEntries(
+            Object.entries(bindings).flatMap(([path, binding]) => {
+                if (binding.type !== 'keyframes') return [[path, binding]];
+                const channel = bundle.automation.channels[binding.channelId];
+                const value = channel ? new AutomationCurve(channel).evaluate(tick) : undefined;
+                // Empty channels use the element default or the node's authored value.
+                return value === undefined ? [] : [[path, { type: 'constant', value: cloneValue(value) }]];
+            })
+        );
+    for (const element of Object.values(result.elements)) {
+        element.properties = freezeBindings(element.properties as ElementBindings);
+    }
+    for (const [id, bindings] of Object.entries(result.nodeBindings))
+        result.nodeBindings[id] = freezeBindings(bindings);
+    result.automation = { channels: {}, channelIdByTarget: {} };
+    return result;
+}
+
 function allocateId(base: string, occupied: Set<string>): string {
     let candidate = base;
     let suffix = 2;
@@ -187,7 +212,13 @@ export function buildSceneSubtreeImport(
     const occupiedNames = new Set(Object.values(state.graph.nodesById).map((node) => node.name));
     for (const id of Object.keys(bundle.nodes)) nodeIds[id] = allocateId(id, occupiedNodes);
     for (const id of Object.keys(bundle.elements)) elementIds[id] = allocateId(id, occupiedElements);
-    for (const id of Object.keys(bundle.macros.macros)) macroIds[id] = allocateId(id, occupiedMacros);
+    const reusedMacroIds = new Set<string>();
+    for (const id of Object.keys(bundle.macros.macros)) {
+        if (options.reuseMacros && state.macros.byId[id]) {
+            macroIds[id] = id;
+            reusedMacroIds.add(id);
+        } else macroIds[id] = allocateId(id, occupiedMacros);
+    }
     for (const id of Object.keys(bundle.automation.channels)) {
         const allocated = createOpaqueChannelId(occupiedChannels);
         occupiedChannels.add(allocated);
@@ -257,6 +288,7 @@ export function buildSceneSubtreeImport(
     const macros = cloneValue(currentMacros.macros);
     const allIds = [...(currentMacros.allIds ?? Object.keys(macros))];
     for (const [oldId, macro] of Object.entries(bundle.macros.macros)) {
+        if (reusedMacroIds.has(oldId)) continue;
         const id = macroIds[oldId];
         macros[id] = { ...cloneValue(macro), name: id };
         allIds.push(id);

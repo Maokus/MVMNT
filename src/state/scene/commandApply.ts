@@ -197,7 +197,7 @@ export function applySceneStoreCommand(
             break;
         }
         case 'restoreClearScene': {
-            store.importScene(command.snapshot.scene);
+            store.importScene(command.snapshot.scene, { preserveSceneClipboard: true });
             useSceneMetadataStore.getState().hydrate(command.snapshot.metadata);
             useTimelineStore.setState({
                 playbackRange: command.snapshot.timeline.playbackRange,
@@ -216,7 +216,7 @@ export function applySceneStoreCommand(
             store.updateSettings(command.patch as Partial<SceneSettingsState>);
             break;
         case 'loadSerializedScene':
-            store.importScene(command.payload);
+            store.importScene(command.payload, { preserveSceneClipboard: true });
             break;
         case 'registerFontAsset':
             store.registerFontAsset(command.asset);
@@ -224,7 +224,8 @@ export function applySceneStoreCommand(
         case 'resolveMissingFontTokens': {
             const snapshot = createSceneSnapshot(getState());
             const resolved = resolveMissingFontTokens(snapshot, command.asset);
-            if (resolved !== snapshot) store.importScene(resolved as SceneImportPayload);
+            if (resolved !== snapshot)
+                store.importScene(resolved as SceneImportPayload, { preserveSceneClipboard: true });
             break;
         }
         case 'deleteFontAsset':
@@ -234,8 +235,9 @@ export function applySceneStoreCommand(
             const { payload } = buildSceneSubtreeImport(store, command.bundle, {
                 parentId: command.parentId,
                 targetIndex: command.targetIndex,
+                reuseMacros: command.reuseMacros,
             });
-            store.importScene(payload);
+            store.importScene(payload, { preserveSceneClipboard: true });
             break;
         }
         case 'createMacro':

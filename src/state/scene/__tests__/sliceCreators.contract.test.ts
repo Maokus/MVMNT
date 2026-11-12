@@ -10,6 +10,8 @@ describe('scene state ownership contracts', () => {
         expect(document).not.toHaveProperty('interaction');
         expect(document).not.toHaveProperty('transientNodeTransforms');
         expect(document).not.toHaveProperty('setPropertyClipboard');
+        expect(document).not.toHaveProperty('sceneClipboard');
+        expect(document).not.toHaveProperty('setSceneClipboard');
     });
 
     it('owns panel and transform-preview state in the editor store', () => {

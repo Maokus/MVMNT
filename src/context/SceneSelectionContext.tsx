@@ -1,3 +1,5 @@
+import { createSceneClipboard, scenePasteDestination } from '@state/scene/clipboard';
+import { useSceneEditorStore } from '@state/sceneEditorStore';
 import { unresolvedTrackInputs, type TrackInputDef } from './trackInputSetup';
 import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useVisualizer } from './VisualizerContext';
@@ -490,20 +492,30 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         visualizer?.invalidateRender?.();
     }, [runSceneCommand, visualizer]);
 
-    const duplicateSelectedNodes = useCallback(() => {
-        const scene = useSceneStore.getState();
-        const nodeIds = normalizeNodeSelection(scene.graph, useSelectionStore.getState().selectedNodeIds);
-        if (!nodeIds.length) return;
-        const mappings = createDuplicateMappings(scene.graph, Object.keys(scene.elements), nodeIds);
-        const ok = runSceneCommand(
-            { type: 'duplicateSubtrees', nodeIds, mappings },
-            'SceneSelectionContext.duplicateSubtrees'
-        );
-        if (!ok) return;
-        const created = nodeIds.map((id) => mappings.nodeIdMap[id]).filter(Boolean);
-        useSelectionStore.getState().selectSceneNodes(created, created.at(-1) ?? null);
-        visualizer?.invalidateRender?.();
-    }, [runSceneCommand, visualizer]);
+    const duplicateSelectedNodes = useCallback(
+        (withoutAutomation = false) => {
+            const scene = useSceneStore.getState();
+            const nodeIds = normalizeNodeSelection(scene.graph, useSelectionStore.getState().selectedNodeIds);
+            if (!nodeIds.length) return;
+            const mappings = createDuplicateMappings(scene.graph, Object.keys(scene.elements), nodeIds);
+            const ok = runSceneCommand(
+                {
+                    type: 'duplicateSubtrees',
+                    nodeIds,
+                    mappings,
+                    withoutAutomationAtTick: withoutAutomation
+                        ? useTimelineStore.getState().timeline.currentTick
+                        : undefined,
+                },
+                'SceneSelectionContext.duplicateSubtrees'
+            );
+            if (!ok) return;
+            const created = nodeIds.map((id) => mappings.nodeIdMap[id]).filter(Boolean);
+            useSelectionStore.getState().selectSceneNodes(created, created.at(-1) ?? null);
+            visualizer?.invalidateRender?.();
+        },
+        [runSceneCommand, visualizer]
+    );
 
     const deleteSelectedNodes = useCallback(() => {
         const scene = useSceneStore.getState();
@@ -519,14 +531,66 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         visualizer?.invalidateRender?.();
     }, [runSceneCommand, visualizer]);
 
+    const copySelectedNodes = useCallback(() => {
+        const scene = useSceneStore.getState();
+        const selection = useSelectionStore.getState();
+        useSceneEditorStore
+            .getState()
+            .setSceneClipboard(
+                createSceneClipboard(scene, selection.selectedNodeIds, useTimelineStore.getState().timeline.currentTick)
+            );
+    }, []);
+
+    const pasteNodes = useCallback(
+        (withoutAutomation: boolean) => {
+            const clipboard = useSceneEditorStore.getState().sceneClipboard;
+            if (!clipboard) return;
+            const scene = useSceneStore.getState();
+            const selection = useSelectionStore.getState();
+            const destination = scenePasteDestination(
+                scene.graph,
+                selection.activeTarget === 'elements' ? selection.activeNodeId : null
+            );
+            const ok = runSceneCommand(
+                {
+                    type: 'importSubtreeBundle',
+                    bundle: withoutAutomation ? clipboard.withoutAutomation : clipboard.full,
+                    ...destination,
+                    reuseMacros: true,
+                },
+                'SceneSelectionContext.paste'
+            );
+            if (!ok) return;
+            const graph = useSceneStore.getState().graph;
+            const parent = graph.nodesById[destination.parentId];
+            const roots =
+                parent && 'children' in parent ? parent.children.filter((id) => !scene.graph.nodesById[id]) : [];
+            useSelectionStore.getState().selectSceneNodes(roots, roots.at(-1) ?? null);
+            visualizer?.invalidateRender?.();
+        },
+        [runSceneCommand, visualizer]
+    );
+
     const getSceneCommandState = useCallback((commandId: string) => {
         const selection = useSelectionStore.getState();
         const scene = useSceneStore.getState();
         if (commandId === SCENE_COMMANDS.selectAll) {
             return { enabled: Object.keys(scene.graph.nodesById).some((id) => id !== scene.graph.rootId) };
         }
+        if (commandId === SCENE_COMMANDS.paste || commandId === SCENE_COMMANDS.pasteWithoutAutomation) {
+            const destination = scenePasteDestination(
+                scene.graph,
+                selection.activeTarget === 'elements' ? selection.activeNodeId : null
+            );
+            return {
+                enabled:
+                    Boolean(useSceneEditorStore.getState().sceneClipboard) &&
+                    !isNodeEffectivelyLocked(scene.graph, destination.parentId),
+            };
+        }
         if (selection.activeTarget !== 'elements') return { enabled: false };
         const nodeIds = normalizeNodeSelection(scene.graph, selection.selectedNodeIds);
+        if (commandId === SCENE_COMMANDS.copy) return { enabled: nodeIds.length > 0 };
         const editable = nodeIds.length > 0 && nodeIds.every((id) => !isNodeEffectivelyLocked(scene.graph, id));
         if (commandId === SCENE_COMMANDS.group) {
             return {
@@ -542,6 +606,22 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         return { enabled: editable };
     }, []);
 
+    useCommandHandler(SCENE_COMMANDS.copy, {
+        run: copySelectedNodes,
+        getState: () => getSceneCommandState(SCENE_COMMANDS.copy),
+    });
+    useCommandHandler(SCENE_COMMANDS.paste, {
+        run: () => pasteNodes(false),
+        getState: () => getSceneCommandState(SCENE_COMMANDS.paste),
+    });
+    useCommandHandler(SCENE_COMMANDS.pasteWithoutAutomation, {
+        run: () => pasteNodes(true),
+        getState: () => getSceneCommandState(SCENE_COMMANDS.pasteWithoutAutomation),
+    });
+    useCommandHandler(SCENE_COMMANDS.duplicateWithoutAutomation, {
+        run: () => duplicateSelectedNodes(true),
+        getState: () => getSceneCommandState(SCENE_COMMANDS.duplicateWithoutAutomation),
+    });
     useCommandHandler(SCENE_COMMANDS.group, {
         run: groupSelectedNodes,
         getState: () => getSceneCommandState(SCENE_COMMANDS.group),
@@ -551,7 +631,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
         getState: () => getSceneCommandState(SCENE_COMMANDS.ungroup),
     });
     useCommandHandler(SCENE_COMMANDS.duplicate, {
-        run: duplicateSelectedNodes,
+        run: () => duplicateSelectedNodes(),
         getState: () => getSceneCommandState(SCENE_COMMANDS.duplicate),
     });
     useCommandHandler(SCENE_COMMANDS.delete, {

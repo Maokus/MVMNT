@@ -85,7 +85,7 @@ export type SceneCommand =
     | { type: 'groupNodes'; nodeIds: string[]; groupId: string; name?: string; worldPivot?: { x: number; y: number } }
     | { type: 'ungroupNode'; nodeId: string }
     | { type: 'deleteSubtrees'; nodeIds: string[] }
-    | { type: 'duplicateSubtrees'; nodeIds: string[]; mappings: DuplicateMappings }
+    | { type: 'duplicateSubtrees'; nodeIds: string[]; mappings: DuplicateMappings; withoutAutomationAtTick?: number }
     | { type: 'reorderNodes'; parentId: string; nodeIds: string[]; targetIndex: number }
     | {
           type: 'reparentNodes';

@@ -1,3 +1,4 @@
+import { createSceneSubtreeBundle, withoutSubtreeAutomation } from './subtreeBundle';
 import { cloneChannel, nodePropertyTarget } from '@automation/types';
 import {
     cloneSceneGraph,
@@ -11,7 +12,13 @@ import {
     transformSceneNodes,
     ungroupSceneNode,
 } from '@state/scene-graph';
-import { useSceneStore, type ElementBindings, type SceneStoreState } from '@state/sceneStore';
+import {
+    useSceneStore,
+    type BindingState,
+    type ElementBindingsPatch,
+    type ElementBindings,
+    type SceneStoreState,
+} from '@state/sceneStore';
 import type { SceneCommand } from './commandTypes';
 import { compensationAtPlayhead, evaluatedReparentMatrices } from './reparenting';
 
@@ -117,6 +124,13 @@ export function applySceneGraphCommand(
             return true;
         }
         case 'duplicateSubtrees': {
+            const staticBundle =
+                command.withoutAutomationAtTick === undefined
+                    ? null
+                    : withoutSubtreeAutomation(
+                          createSceneSubtreeBundle(store, command.nodeIds),
+                          command.withoutAutomationAtTick
+                      );
             for (const [sourceElementId, newElementId] of Object.entries(command.mappings.elementIdMap)) {
                 getState().duplicateElement(sourceElementId, newElementId);
             }
@@ -152,6 +166,28 @@ export function applySceneGraphCommand(
                     clonedBindings[path] = { type: 'keyframes', channelId: clonedChannel.id };
                 }
                 getState().updateNodeBindings(clonedNodeId, clonedBindings);
+            }
+            if (staticBundle) {
+                for (const [sourceId, newId] of Object.entries(command.mappings.elementIdMap)) {
+                    const bindings = getState().bindings.byElement[newId] ?? {};
+                    const patch: ElementBindingsPatch = {};
+                    for (const [path, binding] of Object.entries(bindings)) {
+                        if (binding.type !== 'keyframes') continue;
+                        getState().removeAutomationChannel(binding.channelId);
+                        patch[path] = (staticBundle.elements[sourceId]?.properties[path] as BindingState) ?? null;
+                    }
+                    getState().updateBindings(newId, patch);
+                }
+                for (const [sourceId, newId] of Object.entries(command.mappings.nodeIdMap)) {
+                    const bindings = getState().nodeBindings[newId] ?? {};
+                    const patch: ElementBindingsPatch = {};
+                    for (const [path, binding] of Object.entries(bindings)) {
+                        if (binding.type !== 'keyframes') continue;
+                        getState().removeAutomationChannel(binding.channelId);
+                        patch[path] = staticBundle.nodeBindings[sourceId]?.[path] ?? null;
+                    }
+                    getState().updateNodeBindings(newId, patch);
+                }
             }
             return true;
         }

@@ -1,3 +1,4 @@
+import type { SceneSubtreeBundle } from './scene/subtreeBundle';
 import { createWithEqualityFn } from 'zustand/traditional';
 import type { NodeTransform } from '@state/scene-graph';
 import { markDocumentChanged as advanceDocumentRevision } from '@state/documentRevisionStore';
@@ -7,7 +8,14 @@ export interface PropertyClipboard {
     values: Record<string, unknown>;
 }
 
+export interface SceneClipboard {
+    full: SceneSubtreeBundle;
+    withoutAutomation: SceneSubtreeBundle;
+}
+
 export interface SceneEditorState {
+    sceneClipboard: SceneClipboard | null;
+    setSceneClipboard(clipboard: SceneClipboard | null): void;
     automationExpandedOwners: string[];
     automationExpandedCurves: string[];
     automationSearchQuery: string;
@@ -30,12 +38,13 @@ export interface SceneEditorState {
     setTransientNodeTransform(nodeId: string, transform: Partial<NodeTransform>): void;
     clearTransientNodeTransforms(nodeIds?: string[], paths?: Array<keyof NodeTransform>): void;
     markDocumentChanged(source: string): void;
-    markHydrated(): void;
+    markHydrated(options?: { preserveSceneClipboard?: boolean }): void;
     invalidateRuntime(): void;
     resetEditorState(): void;
 }
 
 const initialState = () => ({
+    sceneClipboard: null as SceneClipboard | null,
     automationExpandedOwners: [] as string[],
     automationExpandedCurves: [] as string[],
     automationSearchQuery: '',
@@ -62,6 +71,7 @@ export const useSceneEditorStore = createWithEqualityFn<SceneEditorState>((set) 
         })),
     setActivePropertyTab: (ownerId, tabId) =>
         set((state) => ({ activePropertyTab: { ...state.activePropertyTab, [ownerId]: tabId } })),
+    setSceneClipboard: (sceneClipboard) => set({ sceneClipboard }),
     setPropertyClipboard: (propertyClipboard) => set({ propertyClipboard }),
     setTransientNodeTransform: (nodeId, transform) =>
         set((state) => ({
@@ -103,9 +113,10 @@ export const useSceneEditorStore = createWithEqualityFn<SceneEditorState>((set) 
         advanceDocumentRevision(lastMutationSource);
         set((state) => ({ runtimeRevision: state.runtimeRevision + 1, lastMutationSource }));
     },
-    markHydrated: () =>
+    markHydrated: (options) =>
         set((state) => ({
             ...initialState(),
+            sceneClipboard: options?.preserveSceneClipboard ? state.sceneClipboard : null,
             hasInitializedScene: true,
             lastHydratedAt: Date.now(),
             hydrationRevision: state.hydrationRevision + 1,

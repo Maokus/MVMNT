@@ -93,7 +93,7 @@ export function createSceneCommandGateway(dependencies: SceneCommandGatewayDepen
                 const rollbackErrors: unknown[] = [];
                 if (rollbackSnapshot) {
                     try {
-                        dependencies.store.getState().importScene(rollbackSnapshot);
+                        dependencies.store.getState().importScene(rollbackSnapshot, { preserveSceneClipboard: true });
                     } catch (rollbackError) {
                         rollbackErrors.push(rollbackError);
                     }
@@ -159,6 +159,7 @@ export const sceneCommandGateway = createSceneCommandGateway({
                     expandedPropertyGroups: state.expandedPropertyGroups,
                     activePropertyTab: state.activePropertyTab,
                     propertyClipboard: state.propertyClipboard,
+                    sceneClipboard: state.sceneClipboard,
                     transientNodeTransforms: state.transientNodeTransforms,
                     runtimeRevision: state.runtimeRevision,
                     lastMutationSource: state.lastMutationSource,
