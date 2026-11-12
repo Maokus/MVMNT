@@ -3,7 +3,7 @@ import { detectChordFromNotes, detectChordMusicpy, estimateChordPB } from './cho
 import { detectPatternChord, type PatternChordResult } from './pattern-chord-detector';
 
 export type ChordDetectionMethod = 'pattern-scoring' | 'musicpy' | 'template-match' | 'simple-interval';
-export type ChordAnalysisMode = 'active' | 'windowed';
+export type ChordAnalysisMode = 'active' | 'windowed' | 'bar';
 
 export type ChordTimelineNote = {
     note: number;
@@ -134,6 +134,7 @@ export function buildChordObservation(args: {
     analysisMode?: ChordAnalysisMode;
     windowSeconds?: number;
     windowFuturePercent?: number;
+    barWindow?: { start: number; end: number };
 }): ChordObservation {
     const analysisMode = args.analysisMode ?? 'active';
     const activeNotes = activeAt(args.notes, args.targetTime).sort(
@@ -144,19 +145,29 @@ export function buildChordObservation(args: {
     );
     const futureRatio = Math.max(0, Math.min(1, (args.windowFuturePercent ?? 0) / 100));
     const windowSeconds = Math.max(0.05, args.windowSeconds ?? 0.1);
-    const start = Math.max(0, args.targetTime - windowSeconds * (1 - futureRatio));
-    const end = args.targetTime + windowSeconds * futureRatio;
+    if (analysisMode === 'bar' && !args.barWindow) throw new Error('Whole-bar analysis requires bar boundaries');
+    const start =
+        analysisMode === 'bar'
+            ? args.barWindow!.start
+            : Math.max(0, args.targetTime - windowSeconds * (1 - futureRatio));
+    const end = analysisMode === 'bar' ? args.barWindow!.end : args.targetTime + windowSeconds * futureRatio;
     const notes =
-        analysisMode === 'windowed'
+        analysisMode !== 'active'
             ? args.notes.filter((note) => note.endTime > start && note.startTime < end)
             : activeNotes;
-    const bass = activeBass[0];
+    const bassNotes =
+        analysisMode === 'bar'
+            ? (args.bassNotes ?? args.notes)
+                  .filter((note) => note.endTime > start && note.startTime < end)
+                  .sort((left, right) => left.note - right.note || left.startTime - right.startTime)
+            : activeBass;
+    const bass = bassNotes[0];
     return {
         targetTime: args.targetTime,
         notes: [...notes],
-        bassNotes: activeBass,
+        bassNotes,
         midiNotes: notes.map((note) => note.note),
-        chroma: analysisMode === 'windowed' ? windowedChroma(notes, start, end) : weightedChroma(activeNotes),
+        chroma: analysisMode !== 'active' ? windowedChroma(notes, start, end) : weightedChroma(activeNotes),
         bassNote: bass?.note,
         bassPc: bass ? pc(bass.note) : undefined,
         analysisMode,

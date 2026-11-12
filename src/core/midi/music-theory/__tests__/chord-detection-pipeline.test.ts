@@ -35,6 +35,47 @@ const cMajor = (time: number): CanonicalChordResult => ({
 });
 
 describe('chord detection pipeline', () => {
+    it('collects a whole bar with half-open boundaries and overlap-weighted chroma', () => {
+        const notes = [
+            note(59, 0, 2), // Ends at the bar start: excluded.
+            note(60, 1, 2.25), // Carried into the bar: contributes only its overlap.
+            note(64, 2.5, 2.75),
+            note(67, 3, 3.25),
+            note(71, 3.5, 3.75),
+            note(62, 4, 5), // Starts at the next bar: excluded.
+        ];
+        for (const targetTime of [2, 2.9, 3.99]) {
+            const observation = buildChordObservation({
+                targetTime,
+                notes,
+                analysisMode: 'bar',
+                barWindow: { start: 2, end: 4 },
+            });
+            expect(observation.midiNotes).toEqual([60, 64, 67, 71]);
+            expect(observation.bassNote).toBe(60);
+            expect([...observation.chroma]).toEqual([0.25, 0, 0, 0, 0.25, 0, 0, 0.25, 0, 0, 0, 0.25]);
+        }
+    });
+
+    it('includes pedal-held notes carried into a bar', () => {
+        const notes = applySustainPedal(
+            [note(60, 0, 0.2), note(64, 2.5, 2.75), note(67, 3, 3.25)],
+            [
+                { channel: 0, value: 127, time: 0.1 },
+                { channel: 0, value: 0, time: 2.25 },
+            ],
+            4
+        );
+        const observation = buildChordObservation({
+            targetTime: 2,
+            notes,
+            analysisMode: 'bar',
+            barWindow: { start: 2, end: 4 },
+        });
+        expect(observation.midiNotes).toEqual([60, 64, 67]);
+        expect(detectChordFromObservation(observation, 'simple-interval')).toMatchObject({ chordType: 'maj' });
+    });
+
     it('combines alternating bass and chord notes while the sustain pedal is held', () => {
         const notes = [note(48, 0, 0.2), note(64, 0.5, 0.8), note(67, 0.5, 0.8)];
         const sustain = [

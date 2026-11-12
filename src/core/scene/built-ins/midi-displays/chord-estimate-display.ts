@@ -27,6 +27,10 @@ import {
     type ChordSustainEvent,
 } from '@core/midi/music-theory/chord-detection-pipeline';
 import { PLUGIN_CAPABILITIES } from '@mvmnt-app/plugin-sdk';
+import { TimingManager } from '@core/timing/timing-manager';
+import { quarterNotesPerBar } from '@core/timing/meter';
+import { convertTemporalWindow, resolveAlignedWindow } from '@core/timing/temporal-window';
+import { syncSceneElementTiming } from '@core/scene/built-ins/scene-element-timing';
 import { defineHostAdaptedBuiltIn, getEnginePrivateContext } from '@core/scene/built-ins/define-built-in';
 
 const clampWindowSeconds: PropertyTransform<number, SceneElementInterface> = (value, element) => {
@@ -180,6 +184,8 @@ export function formatScaleDegree(pitchClass: number, scaleRoot: string = 'C'): 
 }
 
 export class ChordEstimateDisplayElement extends BoundSceneElement {
+    private timingManager = new TimingManager();
+
     constructor(id: string = 'chordEstimateDisplay', config: { [key: string]: any } = {}) {
         super('chordEstimateDisplay', id, config);
     }
@@ -298,10 +304,20 @@ export class ChordEstimateDisplayElement extends BoundSceneElement {
                         description: 'Choose the MIDI track and analysis window for detection.',
                         properties: [
                             prop.midiTrack('midiTrackId', 'MIDI Track'),
-                            prop.select('analysisMode', 'Analysis Input', 'active', [
-                                { value: 'active', label: 'Active Notes at Playhead' },
-                                { value: 'windowed', label: 'Windowed Chroma' },
-                            ]),
+                            prop.select(
+                                'analysisMode',
+                                'Analysis Input',
+                                'active',
+                                [
+                                    { value: 'active', label: 'Active Notes at Playhead' },
+                                    { value: 'windowed', label: 'Windowed Chroma' },
+                                    { value: 'bar', label: 'Whole Bar' },
+                                ],
+                                {
+                                    description:
+                                        'Whole Bar uses all notes in the current project bar, including upcoming notes, and holds the estimate for that bar.',
+                                }
+                            ),
                             prop.boolean('sustainPedalAware', 'Sustain Pedal Aware', false),
                             prop.select('bassMode', 'Bass Source', 'included', [
                                 { value: 'included', label: 'Include in Harmonic Notes' },
@@ -393,6 +409,7 @@ export class ChordEstimateDisplayElement extends BoundSceneElement {
                                 key: 'smoothingMs',
                                 type: 'number',
                                 label: 'Hold Chord (ms)',
+                                visibleWhen: [{ key: 'analysisMode', notEquals: 'bar' }],
                                 default: 100,
                                 step: 10,
                                 runtime: { transform: clampSmoothingMs, defaultValue: 1 },
@@ -511,14 +528,36 @@ export class ChordEstimateDisplayElement extends BoundSceneElement {
         const holdMilliseconds = Math.max(0, smoothingMs ?? 0);
         const effectiveWindowSeconds = Math.max(0.05, windowSeconds ?? 0.1);
         const holdSeconds = holdMilliseconds / 1000;
-        const queryStart = Math.max(
-            0,
-            t - Math.max(holdSeconds, analysisMode === 'windowed' ? effectiveWindowSeconds : 0)
-        );
-        const queryEnd = t + Math.max(0.000_001, analysisMode === 'windowed' ? effectiveWindowSeconds : 0.000_001);
+        const elementContext = getEnginePrivateContext(this);
+        const timeline = elementContext.timeline;
+        let barWindow: { start: number; end: number } | undefined;
+        if (analysisMode === 'bar') {
+            const metadata = timeline?.getMetadata();
+            const values = metadata?.ok ? metadata.value : undefined;
+            syncSceneElementTiming(
+                this.timingManager,
+                elementContext,
+                values?.tempoBpm ?? 120,
+                values?.timeSignature ?? { numerator: 4, denominator: 4 }
+            );
+            barWindow = convertTemporalWindow(
+                resolveAlignedWindow(
+                    { domain: 'seconds', value: t },
+                    { domain: 'beats', value: quarterNotesPerBar(this.timingManager.timeSignature) },
+                    this.timingManager,
+                    'next'
+                ),
+                'seconds',
+                this.timingManager
+            );
+        }
+        const queryStart =
+            barWindow?.start ??
+            Math.max(0, t - Math.max(holdSeconds, analysisMode === 'windowed' ? effectiveWindowSeconds : 0));
+        const queryEnd =
+            barWindow?.end ?? t + Math.max(0.000_001, analysisMode === 'windowed' ? effectiveWindowSeconds : 0.000_001);
         let noteEvents: ChordTimelineNote[] = [];
         let bassEvents: ChordTimelineNote[] = [];
-        const timeline = getEnginePrivateContext(this).timeline;
         const readSustainEvents = (trackId: string): ChordSustainEvent[] => {
             if (!sustainPedalAware || !timeline) return [];
             const selected = timeline.selectCC({
@@ -581,6 +620,7 @@ export class ChordEstimateDisplayElement extends BoundSceneElement {
             analysisMode: analysisMode ?? 'active',
             windowSeconds: effectiveWindowSeconds,
             windowFuturePercent,
+            barWindow,
         } as const;
 
         const detectionOptions = {
@@ -590,11 +630,18 @@ export class ChordEstimateDisplayElement extends BoundSceneElement {
             includeSevenths,
             preferBassRoot,
         };
-        const frameTimes = [
-            ...new Set([...clusterChordOnsets(harmonicNotes.flatMap((note) => [note.startTime, note.endTime])), t]),
-        ]
-            .filter((time) => time >= queryStart && time <= t)
-            .sort((left, right) => left - right);
+        // Whole-bar observations already span gaps; never hold a chord across the next bar.
+        const frameTimes =
+            analysisMode === 'bar'
+                ? [t]
+                : [
+                      ...new Set([
+                          ...clusterChordOnsets(harmonicNotes.flatMap((note) => [note.startTime, note.endTime])),
+                          t,
+                      ]),
+                  ]
+                      .filter((time) => time >= queryStart && time <= t)
+                      .sort((left, right) => left - right);
         let previousChordKey: string | undefined;
         const frames = frameTimes.map((time) => {
             const observation = buildChordObservation({
@@ -877,7 +924,7 @@ export const chordEstimateDisplay = defineHostAdaptedBuiltIn(
             description: 'Timeline-backed chord estimation',
             category: 'MIDI Displays',
         },
-        capabilities: { required: ['timeline.read'], optional: [] },
+        capabilities: { required: ['timeline.read'], optional: ['timing.conversion'] },
     },
     ChordEstimateDisplayElement
 );
