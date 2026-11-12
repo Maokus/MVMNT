@@ -274,16 +274,16 @@ const ScenePluginsTab: React.FC = () => {
 
                                         <div className="flex flex-col gap-2">
                                             <Button
-                                                variant={plugin.enabled ? 'solid-amber' : 'solid-emerald'}
-                                                size="full"
+                                                variant="secondary"
+                                                size="sm"
                                                 onClick={() => handleTogglePlugin(plugin.manifest.id, plugin.enabled)}
                                                 disabled={isLoading}
                                             >
                                                 {plugin.enabled ? 'Disable' : 'Enable'}
                                             </Button>
                                             <Button
-                                                variant="danger"
-                                                size="full"
+                                                variant="danger-outline"
+                                                size="sm"
                                                 onClick={() => handleRemovePlugin(plugin.manifest.id)}
                                                 disabled={isLoading}
                                             >
