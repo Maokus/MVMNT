@@ -1,3 +1,5 @@
+import { rehydrateAudioSource as rehydrateAudioSourceInternal } from './timeline/audioResidency';
+import { prepareSourceWaveform, cancelObsoleteWaveforms } from './timeline/audioWaveform';
 import { type StateCreator } from 'zustand';
 import { createWithEqualityFn } from 'zustand/traditional';
 import { shallow } from 'zustand/shallow';
@@ -161,6 +163,7 @@ export function getTimelineMutationGeneration(): number {
 
 export function advanceTimelineMutationGeneration(): number {
     timelineMutationGeneration += 1;
+    for (const id of [...activeAudioFeatureJobs.keys()]) cancelActiveAudioFeatureJob(id);
     return timelineMutationGeneration;
 }
 
@@ -179,124 +182,6 @@ function cancelActiveAudioFeatureJob(id: string): void {
 
 const LARGE_AUDIO_IMPORT_BYTES = 64 * 1024 * 1024;
 const LARGE_FEATURE_CACHE_BYTES = 128 * 1024 * 1024;
-
-async function decodeAudioBytes(bytes: ArrayBuffer): Promise<AudioBuffer> {
-    const AudioContextCtor =
-        typeof window !== 'undefined' ? window.AudioContext || (window as any).webkitAudioContext : undefined;
-    if (!AudioContextCtor) {
-        throw new Error('Audio decoding is not supported in this environment.');
-    }
-    const ctx = new AudioContextCtor();
-    try {
-        return await ctx.decodeAudioData(bytes.slice(0));
-    } finally {
-        try {
-            await ctx.close();
-        } catch {
-            /* ignore */
-        }
-    }
-}
-
-async function rehydrateAudioSourceInternal(
-    id: string,
-    get: () => TimelineState,
-    set: (fn: (state: TimelineState) => Partial<TimelineState> | TimelineState) => void
-): Promise<boolean> {
-    const entry = get().audioCache[id];
-    if (!entry) return false;
-    if (entry.audioBuffer) {
-        set((state: TimelineState) => ({
-            audioCache: {
-                ...state.audioCache,
-                [id]: { ...state.audioCache[id], decodedState: 'ready', decodedLastUsedAt: Date.now() },
-            },
-        }));
-        return true;
-    }
-    const original = entry.originalFile;
-    const inlineBytes = original?.bytes;
-    let bytes: ArrayBuffer | undefined;
-    if (inlineBytes) {
-        const copy = new Uint8Array(inlineBytes.byteLength);
-        copy.set(inlineBytes);
-        bytes = copy.buffer;
-    } else if (original?.assetId) {
-        bytes = await AudioAssetStore.get(original.assetId);
-    }
-    if (!bytes) {
-        set((state: TimelineState) => ({
-            audioCache: state.audioCache[id]
-                ? {
-                      ...state.audioCache,
-                      [id]: {
-                          ...state.audioCache[id],
-                          decodedState: 'failed',
-                          decodedFailureReason: 'original asset unavailable',
-                      },
-                  }
-                : state.audioCache,
-        }));
-        return false;
-    }
-
-    set((state: TimelineState) => ({
-        audioCache: state.audioCache[id]
-            ? {
-                  ...state.audioCache,
-                  [id]: { ...state.audioCache[id], decodedState: 'decoding', decodedFailureReason: undefined },
-              }
-            : state.audioCache,
-    }));
-    try {
-        const buffer = await decodeAudioBytes(bytes);
-        set((current: TimelineState) => {
-            const existing = current.audioCache[id];
-            if (!existing) return current;
-            return {
-                audioCache: {
-                    ...current.audioCache,
-                    [id]: {
-                        ...existing,
-                        audioBuffer: buffer,
-                        sampleRate: buffer.sampleRate,
-                        channels: buffer.numberOfChannels,
-                        durationSeconds: buffer.duration,
-                        durationSamples: buffer.length,
-                        decodedState: 'ready',
-                        decodedLastUsedAt: Date.now(),
-                        decodedFailureReason: undefined,
-                    },
-                },
-            } as TimelineState;
-        });
-        recordAudioMemoryDiagnostic({
-            severity: 'info',
-            stage: 'decoded-buffer-rehydrated',
-            message: `Rehydrated decoded audio for ${id} (${formatBytes(estimateAudioBufferBytes(buffer))})`,
-            sourceId: id,
-            bytes: { decodedPcm: estimateAudioBufferBytes(buffer) },
-        });
-        return true;
-    } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        set((state: TimelineState) => ({
-            audioCache: state.audioCache[id]
-                ? {
-                      ...state.audioCache,
-                      [id]: { ...state.audioCache[id], decodedState: 'failed', decodedFailureReason: message },
-                  }
-                : state.audioCache,
-        }));
-        recordAudioMemoryDiagnostic({
-            severity: 'error',
-            stage: 'decoded-buffer-rehydrate-failed',
-            message: `Failed to rehydrate decoded audio for ${id}: ${message}`,
-            sourceId: id,
-        });
-        return false;
-    }
-}
 
 interface ScheduleAudioFeatureAnalysisOptions {
     calculators?: string[];
@@ -340,6 +225,7 @@ function scheduleAudioFeatureAnalysis(
             { value: 0, label: 'preparing' }
         ),
     }));
+    let lastProgressAt = -Infinity;
     const handle = sharedAudioFeatureAnalysisScheduler.schedule({
         audioSourceId: sourceId,
         audioBuffer: buffer,
@@ -352,6 +238,9 @@ function scheduleAudioFeatureAnalysis(
         hopSize: options.profileParams?.hopSize,
         fftSize: options.profileParams?.fftSize ?? undefined,
         onProgress: (value, label) => {
+            const now = performance.now();
+            if (value < 1 && now - lastProgressAt < 100) return;
+            lastProgressAt = now;
             const clamped = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
             set((state: TimelineState) => ({
                 audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
@@ -898,12 +787,15 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                             : s.tracks,
                 };
                 const existingStatus = s.audioFeatureCacheStatus[id];
-                const preserveReadyStatus = Boolean(options?.skipAutoAnalysis && existingStatus?.state === 'ready');
+                const preserveFeatureStatus = Boolean(
+                    options?.skipAutoAnalysis &&
+                    (existingStatus?.state === 'ready' || existingStatus?.state === 'stale')
+                );
                 const statusMessage =
                     (options?.originalFile?.byteLength ?? 0) >= LARGE_AUDIO_IMPORT_BYTES
                         ? 'analysis deferred for large audio import'
                         : 'analysis not started';
-                updates.audioFeatureCacheStatus = preserveReadyStatus
+                updates.audioFeatureCacheStatus = preserveFeatureStatus
                     ? { ...s.audioFeatureCacheStatus }
                     : updateAudioFeatureStatusEntry(
                           s.audioFeatureCacheStatus,
@@ -939,42 +831,7 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                     browserHeapLimit: memorySummary.browserHeapLimitBytes,
                 },
             });
-            // Kick off async peak extraction (non-blocking)
-            (async () => {
-                try {
-                    const { extractPeaksAsync } = await import('@audio/waveform/peak-extractor');
-                    const res = await extractPeaksAsync(buffer, { binSize: 1024, maxBins: 5000 });
-                    set((s: TimelineState) => {
-                        const existing = s.audioCache[id];
-                        if (!existing || existing.waveform?.channelPeaks) {
-                            return { audioCache: s.audioCache } as TimelineState;
-                        }
-                        const waveform: AudioCacheWaveform = {
-                            version: 1,
-                            channelPeaks: res.peaks,
-                            sampleStep: res.binSize ?? Math.max(1, Math.floor(buffer.length / res.peaks.length) || 1),
-                        };
-                        return {
-                            audioCache: {
-                                ...s.audioCache,
-                                [id]: { ...existing, waveform },
-                            },
-                        } as TimelineState;
-                    });
-                    recordAudioMemoryDiagnostic({
-                        severity: 'info',
-                        stage: 'waveform-cache-ready',
-                        message: `Waveform peaks cached for ${id} (${formatBytes(res.peaks.byteLength)})`,
-                        sourceId: id,
-                        bytes: { waveform: res.peaks.byteLength },
-                    });
-                } catch (error) {
-                    console.warn(
-                        `[timelineStore] waveform peak extraction failed for source "${id}". Waveform preview will be skipped`,
-                        error
-                    );
-                }
-            })();
+            prepareSourceWaveform(id, buffer, get, set);
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             console.error(
@@ -1003,8 +860,8 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         }
     },
 
-    async rehydrateAudioSource(id: string) {
-        return rehydrateAudioSourceInternal(id, get, set);
+    async rehydrateAudioSource(id: string, priority = 1) {
+        return rehydrateAudioSourceInternal(id, get, set, getTimelineMutationGeneration, priority);
     },
 
     ingestAudioFeatureCache(id: string, cache: AudioFeatureCache) {
@@ -1134,7 +991,9 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         analysisProfileId?: string | null,
         profileParams?: AudioAnalysisProfileOverrides
     ) {
-        const buffer = get().audioCache[id]?.audioBuffer;
+        const source = get().audioCache[id];
+        const expectedGeneration = getTimelineMutationGeneration();
+        const buffer = source?.audioBuffer;
         if (!buffer) {
             set((s: TimelineState) => ({
                 audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
@@ -1146,7 +1005,12 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                     null
                 ),
             }));
-            void rehydrateAudioSourceInternal(id, get, set).then((ready) => {
+            void rehydrateAudioSourceInternal(id, get, set, getTimelineMutationGeneration).then((ready) => {
+                if (
+                    expectedGeneration !== getTimelineMutationGeneration() ||
+                    get().audioCache[id]?.originalFile !== source?.originalFile
+                )
+                    return;
                 const nextBuffer = get().audioCache[id]?.audioBuffer;
                 if (ready && nextBuffer) {
                     scheduleAudioFeatureAnalysis(id, nextBuffer, get, set, { analysisProfileId, profileParams });
@@ -1178,7 +1042,9 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
         if (!unique.length) {
             return;
         }
-        const buffer = get().audioCache[id]?.audioBuffer;
+        const source = get().audioCache[id];
+        const expectedGeneration = getTimelineMutationGeneration();
+        const buffer = source?.audioBuffer;
         if (!buffer) {
             set((s: TimelineState) => ({
                 audioFeatureCacheStatus: updateAudioFeatureStatusEntry(
@@ -1190,7 +1056,12 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
                     null
                 ),
             }));
-            void rehydrateAudioSourceInternal(id, get, set).then((ready) => {
+            void rehydrateAudioSourceInternal(id, get, set, getTimelineMutationGeneration).then((ready) => {
+                if (
+                    expectedGeneration !== getTimelineMutationGeneration() ||
+                    get().audioCache[id]?.originalFile !== source?.originalFile
+                )
+                    return;
                 const nextBuffer = get().audioCache[id]?.audioBuffer;
                 if (ready && nextBuffer) {
                     scheduleAudioFeatureAnalysis(id, nextBuffer, get, set, {
@@ -1299,9 +1170,6 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
 
     clearAllTracks() {
         advanceTimelineMutationGeneration();
-        for (const key of Array.from(activeAudioFeatureJobs.keys())) {
-            cancelActiveAudioFeatureJob(key);
-        }
         set((state: TimelineState) => createClearedTimelinePersistenceState(state));
         useSelectionStore.getState().clearSelection('tracks');
         try {
@@ -1313,9 +1181,6 @@ const storeImpl: StateCreator<TimelineState> = (set, get) => ({
 
     resetTimeline() {
         advanceTimelineMutationGeneration();
-        for (const key of Array.from(activeAudioFeatureJobs.keys())) {
-            cancelActiveAudioFeatureJob(key);
-        }
         const initial = createInitialTimelineSlice();
         syncSharedTimingManager(initial.timeline);
         set(() => initial);
@@ -1578,6 +1443,8 @@ export const timelineCommandGateway = createTimelineCommandGateway({
 export function disposeTimelineStateRuntime(): void {
     for (const id of [...activeAudioFeatureJobs.keys()]) cancelActiveAudioFeatureJob(id);
     unsubscribeCalculatorRegistration();
+    unsubscribeAudioWaveforms();
+    cancelObsoleteWaveforms({});
     timelineCommandGateway.destroy();
     if (typeof window !== 'undefined' && (window as any).timelineStore === useTimelineStore) {
         delete (window as any).timelineStore;
@@ -1589,3 +1456,7 @@ export function dispatchTimelineCommandDescriptor<TResult = void>(
 ): Promise<TimelineCommandDispatchResult<TResult>> {
     return timelineCommandGateway.dispatchDescriptor<TResult>(descriptor);
 }
+
+const unsubscribeAudioWaveforms = useTimelineStore.subscribe((state, previous) => {
+    if (state.audioCache !== previous.audioCache) cancelObsoleteWaveforms(state.audioCache);
+});

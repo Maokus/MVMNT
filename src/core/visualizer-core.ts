@@ -1,3 +1,4 @@
+import { recordProjectPreviewFrame } from '@utils/projectLoadDiagnostics';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { ModularRenderer } from './render/modular-renderer';
 import { sceneElementRegistry } from '@core/scene/registry';
@@ -314,6 +315,7 @@ export class MIDIVisualizerCore {
         try {
             this._renderInteractionOverlays(targetTime, config);
         } catch {}
+        recordProjectPreviewFrame((typeof performance !== 'undefined' ? performance.now() : Date.now()) - started);
         this._renderCount += 1;
         this._totalRenderMilliseconds +=
             (typeof performance !== 'undefined' ? performance.now() : Date.now()) - started;

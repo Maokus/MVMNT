@@ -1,3 +1,4 @@
+import { AudioPreparationStatus } from './AudioPreparationStatus';
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useVisualizer } from '@context/VisualizerContext';
 import { useSceneSelection } from '@context/SceneSelectionContext';
@@ -598,6 +599,7 @@ const PreviewPanel: React.FC<PreviewPanelProps> = ({ interactive = true }) => {
                 onDragOver={interactive ? handleDragOver : undefined}
                 onDrop={interactive ? handleDrop : undefined}
             >
+                {!visibleSimulationReadiness && <AudioPreparationStatus />}
                 {visibleSimulationReadiness && (
                     <div
                         role="status"

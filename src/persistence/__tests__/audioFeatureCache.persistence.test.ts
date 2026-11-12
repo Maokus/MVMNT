@@ -364,80 +364,84 @@ describe('audio feature cache persistence', () => {
         expect(waveformPayloads?.get('waveform.f32')).toBeInstanceOf(Uint8Array);
     });
 
-    it('restores ready caches without re-triggering audio analysis on import', async () => {
-        const trackId = 'aud_ready';
-        const waveformPeaks = Float32Array.from({ length: 4 }, () => 0.25);
-        const audioBufferStub = {
-            duration: 2,
-            length: 200,
-            numberOfChannels: 1,
-            sampleRate: 44100,
-            copyFromChannel: () => undefined,
-            copyToChannel: () => undefined,
-            getChannelData: () => new Float32Array(200),
-        } as unknown as AudioBuffer;
+    it.each(['ready', 'stale'] as const)(
+        'preserves %s cache status during audio hydration',
+        async (persistedStatus) => {
+            const trackId = 'aud_ready';
+            const waveformPeaks = Float32Array.from({ length: 4 }, () => 0.25);
+            const audioBufferStub = {
+                duration: 2,
+                length: 200,
+                numberOfChannels: 1,
+                sampleRate: 44100,
+                copyFromChannel: () => undefined,
+                copyToChannel: () => undefined,
+                getChannelData: () => new Float32Array(200),
+            } as unknown as AudioBuffer;
 
-        useTimelineStore.setState((state) => ({
-            tracks: {
-                ...state.tracks,
-                [trackId]: {
-                    id: trackId,
-                    name: 'Persisted Audio',
-                    type: 'audio',
-                    enabled: true,
-                    mute: false,
-                    solo: false,
-                    clips: [{ id: `${trackId}__audio_clip`, type: 'audio', sourceId: trackId, offsetTicks: 0 }],
-                    gain: 1,
-                },
-            },
-            tracksOrder: [trackId],
-            audioCache: {
-                ...state.audioCache,
-                [trackId]: {
-                    originalFile: {
-                        name: 'ready.wav',
-                        mimeType: 'audio/wav',
-                        bytes: new Uint8Array([4, 5, 6]),
-                        byteLength: 3,
-                        hash: 'ready-hash',
-                    },
-                    durationSeconds: 2,
-                    durationSamples: 200,
-                    sampleRate: 44100,
-                    channels: 1,
-                    audioBuffer: audioBufferStub,
-                    waveform: {
-                        version: 1,
-                        channelPeaks: waveformPeaks,
-                        sampleStep: 128,
+            useTimelineStore.setState((state) => ({
+                tracks: {
+                    ...state.tracks,
+                    [trackId]: {
+                        id: trackId,
+                        name: 'Persisted Audio',
+                        type: 'audio',
+                        enabled: true,
+                        mute: false,
+                        solo: false,
+                        clips: [{ id: `${trackId}__audio_clip`, type: 'audio', sourceId: trackId, offsetTicks: 0 }],
+                        gain: 1,
                     },
                 },
-            },
-        }));
+                tracksOrder: [trackId],
+                audioCache: {
+                    ...state.audioCache,
+                    [trackId]: {
+                        originalFile: {
+                            name: 'ready.wav',
+                            mimeType: 'audio/wav',
+                            bytes: new Uint8Array([4, 5, 6]),
+                            byteLength: 3,
+                            hash: 'ready-hash',
+                        },
+                        durationSeconds: 2,
+                        durationSamples: 200,
+                        sampleRate: 44100,
+                        channels: 1,
+                        audioBuffer: audioBufferStub,
+                        waveform: {
+                            version: 1,
+                            channelPeaks: waveformPeaks,
+                            sampleStep: 128,
+                        },
+                    },
+                },
+            }));
 
-        const cache = createFeatureCache(trackId);
-        useTimelineStore.getState().ingestAudioFeatureCache(trackId, cache);
+            const cache = createFeatureCache(trackId);
+            useTimelineStore.getState().ingestAudioFeatureCache(trackId, cache);
 
-        const exported = await exportZippedScene();
+            if (persistedStatus === 'stale') useTimelineStore.getState().setAudioFeatureCacheStatus(trackId, 'stale');
+            const exported = await exportZippedScene();
 
-        useTimelineStore.getState().resetTimeline();
-        useTimelineStore.setState((state) => ({
-            ...state,
-            tracks: {},
-            tracksOrder: [],
-            audioCache: {},
-            audioFeatureCaches: {},
-            audioFeatureCacheStatus: {},
-        }));
+            useTimelineStore.getState().resetTimeline();
+            useTimelineStore.setState((state) => ({
+                ...state,
+                tracks: {},
+                tracksOrder: [],
+                audioCache: {},
+                audioFeatureCaches: {},
+                audioFeatureCacheStatus: {},
+            }));
 
-        const result = await importScene(exported.zip);
-        expect(result.ok).toBe(true);
+            const result = await importScene(exported.zip);
+            expect(result.ok).toBe(true);
 
-        const status = useTimelineStore.getState().audioFeatureCacheStatus[trackId];
-        expect(status?.state).toBe('ready');
-        expect(status?.message).toBeUndefined();
-    });
+            const status = useTimelineStore.getState().audioFeatureCacheStatus[trackId];
+            expect(status?.state).toBe(persistedStatus);
+            if (persistedStatus === 'ready') expect(status?.message).toBeUndefined();
+        }
+    );
 
     it('marks a cache stale instead of retaining a truncated spectrogram after restore', async () => {
         const trackId = 'aud_truncated';

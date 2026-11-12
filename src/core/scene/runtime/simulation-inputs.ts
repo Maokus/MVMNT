@@ -399,7 +399,7 @@ export class SimulationGeneration {
                 if (status === 'pending' || status === 'stale')
                     throw new SimulationPending('Audio analysis is pending');
             } else if (!source.audioBuffer) {
-                if (source.decodedState !== 'decoding')
+                if (source.decodedState !== 'decoding' && source.decodedState !== 'deferred')
                     throw new Error(
                         `Audio source '${clip.sourceId}' has no decoded samples. Reload it before simulating.`
                     );

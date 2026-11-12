@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import * as backgroundAudio from '@audio/background-audio';
 import { useTimelineStore } from '@state/timelineStore';
 
 function makeTestAudioBuffer(durationSeconds: number, sampleRate = 8000, channels = 1): AudioBuffer {
@@ -72,4 +73,18 @@ describe('timeline audio feature analysis scheduling', () => {
         expect(status?.state).toBe('idle');
         expect(status?.message).toBe('analysis deferred for large audio import');
     });
+});
+
+it('reuses persisted waveform peaks without scanning decoded audio again', async () => {
+    const extract = vi.spyOn(backgroundAudio, 'extractPeaksInBackground');
+    try {
+        const waveform = { version: 1 as const, channelPeaks: new Float32Array([0.5]), sampleStep: 100 };
+        useTimelineStore.getState().ingestAudioToCache('saved-waveform', makeTestAudioBuffer(0.1), { waveform });
+        await Promise.resolve();
+        expect(extract).not.toHaveBeenCalled();
+        expect(useTimelineStore.getState().audioCache['saved-waveform'].waveform).toBe(waveform);
+    } finally {
+        extract.mockRestore();
+        useTimelineStore.getState().resetTimeline();
+    }
 });

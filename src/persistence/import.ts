@@ -1,3 +1,8 @@
+import { audioDecodeQueue } from '@audio/work-queue';
+import { getBackgroundAudioWorkStats } from '@audio/background-audio';
+import { beginProjectLoadDiagnostics } from '@utils/projectLoadDiagnostics';
+import { summarizeAudioMemory } from '@audio/audioMemoryDiagnostics';
+import { suspendAudioPreparation } from '@audio/features/preparationGate';
 import { validateSceneEnvelope } from './validate';
 import { migrateSceneV8 } from './migrations/sceneV8';
 import { DocumentGateway } from './document-gateway';
@@ -41,7 +46,7 @@ import {
     restoreMidiCache,
     restoreVisualAssets,
 } from './import/assetHydration';
-import { hydrateAudioAssets } from './import/audioHydration';
+import { hydrateAudioAssets, prepareImportedAudioInBackground } from './import/audioHydration';
 import { migrateAndValidateScene } from './import/migrationOrchestration';
 import { applyImportedDocument } from './import/documentApplication';
 import { hydrateSceneFonts, preloadImportedSceneFonts, reconcileHydratedFontTokens } from './import/fontHydration';
@@ -60,7 +65,7 @@ const AUDIO_FEATURE_ASSET_FILENAME = 'feature_caches.json';
 const WAVEFORM_ASSET_FILENAME = 'waveform.json';
 const INLINE_ORIGINAL_FILE_LIMIT_BYTES = 16 * 1024 * 1024;
 
-export async function importScene(
+async function importSceneInternal(
     input: ImportSceneInput,
     options: ImportSceneOptions = {}
 ): Promise<ImportSceneResult> {
@@ -199,6 +204,9 @@ export async function importScene(
         );
     }
 
+    throwIfAborted(options.signal);
+    if (getTimelineMutationGeneration() !== importTimelineGeneration) return { ok: true, errors: [], warnings: [] };
+
     // Audio cache is runtime-only. Retain only sources referenced by the newly
     // loaded timeline before removing old originals from IndexedDB. Doing this
     // after hydration preserves the import cancellation safeguards above.
@@ -215,7 +223,10 @@ export async function importScene(
     const referencedAudioAssetIds = Object.values(activeAudioCache)
         .map((entry) => entry?.originalFile?.assetId)
         .filter((assetId): assetId is string => typeof assetId === 'string');
-    await AudioAssetStore.removeUnreferenced(referencedAudioAssetIds);
+    await AudioAssetStore.removeUnreferenced(
+        referencedAudioAssetIds,
+        () => getTimelineMutationGeneration() === importTimelineGeneration
+    );
 
     const warnings = [
         ...artifactWarnings,
@@ -246,6 +257,39 @@ export async function importScene(
             },
         }));
     }
+    if (options.deferAudioDecoding) prepareImportedAudioInBackground(importTimelineGeneration);
     options.onProgress?.(1, 'Scene loaded.');
-    return { ok: true, errors: [], warnings };
+    return {
+        ok: true,
+        errors: [],
+        warnings,
+        documentChanged: envelope !== migratedEnvelope || fontUpgradePerformed || fontReconciliationPerformed,
+    };
+}
+
+export async function importScene(
+    input: ImportSceneInput,
+    options: ImportSceneOptions = {}
+): Promise<ImportSceneResult> {
+    const diagnostics = beginProjectLoadDiagnostics(() => ({
+        ...summarizeAudioMemory(useTimelineStore.getState().audioCache, useTimelineStore.getState().audioFeatureCaches),
+        queuedDecodes: audioDecodeQueue.getStats().queued,
+        queuedAudioTasks: getBackgroundAudioWorkStats().queued,
+    }));
+    const release = suspendAudioPreparation();
+    let success = false;
+    try {
+        const result = await importSceneInternal(input, {
+            ...options,
+            onProgress: (progress, text) => {
+                if (text) diagnostics.phase(text);
+                options.onProgress?.(progress, text);
+            },
+        });
+        success = result.ok;
+        return result;
+    } finally {
+        release();
+        diagnostics.finish(success);
+    }
 }

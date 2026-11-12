@@ -1,3 +1,4 @@
+import { isAudioPreparationSuspended, onAudioPreparationReleased } from '@audio/features/preparationGate';
 import { createWithEqualityFn } from 'zustand/traditional';
 import type {
     AudioFeatureAnalysisProfileDescriptor,
@@ -1276,6 +1277,7 @@ function runJob(jobId: string): void {
 }
 
 function queueDeclarativeAnalysis(getState: () => AudioDiagnosticsState): void {
+    if (isAudioPreparationSuspended()) return;
     const state = getState();
     const timelineState = useTimelineStore.getState();
     for (const diff of state.diffs) {
@@ -1365,3 +1367,5 @@ export function getDiagnosticsPanelState() {
 }
 
 export type AnalysisHistorySummary = ReturnType<AudioDiagnosticsState['getHistorySummary']>;
+
+onAudioPreparationReleased(() => useAudioDiagnosticsStore.getState().recomputeDiffs());

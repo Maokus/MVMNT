@@ -1,3 +1,4 @@
+import { saveOpenedProjectRecovery } from '@persistence/opened-project-recovery';
 import React, { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useVisualizer } from '@context/VisualizerContext';
@@ -120,6 +121,8 @@ export const TemplateInitializer: React.FC = () => {
                     if (payload) {
                         try {
                             const result = await importScene(payload, {
+                                deferAudioDecoding:
+                                    sessionStorage.getItem('mvmnt.desktop.background-export.v1') === null,
                                 signal: abortController?.signal,
                                 onProgress: (progress, text) => updateTemplateLoading({ progress, message: text }),
                                 autoInstallEmbeddedPlugins:
@@ -148,15 +151,14 @@ export const TemplateInitializer: React.FC = () => {
                                     // Desktop files use their filename as the canonical scene name.
                                     setSceneName(fallbackName || importedName);
                                     await window.mvmntDesktop.documents.acceptOpen();
-                                    const recovery = await LocalSaveService.saveCurrentFile(
-                                        fallbackName || importedName
-                                    );
-                                    if (!recovery.ok) {
-                                        console.warn(
-                                            '[Import] Could not save desktop recovery snapshot:',
-                                            recovery.error
-                                        );
-                                    }
+                                    await saveOpenedProjectRecovery(
+                                        payload,
+                                        result,
+                                        fallbackName || importedName,
+                                        importedName
+                                    ).catch((error) => {
+                                        console.warn('[Import] Could not save desktop recovery snapshot:', error);
+                                    });
                                     localStorage.setItem('mvmnt.desktop.recovery-state', 'clean');
                                     markSaveClean();
                                     markPendingRenderImported();
@@ -255,6 +257,7 @@ export const TemplateInitializer: React.FC = () => {
                         });
                         if (active && !active.canceled && active.kind === 'project' && active.bytes) {
                             const result = await importScene(active.bytes, {
+                                deferAudioDecoding: !hasPendingRender(),
                                 signal: abortController?.signal,
                                 onProgress: (progress, text) => updateTemplateLoading({ progress, message: text }),
                             });

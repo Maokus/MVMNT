@@ -34,7 +34,7 @@ export class ExportPipeline {
         report: ExportReporter = () => undefined
     ): Promise<ExportPipelineResult> {
         report({ progress: 0, text: 'Loading fonts…', stage: 'preparing' });
-        await environment.prepare();
+        await environment.prepare(signal);
         if (signal.aborted) throw new DOMException('Export cancelled', 'AbortError');
 
         if (plan.kind === 'png') return this.runPng(plan, environment, output, signal, report);

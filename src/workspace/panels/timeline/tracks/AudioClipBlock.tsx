@@ -131,7 +131,9 @@ const AudioClipBlock: React.FC<Props> = ({
 
     const { height: clipHeight, headerHeight } = getClipPreviewLayout(laneHeight);
     const preview = getPreviewViewport(leftX, rightX, laneWidth);
-    const isAudioLoading = !audioCacheEntry?.audioBuffer && audioCacheEntry?.decodedState === 'decoding';
+    const isAudioLoading =
+        !audioCacheEntry?.audioBuffer &&
+        (audioCacheEntry?.decodedState === 'decoding' || audioCacheEntry?.decodedState === 'deferred');
     const audioLoadFailed = !audioCacheEntry?.audioBuffer && audioCacheEntry?.decodedState === 'failed';
     const label = formatClipStartLabel(absStartTick, ppq, timeSignature);
     const displayName = clip.name || useTimelineStore.getState().tracks[trackId]?.name || 'Audio clip';

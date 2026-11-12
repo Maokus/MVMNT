@@ -214,7 +214,7 @@ export type TimelineState = {
             skipAutoAnalysis?: boolean;
         }
     ) => void;
-    rehydrateAudioSource: (id: string) => Promise<boolean>;
+    rehydrateAudioSource: (id: string, priority?: number) => Promise<boolean>;
     ingestAudioFeatureCache: (id: string, cache: AudioFeatureCache) => void;
     invalidateAudioFeatureCachesByCalculator: (calculatorId: string, version: number) => void;
     setAudioFeatureCacheStatus: (

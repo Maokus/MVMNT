@@ -99,7 +99,7 @@ export interface SerializedAudioFeatureCache {
 
 const DEFAULT_WINDOW_SIZE = 2048;
 const DEFAULT_HOP_SIZE = 512;
-const ANALYSIS_YIELD_MIN_INTERVAL_MS = 12;
+const ANALYSIS_YIELD_MIN_INTERVAL_MS = 4;
 
 type YieldCallback = () => Promise<void>;
 
@@ -255,7 +255,17 @@ function serializeTypedArray(array: Float32Array | Uint8Array | Int16Array): Ser
     return { type: 'int16', values: Array.from(array) };
 }
 
-function deserializeTypedArray(serialized: SerializedTypedArray): Float32Array | Uint8Array | Int16Array {
+function deserializeTypedArray(
+    serialized: SerializedTypedArray,
+    takeOwnership = false
+): Float32Array | Uint8Array | Int16Array {
+    if (
+        takeOwnership &&
+        (serialized.values instanceof Float32Array ||
+            serialized.values instanceof Uint8Array ||
+            serialized.values instanceof Int16Array)
+    )
+        return serialized.values;
     const values = serialized.values as typeof serialized.values & (number[] | Float32Array | Uint8Array | Int16Array);
     const sliceView = (view: ArrayBufferView) => view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength);
 
@@ -442,7 +452,7 @@ function serializeTrack(track: AudioFeatureTrack): SerializedAudioFeatureTrack {
     };
 }
 
-function deserializeTrack(track: SerializedAudioFeatureTrack): AudioFeatureTrack {
+function deserializeTrack(track: SerializedAudioFeatureTrack, takeOwnership = false): AudioFeatureTrack {
     if (!track.data) {
         throw new Error(`Serialized audio feature track ${track.key} missing data payload`);
     }
@@ -452,6 +462,7 @@ function deserializeTrack(track: SerializedAudioFeatureTrack): AudioFeatureTrack
         const minValues = waveform.min;
         const maxValues = waveform.max;
         const toFloat32 = (values: typeof minValues) => {
+            if (takeOwnership && values instanceof Float32Array) return values;
             if (Array.isArray(values)) {
                 return Float32Array.from(values);
             }
@@ -466,7 +477,7 @@ function deserializeTrack(track: SerializedAudioFeatureTrack): AudioFeatureTrack
             max: toFloat32(maxValues),
         };
     } else {
-        payload = deserializeTypedArray(track.data as SerializedTypedArray);
+        payload = deserializeTypedArray(track.data as SerializedTypedArray, takeOwnership);
     }
     const hopTicks = Math.max(1, Math.round(track.hopTicks ?? track.tempoProjection?.hopTicks ?? 1));
     const rawTrack: AudioFeatureTrack = {
@@ -536,7 +547,10 @@ export function serializeAudioFeatureCache(cache: AudioFeatureCache): Serialized
     return serialized;
 }
 
-export function deserializeAudioFeatureCache(serialized: SerializedAudioFeatureCache): AudioFeatureCache {
+export function deserializeAudioFeatureCache(
+    serialized: SerializedAudioFeatureCache,
+    takeOwnership = false
+): AudioFeatureCache {
     if (!serialized || typeof serialized !== 'object') {
         throw new Error('Invalid audio feature cache payload');
     }
@@ -546,7 +560,7 @@ export function deserializeAudioFeatureCache(serialized: SerializedAudioFeatureC
     }
     const featureTracks: Record<string, AudioFeatureTrack> = {};
     for (const [key, track] of Object.entries(serialized.featureTracks || {})) {
-        const deserialized = deserializeTrack(track);
+        const deserialized = deserializeTrack(track, takeOwnership);
         const { key: compositeKey, track: normalizedTrack } = normalizeFeatureTrackEntry(
             key,
             deserialized,
@@ -581,6 +595,13 @@ export function deserializeAudioFeatureCache(serialized: SerializedAudioFeatureC
     };
 }
 
+const builtInCalculators = new WeakSet<AudioFeatureCalculator>();
+
+export function canAnalyzeInWorker(ids?: string[]): boolean {
+    const selected = ensureCalculatorsRegistered().filter((calculator) => !ids?.length || ids.includes(calculator.id));
+    return selected.length > 0 && selected.every((calculator) => builtInCalculators.has(calculator));
+}
+
 function ensureCalculatorsRegistered(): AudioFeatureCalculator[] {
     const calculators = audioFeatureCalculatorRegistry.list();
     if (calculators.length) {
@@ -612,6 +633,7 @@ function ensureCalculatorsRegistered(): AudioFeatureCalculator[] {
         }),
     ];
     for (const calc of builtins) {
+        builtInCalculators.add(calc);
         audioFeatureCalculatorRegistry.register(calc);
     }
     return audioFeatureCalculatorRegistry.list();
@@ -691,6 +713,7 @@ export async function analyzeAudioBufferFeatures(
             return undefined;
         }
         let lastRatio = 0;
+        let lastReportedAt = -Infinity;
         return (processed: number, total: number) => {
             if (!progress || total <= 0) {
                 return;
@@ -702,6 +725,9 @@ export async function analyzeAudioBufferFeatures(
             }
             lastRatio = ratio;
             const normalized = (completedCalculators + ratio) / totalCalculators;
+            const now = nowTimestamp();
+            if (ratio < 1 && now - lastReportedAt < 100) return;
+            lastReportedAt = now;
             progress(normalized, label);
         };
     };

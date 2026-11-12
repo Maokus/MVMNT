@@ -81,6 +81,7 @@ describe('audio decoded residency', () => {
         const pending = useTimelineStore.getState().rehydrateAudioSource('staleSource');
         expect(useTimelineStore.getState().audioCache.staleSource?.decodedState).toBe('decoding');
 
+        await vi.waitFor(() => expect(rejectDecode).toBeDefined());
         useTimelineStore.getState().resetTimeline();
         rejectDecode?.(new Error('decode failed after reset'));
 
@@ -88,4 +89,42 @@ describe('audio decoded residency', () => {
         expect(useTimelineStore.getState().audioCache.staleSource).toBeUndefined();
         expect(close).toHaveBeenCalled();
     });
+});
+
+it('discards a successful decode when another document reuses the source ID', async () => {
+    let complete!: (buffer: AudioBuffer) => void;
+    const previousContext = (window as any).AudioContext;
+    (window as any).AudioContext = vi.fn(function () {
+        return {
+            decodeAudioData: () =>
+                new Promise<AudioBuffer>((resolve) => {
+                    complete = resolve;
+                }),
+            close: vi.fn(),
+        };
+    });
+    const originalFile = { mimeType: 'audio/wav', bytes: new Uint8Array([1]), byteLength: 1 };
+    const entry = {
+        durationSeconds: 1,
+        durationSamples: 100,
+        sampleRate: 100,
+        channels: 2,
+        originalFile,
+        decodedState: 'deferred' as const,
+    };
+    try {
+        useTimelineStore.setState({ audioCache: { reused: entry } });
+        const pending = useTimelineStore.getState().rehydrateAudioSource('reused');
+        await vi.waitFor(() => expect(complete).toBeDefined());
+        useTimelineStore.getState().resetTimeline();
+        const replacement = { ...entry, originalFile: { ...originalFile, bytes: new Uint8Array([2]) } };
+        useTimelineStore.setState({ audioCache: { reused: replacement } });
+        complete(makeBuffer());
+        await expect(pending).resolves.toBe(false);
+        expect(useTimelineStore.getState().audioCache.reused).toBe(replacement);
+        expect(replacement).not.toHaveProperty('audioBuffer');
+    } finally {
+        (window as any).AudioContext = previousContext;
+        useTimelineStore.getState().resetTimeline();
+    }
 });

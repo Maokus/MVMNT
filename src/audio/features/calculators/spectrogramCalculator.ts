@@ -92,7 +92,7 @@ export function createSpectrogramCalculator({
             const track: AudioFeatureTrack = {
                 key: 'spectrogram',
                 calculatorId: 'mvmnt.spectrogram',
-                version: 3,
+                version: 4,
                 frameCount,
                 channels: binCount,
                 hopTicks,

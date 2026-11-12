@@ -1,3 +1,5 @@
+import { sharedAudioFeatureAnalysisScheduler } from '@audio/features/audioFeatureScheduler';
+import { findReferencedAudioSourceIds } from '@state/timeline/audioClips';
 import { useCallback, useEffect, useRef } from 'react';
 import { useTimelineStore } from '@state/timelineStore';
 import { createTimingContext, secondsToTicks } from '@state/timelineTime';
@@ -86,7 +88,14 @@ export function useExportLifecycle({
             return {
                 canvas,
                 renderer,
-                async prepare() {
+                async prepare(signal?: AbortSignal) {
+                    const timeline = useTimelineStore.getState();
+                    const results = await Promise.all(
+                        [...findReferencedAudioSourceIds(timeline)].map((id) => timeline.rehydrateAudioSource(id))
+                    );
+                    if (results.some((ready) => !ready))
+                        throw new Error('Audio preparation failed. Reload the affected source before exporting.');
+                    await sharedAudioFeatureAnalysisScheduler.waitForIdle(signal);
                     const document = DocumentGateway.build();
                     await ensureSceneFontsLoaded(document.scene?.elements, document.scene?.macros, {
                         strict: true,

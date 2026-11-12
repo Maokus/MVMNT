@@ -38,7 +38,10 @@ export function hydrateAudioFeatureCacheFromAssets(
                     complete = false;
                     continue;
                 }
-                const buffer = binary.buffer.slice(binary.byteOffset, binary.byteOffset + binary.byteLength);
+                const buffer =
+                    binary.byteOffset === 0 && binary.byteLength === binary.buffer.byteLength
+                        ? binary.buffer
+                        : binary.buffer.slice(binary.byteOffset, binary.byteOffset + binary.byteLength);
                 if (ref.kind === 'typed-array') {
                     let values: Float32Array | Uint8Array | Int16Array;
                     if (ref.type === 'float32') {
@@ -65,8 +68,8 @@ export function hydrateAudioFeatureCacheFromAssets(
                         warnings.push(`Audio feature waveform payload too small for ${cacheId}:${trackKey}`);
                         includeTrack = false;
                     } else {
-                        const min = values.slice(0, ref.minLength);
-                        const max = values.slice(ref.minLength, ref.minLength + ref.maxLength);
+                        const min = values.subarray(0, ref.minLength);
+                        const max = values.subarray(ref.minLength, ref.minLength + ref.maxLength);
                         hydrated.data = { type: 'waveform-minmax', min, max };
                     }
                 }
@@ -121,7 +124,7 @@ export function buildDocumentShape(
                         featureWarnings
                     );
                     if (hydrated) {
-                        featureCaches[id] = deserializeAudioFeatureCache(hydrated.cache as any);
+                        featureCaches[id] = deserializeAudioFeatureCache(hydrated.cache as any, true);
                         if (!hydrated.complete) {
                             incompleteFeatureCacheIds.add(id);
                         }
@@ -141,6 +144,7 @@ export function buildDocumentShape(
             }
         }
     }
+    audioFeaturePayloads.clear();
     const restoredAt = Date.now();
     const audioFeatureCacheStatus: NonNullable<ValidatedCurrentDocument['audioFeatureCacheStatus']> =
         Object.fromEntries(

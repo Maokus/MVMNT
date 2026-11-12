@@ -26,3 +26,13 @@ describe('AudioAssetStore', () => {
         expect(await AudioAssetStore.get(staleId)).toBeUndefined();
     });
 });
+
+it('keeps stored originals independent from caller mutations and returned buffers', async () => {
+    const bytes = new Uint8Array([4, 5, 6]);
+    await AudioAssetStore.put('ownership-check', bytes);
+    bytes[0] = 99;
+    const first = new Uint8Array((await AudioAssetStore.get('ownership-check'))!);
+    expect(Array.from(first)).toEqual([4, 5, 6]);
+    first[1] = 99;
+    expect(Array.from(new Uint8Array((await AudioAssetStore.get('ownership-check'))!))).toEqual([4, 5, 6]);
+});

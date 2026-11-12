@@ -87,7 +87,7 @@ export interface ExportRenderAdapter {
 export interface ExportEnvironment {
     canvas: HTMLCanvasElement;
     renderer: ExportRenderAdapter;
-    prepare(): Promise<void>;
+    prepare(signal?: AbortSignal): Promise<void>;
     secondsToTicks(seconds: number): number;
 }
 

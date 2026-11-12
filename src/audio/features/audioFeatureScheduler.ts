@@ -1,4 +1,5 @@
-import { analyzeAudioBufferFeatures, type AnalyzeAudioFeatureOptions } from './audioFeatureAnalysis';
+import type { AnalyzeAudioFeatureOptions } from './audioFeatureAnalysis';
+import { analyzeAudioInBackground } from '../background-audio';
 import type { AudioFeatureCache } from './audioFeatureTypes';
 
 export interface AudioFeatureAnalysisJob extends AnalyzeAudioFeatureOptions {
@@ -67,6 +68,15 @@ export class AudioFeatureAnalysisScheduler {
         return { id, promise, cancel };
     }
 
+    async waitForIdle(signal?: AbortSignal): Promise<void> {
+        // Declarative intents enqueue via microtasks after source restoration.
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+        while (this.activeJob || this.queue.length) {
+            if (signal?.aborted) throw createAbortError();
+            await new Promise<void>((resolve) => setTimeout(resolve, 20));
+        }
+    }
+
     private async processQueue(): Promise<void> {
         if (this.activeJob || !this.queue.length) {
             return;
@@ -77,7 +87,7 @@ export class AudioFeatureAnalysisScheduler {
         }
         this.activeJob = job;
         try {
-            const { cache } = await analyzeAudioBufferFeatures({
+            const { cache } = await analyzeAudioInBackground({
                 ...job.request,
                 onProgress: job.request.onProgress,
             });

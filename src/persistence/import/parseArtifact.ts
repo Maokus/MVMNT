@@ -1,4 +1,5 @@
-import { decodeSceneText, parseScenePackage, ScenePackageError } from '../scene-package';
+import { ScenePackageError } from '../scene-package';
+import { parseScenePackageAsync } from '../parse-scene-async';
 import { throwIfImportAborted } from '../import-abort';
 import type { ImportError, ImportSceneInput, ImportSceneOptions, ParsedArtifact } from './contracts';
 
@@ -26,8 +27,9 @@ export async function parseArtifact(
 
     try {
         options.onProgress?.(0.2, 'Parsing scene package…');
-        return parseScenePackage(bytes);
+        return await parseScenePackageAsync(bytes, options.signal);
     } catch (error) {
+        throwIfImportAborted(options.signal);
         if (error instanceof ScenePackageError || (error as { code?: unknown }).code) {
             const packageError = error as ScenePackageError;
             return { error: { code: packageError.code, message: packageError.message } };

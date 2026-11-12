@@ -115,6 +115,12 @@ async function subtleHash(chunks: AsyncIterable<Uint8Array>): Promise<string> {
 }
 
 export async function sha256Hex(source: HashSource): Promise<string> {
+    const contiguous = normalizeChunk(source);
+    if (contiguous && typeof crypto !== 'undefined' && crypto.subtle) {
+        // digest accepts a view: preserve its byte offset without cloning the whole asset.
+        const digest = await crypto.subtle.digest('SHA-256', contiguous as Uint8Array<ArrayBuffer>);
+        return toHex(new Uint8Array(digest));
+    }
     const iter = toAsyncIterable(source);
     const nodeResult = await nodeHash(iter);
     if (nodeResult) return nodeResult;

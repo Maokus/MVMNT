@@ -50,7 +50,7 @@ export interface AudioCacheEntry {
     filePath?: string; // optional reference (not persisted across sessions yet)
     originalFile?: AudioCacheOriginalFile;
     waveform?: AudioCacheWaveform;
-    decodedState?: 'ready' | 'decoding' | 'failed';
+    decodedState?: 'ready' | 'deferred' | 'decoding' | 'failed';
     decodedLastUsedAt?: number;
     decodedFailureReason?: string;
 }

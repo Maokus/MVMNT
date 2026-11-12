@@ -1,3 +1,4 @@
+import { saveOpenedProjectRecovery } from '@persistence/opened-project-recovery';
 import { useEffect, useRef } from 'react';
 import { dispatchSceneCommand } from '@state/scene';
 import { SceneNameGenerator } from '@core/scene-name-generator';
@@ -309,6 +310,7 @@ export const useMenuBar = ({
         });
         try {
             const imported = await importScene(result.bytes, {
+                deferAudioDecoding: true,
                 signal: abortController.signal,
                 onProgress: (progress, text) =>
                     statusStore.updateLoading({
@@ -332,11 +334,17 @@ export const useMenuBar = ({
             const fallbackName = fileName.replace(/\.mvt$/i, '');
             // The filename is canonical for a saved desktop project. Older files
             // may embed a different title; opening them reconciles to the path.
+            const originalProjectName = useSceneMetadataStore.getState().metadata.name;
             onSceneNameChange(fallbackName || sceneName);
             undo?.reset();
             onSceneRefresh?.();
             await window.mvmntDesktop?.documents.acceptOpen();
-            await LocalFileStore.save(result.bytes).catch(() => undefined);
+            await saveOpenedProjectRecovery(
+                result.bytes,
+                imported,
+                fallbackName || sceneName,
+                originalProjectName
+            ).catch(() => undefined);
             localStorage.setItem('mvmnt.desktop.recovery-state', 'clean');
             markSaveClean();
             void analytics.capture('document_opened', { source });

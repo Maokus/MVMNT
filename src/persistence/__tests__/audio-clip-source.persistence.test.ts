@@ -413,3 +413,45 @@ describe('audio clip source persistence', () => {
         expect((state.tracks.audioTrack2 as any).clips?.[0]?.sourceId).toBe('cacheB');
     });
 });
+
+describe('progressive project opening', () => {
+    it('restores saved waveforms before waiting for audio decoding', async () => {
+        setSceneWithClipAudioSource();
+        useTimelineStore.setState((state) => ({
+            audioCache: {
+                ...state.audioCache,
+                source1: {
+                    ...state.audioCache.source1,
+                    waveform: { version: 1, channelPeaks: new Float32Array([0.25, 0.75]), sampleStep: 50 },
+                },
+            },
+        }));
+        const exported = await exportScene();
+        if (!exported.ok || exported.mode !== 'zip-package') throw new Error('Expected package');
+        useTimelineStore.getState().resetTimeline();
+        let complete!: (buffer: AudioBuffer) => void;
+        const decode = vi.fn(
+            () =>
+                new Promise<AudioBuffer>((resolve) => {
+                    complete = resolve;
+                })
+        );
+        (window as any).AudioContext = vi.fn(function () {
+            return { decodeAudioData: decode, close: vi.fn() };
+        });
+        const imported = await importScene(exported.zip, { deferAudioDecoding: true });
+        expect(imported.ok).toBe(true);
+        const restored = useTimelineStore.getState().audioCache.source1;
+        expect(restored.decodedState).toBe('deferred');
+        expect(restored.audioBuffer).toBeUndefined();
+        expect(Array.from(restored.waveform!.channelPeaks)).toEqual([0.25, 0.75]);
+        expect(decode).not.toHaveBeenCalled();
+        const first = useTimelineStore.getState().rehydrateAudioSource('source1');
+        const second = useTimelineStore.getState().rehydrateAudioSource('source1');
+        await vi.waitFor(() => expect(decode).toHaveBeenCalledOnce());
+        complete(makeAudioBufferStub());
+        await expect(first).resolves.toBe(true);
+        await expect(second).resolves.toBe(true);
+        expect(useTimelineStore.getState().audioCache.source1.decodedState).toBe('ready');
+    });
+});

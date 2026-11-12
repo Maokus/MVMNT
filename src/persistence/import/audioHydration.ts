@@ -1,3 +1,5 @@
+import { measureProjectLoadWork } from '@utils/projectLoadDiagnostics';
+import { decodeAudioSource } from '@audio/decode-audio-source';
 import type { SceneExportEnvelope } from '../export';
 import { AudioAssetStore, createAudioAssetId } from '../audio-asset-store';
 import { sha256Hex } from '@utils/hash/sha256';
@@ -11,50 +13,7 @@ import type { ImportSceneOptions } from './contracts';
 const WAVEFORM_ASSET_FILENAME = 'waveform.json';
 const INLINE_ORIGINAL_FILE_LIMIT_BYTES = 16 * 1024 * 1024;
 
-export async function createAudioBufferFromAsset(record: any, bytes: Uint8Array): Promise<AudioBuffer> {
-    const length = Math.max(1, record.durationSamples || Math.round(record.durationSeconds * record.sampleRate));
-    const sampleRate = record.sampleRate || 44100;
-    const channels = Math.max(1, record.channels || 1);
-    const AudioContextCtor =
-        typeof window !== 'undefined' ? (window as any).AudioContext || (window as any).webkitAudioContext : undefined;
-    if (typeof AudioContextCtor === 'function') {
-        const ctx = new AudioContextCtor();
-        try {
-            const buffer = await ctx.decodeAudioData(
-                bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
-            );
-            return buffer;
-        } finally {
-            ctx.close?.();
-        }
-    }
-    if (typeof AudioBuffer === 'function') {
-        try {
-            return new AudioBuffer({ length, numberOfChannels: channels, sampleRate });
-        } catch {
-            /* ignore */
-        }
-    }
-    const channelData: Float32Array[] = [];
-    for (let c = 0; c < channels; c++) channelData.push(new Float32Array(length));
-    const durationSeconds = typeof record.durationSeconds === 'number' ? record.durationSeconds : length / sampleRate;
-    const fallback: AudioBuffer = {
-        length,
-        duration: durationSeconds,
-        sampleRate,
-        numberOfChannels: channels,
-        copyFromChannel: (destination: Float32Array, channelNumber: number, startInChannel = 0) => {
-            const source = channelData[Math.min(channelNumber, channelData.length - 1)] ?? channelData[0];
-            destination.set(source.subarray(startInChannel, startInChannel + destination.length));
-        },
-        copyToChannel: (source: Float32Array, channelNumber: number, startInChannel = 0) => {
-            const target = channelData[Math.min(channelNumber, channelData.length - 1)] ?? channelData[0];
-            target.set(source, startInChannel);
-        },
-        getChannelData: (channel: number) => channelData[Math.min(channel, channelData.length - 1)] ?? channelData[0],
-    } as unknown as AudioBuffer;
-    return fallback;
-}
+export { createAudioBufferFromAsset } from '@audio/decode-audio-source';
 
 export function buildLightweightAudioCacheEntry(
     record: any,
@@ -81,18 +40,17 @@ export function buildLightweightAudioCacheEntry(
         sampleRate,
         channels,
         originalFile,
-        decodedState: 'failed' as const,
-        decodedFailureReason: 'decoded buffer deferred until playback',
+        decodedState: 'deferred' as const,
+        decodedFailureReason: undefined,
     };
 }
 
 export function buildWaveform(record: any | undefined) {
-    if (!record) return undefined;
-    return {
-        version: 1 as const,
-        channelPeaks: new Float32Array(record.channelPeaks ?? []),
-        sampleStep: record.sampleStep ?? 1,
-    };
+    if (!record || !Number.isFinite(record.sampleStep) || record.sampleStep <= 0) return undefined;
+    const channelPeaks =
+        record.channelPeaks instanceof Float32Array ? record.channelPeaks : new Float32Array(record.channelPeaks ?? []);
+    if (!channelPeaks.length || !channelPeaks.every(Number.isFinite)) return undefined;
+    return { version: 1 as const, channelPeaks, sampleStep: record.sampleStep };
 }
 
 export function resolveWaveformRecord(
@@ -258,7 +216,7 @@ export async function hydrateAudioAssets(
     for (const [assetId, { record, bytes }] of assetData) {
         throwIfAborted(options.signal);
         try {
-            const hash = await sha256Hex(bytes);
+            const hash = await measureProjectLoadWork('Audio hash validation', () => sha256Hex(bytes));
             if (record.hash && hash !== record.hash) warnings.push(`Hash mismatch for asset ${assetId}`);
         } catch {
             warnings.push(`Failed to hash asset ${assetId}`);
@@ -290,7 +248,9 @@ export async function hydrateAudioAssets(
         };
         if (payload.bytes.byteLength > INLINE_ORIGINAL_FILE_LIMIT_BYTES) {
             const storedAssetId = createAudioAssetId('audio-import');
-            const storage = await AudioAssetStore.put(storedAssetId, payload.bytes);
+            const storage = await measureProjectLoadWork('Audio original storage', () =>
+                AudioAssetStore.put(storedAssetId, payload.bytes)
+            );
             if (!isAudioHydrationStillCurrent(expectedTimelineGeneration)) {
                 break;
             }
@@ -318,6 +278,7 @@ export async function hydrateAudioAssets(
         // this source is decoded.
         const lightweightEntry = {
             ...buildLightweightAudioCacheEntry(payload.record, originalFile),
+            waveform,
             decodedState: 'decoding' as const,
             decodedFailureReason: undefined,
         };
@@ -335,8 +296,31 @@ export async function hydrateAudioAssets(
                 },
             };
         });
+        if (options.deferAudioDecoding) {
+            useTimelineStore.setState((state) => {
+                if (
+                    !isAudioHydrationStillCurrent(expectedTimelineGeneration) ||
+                    state.audioCache[originalId]?.originalFile !== originalFile
+                )
+                    return state;
+                return {
+                    audioCache: {
+                        ...state.audioCache,
+                        [originalId]: { ...lightweightEntry, waveform, decodedState: 'deferred' },
+                    },
+                };
+            });
+            consumed.add(originalId);
+            continue;
+        }
         try {
-            const buffer = await createAudioBufferFromAsset(payload.record, payload.bytes);
+            const buffer = await decodeAudioSource(
+                lightweightEntry,
+                () =>
+                    isAudioHydrationStillCurrent(expectedTimelineGeneration) &&
+                    useTimelineStore.getState().audioCache[originalId]?.originalFile === originalFile
+            );
+            throwIfAborted(options.signal);
             const timelineState = useTimelineStore.getState();
             if (
                 !isAudioHydrationStillCurrent(expectedTimelineGeneration) ||
@@ -346,14 +330,16 @@ export async function hydrateAudioAssets(
                 continue;
             }
             const cacheStatus = timelineState.audioFeatureCacheStatus?.[originalId];
-            const hasReadyFeatureCache =
-                !!timelineState.audioFeatureCaches?.[originalId] && cacheStatus?.state === 'ready';
+            const hasRestoredFeatureCache =
+                !!timelineState.audioFeatureCaches?.[originalId] &&
+                (cacheStatus?.state === 'ready' || cacheStatus?.state === 'stale');
             ingest(originalId, buffer, {
                 originalFile,
                 waveform,
-                skipAutoAnalysis: hasReadyFeatureCache,
+                skipAutoAnalysis: hasRestoredFeatureCache,
             });
         } catch (error) {
+            throwIfAborted(options.signal);
             if (
                 !isAudioHydrationStillCurrent(expectedTimelineGeneration) ||
                 !shouldHydrateAudioSource(originalId, useTimelineStore.getState())
@@ -366,6 +352,8 @@ export async function hydrateAudioAssets(
                     ...state.audioCache,
                     [originalId]: {
                         ...buildLightweightAudioCacheEntry(payload.record, originalFile),
+                        decodedState: 'failed',
+                        decodedFailureReason: (error as Error).message,
                         waveform,
                     },
                 },
@@ -375,5 +363,19 @@ export async function hydrateAudioAssets(
         consumed.add(originalId);
     }
 
+    assetPayloads.clear();
+    waveformPayloads.clear();
     return warnings;
+}
+
+/** Background work retains IDs and generation, never the unpacked package. */
+export function prepareImportedAudioInBackground(expectedGeneration: number): void {
+    const sources = [...findReferencedAudioSourceIds(useTimelineStore.getState())];
+    setTimeout(() => {
+        if (!isAudioHydrationStillCurrent(expectedGeneration)) return;
+        for (const id of sources) {
+            const state = useTimelineStore.getState();
+            if (state.audioCache[id]?.decodedState === 'deferred') void state.rehydrateAudioSource(id, 0);
+        }
+    }, 0);
 }

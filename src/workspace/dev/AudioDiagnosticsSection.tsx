@@ -1,3 +1,4 @@
+import { getProjectLoadDiagnostics, subscribeProjectLoadDiagnostics } from '@utils/projectLoadDiagnostics';
 import React from 'react';
 import { formatBytes, summarizeAudioMemory } from '@audio/audioMemoryDiagnostics';
 import type {
@@ -243,6 +244,7 @@ export const AudioMemoryDiagnosticsSection: React.FC<AudioDiagnosticsSectionProp
     const audioFeatureCaches = useTimelineStore((state) => state.audioFeatureCaches);
     const memoryEvents = useAudioMemoryDiagnosticsStore((state) => state.events);
     const clearMemoryEvents = useAudioMemoryDiagnosticsStore((state) => state.clear);
+    const loading = React.useSyncExternalStore(subscribeProjectLoadDiagnostics, getProjectLoadDiagnostics);
 
     const [memoryOpen, setMemoryOpen] = React.useState(true);
 
@@ -260,6 +262,24 @@ export const AudioMemoryDiagnosticsSection: React.FC<AudioDiagnosticsSectionProp
             onToggle={onToggle}
             subtitle={`${memorySummary.sourceCount} sources · ${formatBytes(memorySummary.retainedAudioBytes)}`}
         >
+            {loading && (
+                <details style={{ fontSize: 11, marginBottom: 12 }}>
+                    <summary>
+                        Project opening:{' '}
+                        {loading.editorReadyMs === undefined
+                            ? 'loading'
+                            : `${Math.round(loading.editorReadyMs)} ms to editor`}{' '}
+                        · {loading.longTaskCount} long tasks · {loading.settled ? 'complete' : 'observing'}
+                    </summary>
+                    <p>
+                        Longest frame gap: {Math.round(loading.maxFrameGapMs)} ms. Long-task time:{' '}
+                        {Math.round(loading.longTaskMs)} ms.
+                    </p>
+                    <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 260, overflow: 'auto' }}>
+                        {JSON.stringify(loading, null, 2)}
+                    </pre>
+                </details>
+            )}
             <CollapsibleCard
                 title="Audio Memory"
                 open={memoryOpen}

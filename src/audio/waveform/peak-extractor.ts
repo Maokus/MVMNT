@@ -59,7 +59,8 @@ export function extractPeaks(buffer: AudioBuffer, opts: PeakExtractionOptions = 
 export async function extractPeaksAsync(
     buffer: AudioBuffer,
     opts: PeakExtractionOptions = {},
-    chunkMillis = 8
+    chunkMillis = 8,
+    signal?: AbortSignal
 ): Promise<PeakExtractionResult> {
     const channels = buffer.numberOfChannels;
     const length = buffer.length;
@@ -78,6 +79,7 @@ export async function extractPeaksAsync(
 
     let b = 0;
     while (b < bins) {
+        if (signal?.aborted) throw new DOMException('Waveform preparation aborted', 'AbortError');
         const sliceStartTime = performance.now();
         while (b < bins && performance.now() - sliceStartTime < chunkMillis) {
             const start = b * binSize;

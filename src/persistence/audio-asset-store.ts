@@ -1,3 +1,4 @@
+import { copyBytesInChunks } from '@utils/copyBytes';
 const DB_NAME = 'mvmnt-audio-assets';
 const STORE_NAME = 'audio-assets';
 
@@ -89,7 +90,10 @@ export function createAudioAssetId(prefix = 'audio'): string {
 export const AudioAssetStore = {
     async put(id: string, data: ArrayBuffer | ArrayBufferView): Promise<AudioAssetStorageKind> {
         if (!id) throw new Error('AudioAssetStore.put: id is required');
-        const buffer = toArrayBuffer(data);
+        const view = ArrayBuffer.isView(data)
+            ? new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
+            : new Uint8Array(data);
+        const buffer = (await copyBytesInChunks(view)).buffer;
         const indexedDB = getIndexedDB();
         if (indexedDB) {
             try {
@@ -102,7 +106,7 @@ export const AudioAssetStore = {
                 /* fall through to memory */
             }
         }
-        memoryCache.set(id, buffer.slice(0));
+        memoryCache.set(id, buffer);
         return 'memory';
     },
 
@@ -110,7 +114,7 @@ export const AudioAssetStore = {
         if (!id) return undefined;
         const cached = memoryCache.get(id);
         if (cached) {
-            return cached.slice(0);
+            return (await copyBytesInChunks(new Uint8Array(cached))).buffer;
         }
         if (!getIndexedDB()) {
             return undefined;
@@ -123,7 +127,7 @@ export const AudioAssetStore = {
                     request.onsuccess = () => {
                         const value = request.result;
                         if (value instanceof ArrayBuffer) {
-                            resolve(value.slice(0));
+                            resolve(value);
                         } else if (value && typeof Blob !== 'undefined' && value instanceof Blob) {
                             value
                                 .arrayBuffer()
@@ -148,7 +152,10 @@ export const AudioAssetStore = {
      * records would otherwise make IndexedDB grow every time a project is
      * opened. This is best-effort: an unavailable store must not block import.
      */
-    async removeUnreferenced(referencedAssetIds: Iterable<string>): Promise<number> {
+    async removeUnreferenced(
+        referencedAssetIds: Iterable<string>,
+        isCurrent: () => boolean = () => true
+    ): Promise<number> {
         const referenced = new Set(referencedAssetIds);
         let removed = 0;
 
@@ -162,16 +169,21 @@ export const AudioAssetStore = {
         if (!getIndexedDB()) return removed;
         try {
             const db = await openDatabase();
+            if (!isCurrent()) return removed;
             await new Promise<void>((resolve, reject) => {
                 const tx = db.transaction(STORE_NAME, 'readwrite');
                 const store = tx.objectStore(STORE_NAME);
-                const cursorRequest = store.openCursor();
+                const cursorRequest = store.openKeyCursor();
                 cursorRequest.onerror = () => reject(cursorRequest.error ?? new Error('Audio asset cleanup failed'));
                 cursorRequest.onsuccess = () => {
+                    if (!isCurrent()) {
+                        tx.abort();
+                        return;
+                    }
                     const cursor = cursorRequest.result;
                     if (!cursor) return;
                     if (typeof cursor.key === 'string' && !referenced.has(cursor.key)) {
-                        cursor.delete();
+                        store.delete(cursor.primaryKey);
                         removed++;
                     }
                     cursor.continue();

@@ -15,6 +15,8 @@ export interface ImportResultSuccess {
     ok: true;
     errors: [];
     warnings: ImportWarning[];
+    /** Import changed persisted content, so recovery must serialize the new document. */
+    documentChanged?: boolean;
 }
 
 export interface ImportResultFailure {
@@ -27,6 +29,8 @@ export type ImportSceneResult = ImportResultSuccess | ImportResultFailure;
 export type ImportSceneInput = ArrayBuffer | Uint8Array | Blob;
 
 export interface ImportSceneOptions {
+    /** Restore saved previews before decoding audio in the background. */
+    deferAudioDecoding?: boolean;
     signal?: AbortSignal;
     onProgress?: (progress: number, text?: string) => void;
     /** Install embedded dependencies without prompting (used by isolated background exports). */
