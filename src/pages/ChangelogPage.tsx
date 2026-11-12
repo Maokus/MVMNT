@@ -24,6 +24,24 @@ const ChangelogPage: React.FC = () => {
 
                 <div className="space-y-10">
                     <ChangelogEntry
+                        version="0.16.1"
+                        date="Unreleased"
+                        notes={[
+                            'Redesigned workspace: dock, stack, reorder, and resize panels on all four edges (by yuuntal!! thank you for contributing :D)',
+                            'Refreshed top bar and consistent buttons, menus, dialogs, and controls throughout the app',
+                            'Preview zoom and pan, fit-selection shortcuts, and a new Controls reference',
+                            'Improved element selection, rename editing, and keyboard navigation in the scene hierarchy',
+                            'Move MIDI and audio clips together with live previews, overlap protection, and single-step undo',
+                            'Playback-range highlighting and more reliable timeline selection and range handles',
+                            'Import multiple MIDI and audio files together with one Import files button',
+                            'Track setup skips connected inputs, and audio-analysis prompts no longer overlap it',
+                            'Linux x64 builds, available as Debian packages and portable ZIPs',
+                            'Community opens on plugins by default, with corrected download counts and compatibility updates',
+                            'Fixed Windows keyboard focus after native dialogs and invalid MIDI tempo handling',
+                        ]}
+                    />
+
+                    <ChangelogEntry
                         version="0.16.0"
                         date="8-10-26"
                         notes={[
