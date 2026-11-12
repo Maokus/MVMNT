@@ -53,7 +53,7 @@ jobs:
 
     macos:
         needs: verify
-        runs-on: macos-14
+        runs-on: macos-15
         env:
             VITE_PUBLIC_POSTHOG_PROJECT_TOKEN: ${{ vars.POSTHOG_EU_PROJECT_TOKEN }}
             VITE_PUBLIC_POSTHOG_HOST: https://eu.i.posthog.com

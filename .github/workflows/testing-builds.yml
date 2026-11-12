@@ -74,7 +74,7 @@ jobs:
             matrix:
                 include:
                     - name: macOS
-                      runner: macos-14
+                      runner: macos-15
                       command: npm run make:mac
                       artifact_suffix: macOS-universal
                       artifact_path: out/make/*.dmg

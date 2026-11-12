@@ -12,6 +12,17 @@ const forgeConfig = require('../../forge.config.cjs');
 const { nativePackageVersions } = require('../../scripts/native-package-version.cjs');
 
 describe('macOS packaging dependencies', () => {
+    it('uses a supported macOS runner for nightly and stable universal builds', () => {
+        const nightly = readFileSync(resolve('.github/workflows/testing-builds.yml'), 'utf8');
+        const stable = readFileSync(resolve('.github/workflows/desktop-release.yml'), 'utf8');
+        expect(nightly).toMatch(/name: macOS\s+runner: macos-15\s+command: npm run make:mac/);
+        expect(stable).toMatch(/macos:\s+needs: verify\s+runs-on: macos-15/);
+        for (const workflow of [nightly, stable]) {
+            expect(workflow).not.toContain('macos-14');
+            expect(workflow).toContain('npm run make:mac');
+        }
+    });
+
     it('makes appdmg optional so Linux verification installs succeed', () => {
         expect(packageManifest.optionalDependencies.appdmg).toBeDefined();
 
