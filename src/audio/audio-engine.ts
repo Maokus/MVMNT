@@ -70,6 +70,8 @@ export class AudioEngine {
     private activeMidiVoices: Map<string, ActiveMidiVoice> = new Map();
     private rehydratingSources: Set<string> = new Set();
     private playbackActive = false;
+    // Async preparation may finish after a stop or a newer play/seek request.
+    private playbackGeneration = 0;
     private lastPlayheadTick: number = 0; // last tick we initiated playback from
     private unsub?: () => void;
     // Adaptive lookahead scaffolding (currently passive; future scheduling granularity may use this)
@@ -149,9 +151,12 @@ export class AudioEngine {
      * We schedule / start all audible track sources fresh.
      */
     async playTick(playFromTick: number) {
+        const generation = ++this.playbackGeneration;
         this.playbackActive = true;
         this.lastPlayheadTick = playFromTick;
         const ctx = await this.ensureContext();
+        if (generation !== this.playbackGeneration) return;
+        const startedAt = ctx.currentTime;
         if (ctx.state === 'suspended') {
             try {
                 await ctx.resume();
@@ -159,15 +164,19 @@ export class AudioEngine {
                 /* ignore */
             }
         }
+        if (generation !== this.playbackGeneration) return;
         this.stopAllSources();
         this.stopMidiVoices();
         const rehydration = this.rehydrateAudibleSourcesForPlayback();
         if (rehydration) await rehydration;
-        this.startAudibleSources(playFromTick);
-        this.scheduleMidiPreview(playFromTick);
+        if (generation !== this.playbackGeneration) return;
+        const currentTick = this.getPreparedPlaybackTick(playFromTick, ctx.currentTime - startedAt);
+        this.startAudibleSources(currentTick);
+        this.scheduleMidiPreview(currentTick);
     }
 
     stop() {
+        this.playbackGeneration += 1;
         this.playbackActive = false;
         this.stopAllSources();
         this.stopMidiVoices();
@@ -177,8 +186,7 @@ export class AudioEngine {
         try {
             this.unsub?.();
         } catch {}
-        this.stopAllSources();
-        this.stopMidiVoices();
+        this.stop();
         try {
             this.ctx?.close();
         } catch {}
@@ -188,14 +196,26 @@ export class AudioEngine {
     /** Called by TransportCoordinator on seek while playing. */
     async seek(playFromTick: number) {
         if (!this.ctx) return; // nothing to do
+        const generation = ++this.playbackGeneration;
+        const ctx = this.ctx;
+        const startedAt = ctx.currentTime;
         this.playbackActive = true;
         this.lastPlayheadTick = playFromTick;
         // Recreate sources at new timeline position
         this.stopAllSources();
+        this.stopMidiVoices();
         const rehydration = this.rehydrateAudibleSourcesForPlayback();
         if (rehydration) await rehydration;
-        this.startAudibleSources(playFromTick);
-        this.scheduleMidiPreview(playFromTick);
+        if (generation !== this.playbackGeneration) return;
+        const currentTick = this.getPreparedPlaybackTick(playFromTick, ctx.currentTime - startedAt);
+        this.startAudibleSources(currentTick);
+        this.scheduleMidiPreview(currentTick);
+    }
+
+    private getPreparedPlaybackTick(playFromTick: number, elapsedSeconds: number): number {
+        if (elapsedSeconds <= 0) return playFromTick;
+        const timing = getSharedTimingManager();
+        return timing.secondsToTicks(timing.ticksToSeconds(playFromTick) + Math.max(0, elapsedSeconds));
     }
 
     /** Apply gain change realtime if node exists */
@@ -528,13 +548,14 @@ export class AudioEngine {
         const store = useTimelineStore.getState();
         const entry = store.audioCache[sourceId];
         if (!entry || entry.decodedState === 'decoding') return;
+        const generation = this.playbackGeneration;
         this.rehydratingSources.add(sourceId);
         void store
             .rehydrateAudioSource(sourceId)
             .then((ready) => {
                 this.rehydratingSources.delete(sourceId);
                 if (!ready || !this.ctx) return;
-                if (!this.playbackActive) return;
+                if (!this.playbackActive || generation !== this.playbackGeneration) return;
                 const latest = useTimelineStore.getState();
                 void this.seek(latest.timeline.currentTick ?? this.lastPlayheadTick);
             })
