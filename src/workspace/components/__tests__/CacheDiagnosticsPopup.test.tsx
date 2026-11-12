@@ -119,4 +119,37 @@ describe('CacheDiagnosticsPopup', () => {
             '42'
         );
     });
+    it('preserves calculation progress while presentation is blocked', () => {
+        vi.spyOn(useAudioDiagnosticsStore.getState(), 'regenerateAll').mockImplementation(() => {});
+        useTimelineStore.setState({
+            audioFeatureCacheStatus: {
+                source: { state: 'pending', updatedAt: Date.now(), progress: { value: 0.2, label: 'Spectrum' } },
+            },
+        });
+        useAudioDiagnosticsStore.setState({
+            missingPopupVisible: true,
+            diffs: [{ audioSourceId: 'source', missing: ['spectrum'], stale: [] }] as any,
+        });
+        const view = render(<CacheDiagnosticsPopup />);
+        fireEvent.click(screen.getByRole('button', { name: 'Calculate' }));
+        view.rerender(<CacheDiagnosticsPopup presentationBlocked />);
+        expect(screen.queryByText('Calculating audio features')).not.toBeInTheDocument();
+        act(() =>
+            useTimelineStore.setState({
+                audioFeatureCacheStatus: {
+                    source: { state: 'pending', updatedAt: Date.now(), progress: { value: 0.7, label: 'Spectrum' } },
+                },
+            })
+        );
+        view.rerender(<CacheDiagnosticsPopup />);
+        expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '70');
+        expect(useAudioDiagnosticsStore.getState().regenerateAll).toHaveBeenCalledOnce();
+        act(() => {
+            useTimelineStore.setState({
+                audioFeatureCacheStatus: { source: { state: 'idle', updatedAt: Date.now() } },
+            });
+            useAudioDiagnosticsStore.setState({ missingPopupVisible: false });
+        });
+        expect(screen.queryByText('Calculating audio features')).not.toBeInTheDocument();
+    });
 });

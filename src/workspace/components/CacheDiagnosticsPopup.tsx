@@ -14,7 +14,7 @@ function formatProgressLabel(statuses: AudioFeatureCacheStatus[]): string {
     return label;
 }
 
-export const CacheDiagnosticsPopup: React.FC = () => {
+export const CacheDiagnosticsPopup: React.FC<{ presentationBlocked?: boolean }> = ({ presentationBlocked = false }) => {
     const visible = useAudioDiagnosticsStore((state) => state.missingPopupVisible);
     const dismissMissingPopup = useAudioDiagnosticsStore((state) => state.dismissMissingPopup);
     const regenerateAll = useAudioDiagnosticsStore((state) => state.regenerateAll);
@@ -71,7 +71,7 @@ export const CacheDiagnosticsPopup: React.FC = () => {
         regenerateAll();
     }, [diffs, regenerateAll]);
 
-    if (!visible && !isCalculating) {
+    if (presentationBlocked || (!visible && !isCalculating)) {
         return null;
     }
 

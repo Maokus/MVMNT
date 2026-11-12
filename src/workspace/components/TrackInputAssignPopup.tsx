@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import TimelineTrackSelect from '@workspace/forms/inputs/TimelineTrackSelect';
-import type { TrackInputDef } from '@context/SceneSelectionContext';
+import { compatibleTrackIds, validTrackSelection, type TrackInputDef } from '@context/trackInputSetup';
+import { useTimelineStore } from '@state/timelineStore';
 import { Button } from './Button';
 import { PopupCard } from './PopupCard';
 
@@ -20,8 +21,14 @@ const TrackInputAssignPopup: React.FC<Props> = ({ elementId, trackInputs, onDism
         return init;
     });
 
+    const tracks = useTimelineStore((state) => state.tracks);
+    const assignments = Object.fromEntries(
+        trackInputs
+            .filter((input) => validTrackSelection(input, values[input.key], tracks))
+            .map((input) => [input.key, values[input.key]])
+    );
     const handleAssign = () => {
-        onAssign(values);
+        if (Object.keys(assignments).length) onAssign(assignments);
     };
 
     return (
@@ -33,18 +40,41 @@ const TrackInputAssignPopup: React.FC<Props> = ({ elementId, trackInputs, onDism
             data-preserve-selection="true"
             onPointerDown={(e) => e.stopPropagation()}
         >
-            <PopupCard title={`Added element with track input${trackInputs.length > 1 ? 's' : ''}`}>
-                <p className="m-0 text-neutral-200">Assign track input{trackInputs.length > 1 ? 's' : ''}?</p>
+            <PopupCard title="Connect tracks">
+                <p className="m-0 text-neutral-200">Choose tracks to connect this element.</p>
                 <div className="flex flex-col gap-2">
                     {trackInputs.map((t) => (
                         <div key={t.key} className="flex flex-col gap-1">
-                            <label className="text-[11px] text-neutral-400">{t.label}</label>
+                            <label
+                                htmlFor={`track-assign-${elementId}-${t.key}`}
+                                className="text-[11px] text-neutral-400"
+                            >
+                                {t.label}
+                            </label>
+                            {!compatibleTrackIds(t, tracks).length && (
+                                <p className="m-0 text-neutral-400">
+                                    Import{' '}
+                                    {t.allowedTrackTypes?.length === 1 && t.allowedTrackTypes[0] === 'audio'
+                                        ? 'an audio'
+                                        : t.allowedTrackTypes?.includes('audio')
+                                          ? 'a MIDI or audio'
+                                          : 'a MIDI'}{' '}
+                                    file in the timeline to connect this element.
+                                </p>
+                            )}
                             {/* ae-style + ae-property-input gives the same select styling as the property panel */}
                             <div className="ae-style">
                                 <div className="ae-property-input" style={{ maxWidth: '100%', minWidth: 0 }}>
                                     <TimelineTrackSelect
                                         id={`track-assign-${elementId}-${t.key}`}
-                                        value={values[t.key] ?? null}
+                                        value={
+                                            validTrackSelection(t, values[t.key], tracks)
+                                                ? values[t.key]
+                                                : t.allowMultiple
+                                                  ? []
+                                                  : null
+                                        }
+                                        disabled={!compatibleTrackIds(t, tracks).length}
                                         schema={{
                                             allowMultiple: t.allowMultiple,
                                             allowedTrackTypes: t.allowedTrackTypes,
@@ -58,9 +88,14 @@ const TrackInputAssignPopup: React.FC<Props> = ({ elementId, trackInputs, onDism
                 </div>
                 <div className="flex flex-wrap justify-end gap-2">
                     <Button variant="muted" size="sm" onClick={onDismiss}>
-                        Dismiss
+                        Later
                     </Button>
-                    <Button variant="accent" size="sm" onClick={handleAssign}>
+                    <Button
+                        variant="accent"
+                        size="sm"
+                        onClick={handleAssign}
+                        disabled={!Object.keys(assignments).length}
+                    >
                         Assign
                     </Button>
                 </div>

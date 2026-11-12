@@ -21,7 +21,6 @@ const RenderModal = React.lazy(() => import('../modals/RenderModal'));
 import { useSceneEditorStore } from '@state/sceneEditorStore';
 import { TemplateLoadingOverlay } from '../../components/TemplateLoadingOverlay';
 import { useTemplateStatusStore } from '@state/templateStatusStore';
-import { CacheDiagnosticsPopup } from '@workspace/components/CacheDiagnosticsPopup';
 import { useAudioDiagnosticsStore } from '@state/audioDiagnosticsStore';
 import { TrackInputPopupController } from './TrackInputPopupController';
 import { InsertKeyframeController } from './InsertKeyframeController';
@@ -283,7 +282,6 @@ const MidiVisualizerInner: React.FC = () => {
                 </Suspense>
             )}
             {showControlsModal && <ControlsModal onClose={() => setShowControlsModal(false)} />}
-            <CacheDiagnosticsPopup />
         </div>
     );
 };

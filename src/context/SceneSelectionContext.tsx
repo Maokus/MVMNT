@@ -1,3 +1,4 @@
+import { unresolvedTrackInputs, type TrackInputDef } from './trackInputSetup';
 import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useVisualizer } from './VisualizerContext';
 import { sceneElementRegistry } from '@core/scene/registry';
@@ -36,13 +37,7 @@ import { SCENE_COMMANDS } from './commands/sceneCommands';
 export { isTextEditingTarget } from './shortcuts/shortcutRegistry';
 export { isSceneDeletionShortcut } from './shortcuts/useSceneShortcuts';
 
-export interface TrackInputDef {
-    key: string;
-    label: string;
-    allowedTrackTypes?: Array<'midi' | 'audio'>;
-    allowMultiple?: boolean;
-}
-
+export type { TrackInputDef } from './trackInputSetup';
 export interface TrackInputPopupData {
     elementId: string;
     trackInputs: TrackInputDef[];
@@ -367,6 +362,7 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
 
             // Check if the new element has track input properties
             const schema = sceneElementRegistry.getSchema(elementType) as any;
+            setTrackInputPopup(null);
             if (schema) {
                 const trackInputs: TrackInputDef[] = [];
                 for (const group of schema.tabs?.flatMap((t: any) => t.groups) ?? []) {
@@ -381,9 +377,12 @@ export function SceneSelectionProvider({ children }: SceneSelectionProviderProps
                         }
                     }
                 }
-                if (trackInputs.length > 0) {
-                    setTrackInputPopup({ elementId: uniqueId, trackInputs });
-                }
+                const unresolved = unresolvedTrackInputs(
+                    trackInputs,
+                    useSceneStore.getState().bindings.byElement[uniqueId] ?? {},
+                    useTimelineStore.getState().tracks
+                );
+                setTrackInputPopup(unresolved.length ? { elementId: uniqueId, trackInputs: unresolved } : null);
             }
         },
         [generateUniqueElementId, runSceneCommand, visualizer, selectElement]
