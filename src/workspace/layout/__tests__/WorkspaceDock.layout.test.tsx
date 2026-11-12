@@ -36,6 +36,14 @@ afterEach(() => {
 });
 
 describe('dock panel width constraints', () => {
+    it('shows Macros beside Properties after restoring the default layout', () => {
+        useWorkspacePanelsStore.getState().reset();
+        render(<WorkspaceDock side="right" />);
+        expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Elements', 'Properties', 'Macros']);
+        fireEvent.click(screen.getByRole('tab', { name: 'Macros' }));
+        expect(screen.getByRole('tab', { name: 'Macros' })).toHaveAttribute('aria-selected', 'true');
+    });
+
     it.each<DockSide>(['left', 'right', 'top', 'bottom'])('keeps many property tabs within the %s dock', (side) => {
         useWorkspacePanelsStore.setState({
             sections: {

@@ -30,6 +30,14 @@ const reset = () =>
 describe('workspace panels store', () => {
     beforeEach(reset);
 
+    it('includes Macros alongside Properties in the default layout', () => {
+        useWorkspacePanelsStore.getState().reset();
+        const { sections, hidden } = useWorkspacePanelsStore.getState();
+        const propertiesSection = sections.right.find((section) => section.tabs.includes('properties'));
+        expect(propertiesSection?.tabs).toContain('macros');
+        expect(isPanelVisible(sections, hidden, 'macros')).toBe(true);
+    });
+
     it('shows a hidden panel and activates it in its section', () => {
         useWorkspacePanelsStore.getState().toggle('macros');
         const state = useWorkspacePanelsStore.getState();
@@ -276,7 +284,7 @@ describe('workspace panels store', () => {
 
         const state = useWorkspacePanelsStore.getState();
         expect(state.sections).toEqual(baseSections());
-        expect(state.hidden).toEqual({ assets: false, elements: false, properties: false, macros: true });
+        expect(state.hidden).toEqual({ assets: false, elements: false, properties: false, macros: false });
         expect(state.widths).toEqual({ left: 220, right: 320 });
         expect(state.heights).toEqual({ top: 200, bottom: 200 });
     });

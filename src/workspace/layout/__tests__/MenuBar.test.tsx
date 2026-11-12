@@ -96,8 +96,7 @@ describe('MenuBar View menu', () => {
         expect(visible('assets')).toBe(true);
         expect(visible('elements')).toBe(true);
         expect(visible('properties')).toBe(true);
-        // Macros ships hidden in the default layout, so resetting leaves it hidden again.
-        expect(visible('macros')).toBe(false);
+        expect(visible('macros')).toBe(true);
     });
 });
 

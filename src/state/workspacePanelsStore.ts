@@ -59,7 +59,7 @@ const DEFAULT_HIDDEN: Record<WorkspacePanelId, boolean> = {
     assets: false,
     elements: false,
     properties: false,
-    macros: true,
+    macros: false,
 };
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(value, max));
