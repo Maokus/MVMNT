@@ -8,7 +8,6 @@ import { dispatchSceneCommand, type SceneCommand } from '@state/scene';
 import { createSceneSnapshot, useSceneStore } from '@state/sceneStore';
 import { useSceneEditorStore } from '@state/sceneEditorStore';
 import { useSelectionStore } from '@state/selectionStore';
-import { useSceneViewPreferencesStore } from '@state/sceneViewPreferencesStore';
 import { useDocumentRevisionStore } from '@state/documentRevisionStore';
 import { createPatchUndoController } from '@state/undo/patch-undo';
 import SceneElementPanel from '@workspace/panels/scene-element/SceneElementPanel';
@@ -24,10 +23,10 @@ function command(command: SceneCommand) {
     return result;
 }
 
-let previousPreference: boolean;
+const legacyPreferenceKey = 'mvmnt.scene-view.open-groups-collapsed';
+let previousPreference: string | null;
 beforeEach(() => {
-    previousPreference = useSceneViewPreferencesStore.getState().openGroupsCollapsed;
-    useSceneViewPreferencesStore.getState().setOpenGroupsCollapsed(true);
+    previousPreference = localStorage.getItem(legacyPreferenceKey);
     useSceneStore.getState().clearScene();
     useSelectionStore.getState().clearSelection();
     command({ type: 'addElement', elementType: 'textOverlay', elementId: 'child' });
@@ -53,7 +52,8 @@ afterEach(() => {
     resetCommandsForTest();
     useSceneStore.getState().clearScene();
     useSelectionStore.getState().clearSelection();
-    useSceneViewPreferencesStore.getState().setOpenGroupsCollapsed(previousPreference);
+    if (previousPreference === null) localStorage.removeItem(legacyPreferenceKey);
+    else localStorage.setItem(legacyPreferenceKey, previousPreference);
 });
 
 describe('group view controls', () => {
@@ -93,21 +93,30 @@ describe('group view controls', () => {
         expect(document.querySelector('[data-scene-node-id="element:child"]')).not.toBeInTheDocument();
     });
 
-    it('applies the opening preference only on project import and resets stale expansion IDs', () => {
+    it('only exposes manual collapse and expand commands in both group view menus', () => {
+        for (const button of screen.getAllByRole('button', { name: 'Group view options' })) {
+            fireEvent.click(button);
+            expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+                'Collapse All Groups',
+                'Expand All Groups',
+            ]);
+            expect(screen.queryByRole('menuitemcheckbox')).not.toBeInTheDocument();
+            fireEvent.click(screen.getByRole('menuitem', { name: 'Expand All Groups' }));
+        }
+    });
+
+    it('collapses groups on every project import despite a previously disabled preference', () => {
+        localStorage.setItem(legacyPreferenceKey, 'false');
         const snapshot = createSceneSnapshot(useSceneStore.getState());
         act(() => useSelectionStore.getState().setNodesExpanded(['obsolete'], false));
         act(() => useSceneStore.getState().importScene(snapshot));
         expect(useSelectionStore.getState().expandedNodeIds).toEqual({ outer: false, inner: false });
+        expect(screen.getAllByRole('treeitem')).toHaveLength(1);
+        expect(document.querySelector('[data-scene-node-id="element:child"]')).not.toBeInTheDocument();
         act(() => expect(executeCommand(SCENE_COMMANDS.expandAllGroups)).toBe(true));
-        fireEvent.click(screen.getAllByRole('button', { name: 'Group view options' })[0]);
-        const preference = screen.getByRole('menuitemcheckbox', { name: 'Open projects with groups collapsed' });
-        expect(preference).toBeChecked();
-        fireEvent.click(preference);
-        expect(useSceneViewPreferencesStore.getState().openGroupsCollapsed).toBe(false);
         expect(useSelectionStore.getState().expandedNodeIds).toEqual({ outer: true, inner: true });
-        act(() => expect(executeCommand(SCENE_COMMANDS.collapseAllGroups)).toBe(true));
         act(() => useSceneStore.getState().importScene(snapshot));
-        expect(useSelectionStore.getState().expandedNodeIds).toEqual({ outer: true, inner: true });
+        expect(useSelectionStore.getState().expandedNodeIds).toEqual({ outer: false, inner: false });
     });
 
     it('preserves manual folding through edits and undo snapshot restoration', () => {

@@ -69,9 +69,8 @@ binding. Collapse All clears the automation filter because filtering deliberatel
 properties inside folded groups. Selection remains unchanged, and folding is outside document
 persistence and undo. Ctrl/Cmd-clicking a scene-tree group arrow includes its nested groups.
 
-**Open projects with groups collapsed** is an application preference, enabled by default and saved
-locally. It applies on document import, replacing stale group expansion IDs. Changing it does not
-refold the current scene. Paste, ordinary edits, and undo preserve manual expansion choices.
+Projects always open with all groups collapsed, replacing stale group expansion IDs on document
+import. Paste, ordinary edits, and undo preserve manual expansion choices.
 
 Automation SVG rows and curve editors mount near the vertical viewport, retaining fixed-height
 placeholders outside it. Pointer interactions and focused controls stay mounted until they finish.

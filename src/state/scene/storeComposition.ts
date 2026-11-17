@@ -1,4 +1,3 @@
-import { useSceneViewPreferencesStore } from '@state/sceneViewPreferencesStore';
 import { type StateCreator } from 'zustand';
 import { createWithEqualityFn } from 'zustand/traditional';
 import type { Macro } from '@state/scene/macros';
@@ -1585,9 +1584,7 @@ const createUncomposedSceneStoreState = (
             })
         );
         if (!options?.preserveSceneView) {
-            useSelectionStore
-                .getState()
-                .initializeSceneExpansion(get().graph, useSceneViewPreferencesStore.getState().openGroupsCollapsed);
+            useSelectionStore.getState().initializeSceneExpansion(get().graph, true);
         }
         useSceneEditorStore.getState().markHydrated(options);
     },

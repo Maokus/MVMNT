@@ -1,12 +1,10 @@
 import { useState } from 'react';
 import { FaEllipsisV } from 'react-icons/fa';
 import { SCENE_COMMANDS } from '@context/commands/sceneCommands';
-import { useSceneViewPreferencesStore } from '@state/sceneViewPreferencesStore';
 import { CommandContextMenu } from './CommandContextMenu';
 
 export function SceneGroupViewMenu() {
     const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
-    const collapsed = useSceneViewPreferencesStore((state) => state.openGroupsCollapsed);
     return (
         <>
             <button
@@ -31,12 +29,6 @@ export function SceneGroupViewMenu() {
                     entries={[
                         { commandId: SCENE_COMMANDS.collapseAllGroups },
                         { commandId: SCENE_COMMANDS.expandAllGroups },
-                        { separator: true },
-                        {
-                            label: 'Open projects with groups collapsed',
-                            checked: collapsed,
-                            onSelect: () => useSceneViewPreferencesStore.getState().setOpenGroupsCollapsed(!collapsed),
-                        },
                     ]}
                 />
             )}
