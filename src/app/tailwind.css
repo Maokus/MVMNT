@@ -1718,7 +1718,7 @@
     }
 
     .command-context-menu {
-        @apply fixed z-[1400] flex min-w-[180px] flex-col overflow-hidden rounded-sm border border-neutral-800 bg-[#252526] text-[11px] shadow-xl;
+        @apply fixed z-[1400] flex max-h-[calc(100vh-16px)] min-w-[180px] flex-col overflow-y-auto rounded-sm border border-neutral-800 bg-[#252526] text-[11px] shadow-xl;
     }
 
     .workspace-menu-item {
@@ -1740,7 +1740,7 @@
     }
 
     .command-context-menu button {
-        @apply flex h-7 items-center gap-2 bg-transparent px-2.5 text-left text-neutral-300 disabled:pointer-events-none disabled:opacity-30;
+        @apply flex h-7 shrink-0 items-center gap-2 bg-transparent px-2.5 text-left text-neutral-300 disabled:pointer-events-none disabled:opacity-30;
     }
 
     .command-context-menu button.is-danger:hover,

@@ -121,6 +121,20 @@ describe('scene clipboard commands', () => {
         expect(useSelectionStore.getState().selectedNodeIds).toHaveLength(1);
     });
 
+    it('deletes the right-clicked element from the context menu', () => {
+        const second = screen
+            .getAllByRole('treeitem')
+            .find((row) => row.textContent?.includes('second') && row.getAttribute('aria-expanded') === null)!;
+        fireEvent.contextMenu(second);
+        const deleteItem = screen.getByRole('menuitem', { name: /^Delete/ });
+        fireEvent.pointerEnter(deleteItem);
+        fireEvent.pointerDown(deleteItem);
+        fireEvent.pointerUp(deleteItem);
+        fireEvent.click(deleteItem);
+        expect(useSceneStore.getState().elements.second).toBeUndefined();
+        expect(useSceneStore.getState().elements.first).toBeDefined();
+    });
+
     it('right-clicking an unselected row makes it the clipboard target', () => {
         select(['inner']);
         const second = screen
