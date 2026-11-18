@@ -1,6 +1,8 @@
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { ClearSelectionOnBackgroundClick } from '@workspace/layout/ClearSelectionOnBackgroundClick';
 import SceneElementPanel from '@workspace/panels/scene-element/SceneElementPanel';
 import { SceneSelectionProvider } from '../SceneSelectionContext';
 import { executeCommand, getCommandState, resetCommandsForTest } from '../commands/commandRegistry';
@@ -74,7 +76,10 @@ beforeEach(() => {
     useTimelineStore.getState().setCurrentTick(25, 'user');
     render(
         <SceneSelectionProvider>
-            <SceneElementPanel />
+            <ClearSelectionOnBackgroundClick />
+            <div data-dock-side="left">
+                <SceneElementPanel />
+            </div>
         </SceneSelectionProvider>
     );
 });
@@ -126,11 +131,7 @@ describe('scene clipboard commands', () => {
             .getAllByRole('treeitem')
             .find((row) => row.textContent?.includes('second') && row.getAttribute('aria-expanded') === null)!;
         fireEvent.contextMenu(second);
-        const deleteItem = screen.getByRole('menuitem', { name: /^Delete/ });
-        fireEvent.pointerEnter(deleteItem);
-        fireEvent.pointerDown(deleteItem);
-        fireEvent.pointerUp(deleteItem);
-        fireEvent.click(deleteItem);
+        userEvent.click(screen.getByRole('menuitem', { name: /^Delete/ }));
         expect(useSceneStore.getState().elements.second).toBeUndefined();
         expect(useSceneStore.getState().elements.first).toBeDefined();
     });

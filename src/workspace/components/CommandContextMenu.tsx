@@ -95,6 +95,7 @@ export function CommandContextMenu({
         <div
             ref={menuRef}
             className="command-context-menu"
+            data-preserve-selection="true"
             role="menu"
             aria-label={ariaLabel}
             style={{ left: adjustedPosition.x, top: adjustedPosition.y }}
